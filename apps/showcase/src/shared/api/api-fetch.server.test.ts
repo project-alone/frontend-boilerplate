@@ -1,0 +1,53 @@
+// 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+// 원본(packages/devc-frontend-generator/): base/src/shared/api/api-fetch.server.test.ts
+
+// @vitest-environment node
+import { http, HttpResponse } from 'msw'
+import { afterEach, expect, test, vi } from 'vitest'
+import { server } from '@/shared/mocks/node'
+import { apiFetch } from './api-fetch'
+import { MOCK_API_BASE_URL } from './base-url'
+
+// 이 파일은 서버(서버 컴포넌트, Route Handler)처럼 window가 없는 Node.js에서 실행된다.
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+test('서버에서는 API_BASE_URL의 백엔드를 직접 부른다', async () => {
+  vi.stubEnv('API_BASE_URL', 'https://backend.example.com/')
+  const urls: string[] = []
+  server.use(
+    http.all('*', ({ request }) => {
+      urls.push(request.url)
+      return HttpResponse.json([])
+    }),
+  )
+
+  await apiFetch('/products?q=셔츠')
+
+  expect(urls).toEqual([new URL('https://backend.example.com/products?q=셔츠').href])
+})
+
+test('MSW가 켜져 있으면 API_BASE_URL이 없어도 MSW가 받는 목 주소로 요청한다', async () => {
+  vi.stubEnv('API_MOCKING', 'enabled')
+  vi.stubEnv('API_BASE_URL', '')
+  const urls: string[] = []
+  server.use(
+    http.all('*', ({ request }) => {
+      urls.push(request.url)
+      return HttpResponse.json([])
+    }),
+  )
+
+  await apiFetch('/products')
+
+  expect(urls).toEqual([`${MOCK_API_BASE_URL}/products`])
+})
+
+test('MSW를 끈 서버에 API_BASE_URL이 없으면 무엇을 넣어야 하는지 알려 주며 실패한다', async () => {
+  vi.stubEnv('API_MOCKING', 'disabled')
+  vi.stubEnv('API_BASE_URL', '')
+
+  await expect(apiFetch('/products')).rejects.toThrow('API_BASE_URL')
+})
