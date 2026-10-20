@@ -33,7 +33,7 @@ npm run changeset -- --patch devc-frontend-generator --message "<요약>"       
 
 1. **Version PR**: `.changeset/`에 changeset이 쌓여 있으면 `npm run release:version`(`changeset version`, `package-lock.json` 맞추기, Showcase 다시 만들기)으로 Generator의 `package.json` 버전과 `CHANGELOG.md`를 올리고 changeset 파일을 지운 커밋을 만들어, `changeset-release/master` 브랜치의 PR(`chore: release devc-frontend-generator`)을 열거나 갱신한다. 그 뒤에 머지된 changeset도 같은 PR에 더해진다. Showcase(`apps/showcase/package.json`)도 Starter처럼 Generator를 정확한 버전으로 고정하므로, Version PR이 Showcase를 함께 다시 만들지 않으면 CI의 `showcase:check`(배포 전 `verify` 포함)가 실패한다([Recipe 작성하기](recipes.md#showcase)).
 2. **배포**: Version PR을 머지하면 changeset이 없고 Generator의 버전이 npm에 아직 없으므로 배포한다.
-   - `verify`: CI 워크플로(`ci.yml`)를 그대로 불러 타입 검사와 하네스를 다시 통과해야 다음으로 넘어간다.
+   - `verify`: CI 워크플로(`ci.yml`)를 그대로 불러 타입 검사와 하네스, Showcase 어긋남 검사를 다시 통과해야 다음으로 넘어간다.
    - `pack`: 빌드한 뒤 `changeset pack`으로 tarball을 만든다.
    - `publish`: environment `npm`에서 trusted publishing으로 배포한다. provenance는 trusted publishing이 저절로 붙인다(`publishConfig.provenance`도 켜 두었다). git 태그 `devc-frontend-generator@<버전>`과 GitHub Release도 만든다.
 3. 배포된 Generator로 만든 Starter는 그 버전을 `devDependencies`에 고정한다. Generator는 고정할 버전을 자기 `package.json`에서 읽으므로 배포된 버전과 같다. `harness/release.test.ts`가 changeset 더하기 → `changeset version` → npm pack → 레지스트리 → `dcgen new`로 이어지는 흐름에서 이를 확인한다.
@@ -55,7 +55,7 @@ Settings → Actions → General → Workflow permissions에서 **Allow GitHub A
 ### 2. GitHub: `npm` environment와 브랜치 보호
 
 - Settings → Environments → **New environment** `npm`(첫 Release 실행 때 저절로 생기지만 미리 만들어 규칙을 건다). Deployment branches and tags를 **Selected branches and tags**로 바꾸고 `master`만 허락한다. 배포 전에 사람의 승인을 받으려면 Required reviewers에 메인테이너를 넣는다.
-- Settings → Rules(또는 Branches)에서 `master`에 PR 필수, force push 금지, 필수 status check `Typecheck and harness`를 건다. Version PR은 위에 적은 대로 CI가 저절로 돌지 않으므로, 필수 status check를 걸었다면 머지하기 직전에 PR을 닫았다 다시 열어 CI를 돌린 뒤 머지한다.
+- Settings → Rules(또는 Branches)에서 `master`에 PR 필수, force push 금지, 필수 status check `Typecheck and harness`와 `Showcase drift`를 건다. Version PR은 위에 적은 대로 CI가 저절로 돌지 않으므로, 필수 status check를 걸었다면 머지하기 직전에 PR을 닫았다 다시 열어 CI를 돌린 뒤 머지한다.
 - 선택: [Changesets bot](https://github.com/apps/changeset-bot)을 저장소에 설치하면 PR마다 changeset이 있는지 댓글로 알려 준다.
 
 ### 3. npm: 계정과 2FA

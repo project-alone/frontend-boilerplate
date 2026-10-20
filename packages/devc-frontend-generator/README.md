@@ -31,11 +31,19 @@ Starter는 자신을 만든 Generator를 정확한 버전으로 `devDependencies
 Starter 안에서 실행합니다. `npm run g -- <schematic> ...`은 `npx dcgen g <schematic> ...`과 같습니다.
 
 ```sh
-npm run g -- query listProducts   # listProducts operation의 쿼리 키와 queryOptions
-npx dcgen g --help                # 쓸 수 있는 Schematic
+npm run g -- query listProducts                        # listProducts operation의 쿼리 키와 queryOptions
+npm run g -- mutation createProduct                    # createProduct operation의 뮤테이션 훅
+npm run g -- component order-summary --feature orders  # Feature에 컴포넌트, 스토리, 테스트
+npx dcgen g --help                                     # 쓸 수 있는 Schematic
 ```
 
-Schematic은 Starter 최상위의 `openapi.yaml`을 읽어 코드를 만듭니다. 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고 실패합니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다. Schematic마다의 자세한 사용법은 만들어진 Starter의 README에 있습니다.
+| Schematic   | 만드는 것                                                   |
+| ----------- | ----------------------------------------------------------- |
+| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions) |
+| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)      |
+| `component` | 컴포넌트, Storybook 스토리, 테스트(Feature 또는 공통 UI)    |
+
+`query`와 `mutation`은 Starter 최상위의 `openapi.yaml`을 읽어 코드를 만듭니다. 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고 실패합니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다. Schematic마다의 자세한 사용법은 만들어진 Starter의 README에 있습니다.
 
 ## 더 보기
 
