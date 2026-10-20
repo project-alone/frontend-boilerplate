@@ -1,9 +1,13 @@
-import type { ZodType } from 'zod'
 import { backendBaseUrl, browserBaseUrl } from './base-url'
 
-/** apiFetch의 옵션. orval이 만든 fetch 함수가 응답의 Zod 스키마를 schema로 넘긴다. */
+/**
+ * apiFetch의 옵션. orval이 만든 fetch 함수가 응답의 Zod 스키마를 schema로 넘긴다.
+ * schema는 Zod 스키마(ZodType<T>) 대신 parse만 요구한다. 응답 본문이 없는(204) operation의 fetch 함수는 schema 없이
+ * 요청 옵션(ApiRequestInit<unknown>)을 그대로 넘기는데, ZodType<unknown>은 ZodType<void> 자리에 넣을 수 없지만
+ * 반환 타입이 void인 함수 자리에는 어떤 함수든 넣을 수 있다.
+ */
 export interface ApiRequestInit<T = unknown> extends RequestInit {
-  schema?: ZodType<T>
+  schema?: { parse: (body: unknown) => T }
 }
 
 /** 백엔드가 2xx가 아닌 응답을 돌려주면 던진다. 응답 본문은 body에 담긴다. */

@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import { generateMutation } from './schematics/mutation.js'
 import { generateQuery } from './schematics/query.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
 
@@ -21,10 +22,31 @@ export function registerGenerateCommand(program: Command): void {
       )
       report(`${operationId}의 쿼리 키와 queryOptions를 만들었습니다.`, changed)
     })
+
+  generate
+    .command('mutation')
+    .description(
+      'OpenAPI operation의 뮤테이션 훅을 그 tag의 Query Domain(src/queries/<domain>)에 만든다. 훅은 성공하면 Query Domain의 쿼리를 모두 무효화한다',
+    )
+    .argument('<operationId>', 'Starter 최상위 openapi.yaml의 operationId(POST, PUT, PATCH, DELETE)')
+    .option(
+      '--optimistic <queryOperationId>',
+      '이 쿼리(같은 Query Domain의 queryOptions)의 캐시를 응답 전에 고치고, 실패하면 되돌리는 낙관적 업데이트 뼈대를 만든다',
+    )
+    .action(async (operationId: string, options: { optimistic?: string }, command: Command) => {
+      const mutation = await runSchematic(command, () =>
+        generateMutation(process.cwd(), operationId, { optimistic: options.optimistic }),
+      )
+      const optimistic =
+        mutation.optimisticUpdateName === undefined
+          ? ''
+          : `\n응답 전에 보일 값은 ${mutation.optimisticUpdateName}에서 만듭니다. 지금은 캐시를 그대로 두므로 직접 채우세요.`
+      report(`${operationId}의 뮤테이션 훅(${mutation.hookName})을 만들었습니다.${optimistic}`, mutation.changed)
+    })
 }
 
 /** Schematic을 실행한다. SchematicError는 스택 없이 알리고 실패 코드로 끝낸다. */
-async function runSchematic(command: Command, schematic: () => Promise<ChangedFile[]>): Promise<ChangedFile[]> {
+async function runSchematic<T>(command: Command, schematic: () => Promise<T>): Promise<T> {
   try {
     return await schematic()
   } catch (error) {

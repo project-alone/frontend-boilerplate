@@ -1,8 +1,7 @@
-import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { parse, stringify } from 'yaml'
-import { run, type RunResult } from './run.ts'
+import { addOperations, dcgen } from './schematic.ts'
 import { readTree, type Starter, useStarter } from './starter.ts'
 
 const QUERIES_DIR = 'src/queries'
@@ -135,31 +134,6 @@ components:
           type: integer
 `
 
-interface Spec {
-  tags: unknown[]
-  paths: Record<string, unknown>
-  components: { schemas: Record<string, unknown> }
-}
-
-/** Starter의 openapi.yaml에 HARNESS_OPERATIONS를 더하고(포맷 검사를 통과하도록 Prettier로 다시 쓴다) API 계층을 다시 만든다. */
-function addHarnessOperations(starter: Starter): void {
-  const path = join(starter.dir, 'openapi.yaml')
-  const spec = parse(readFileSync(path, 'utf8')) as Spec
-  const additions = parse(HARNESS_OPERATIONS) as Spec
-  spec.tags.push(...additions.tags)
-  Object.assign(spec.paths, additions.paths)
-  Object.assign(spec.components.schemas, additions.components.schemas)
-  writeFileSync(path, stringify(spec))
-  const formatted = run('npx', ['--no', '--', 'prettier', '--write', 'openapi.yaml'], starter.dir)
-  expect(formatted.status, formatted.output).toBe(0)
-  starter.expectNpmSuccess(['run', 'api:gen'])
-}
-
-/** Starter 안에서 Starter에 설치된 Generator의 `dcgen`을 실행한다. `--`가 없으면 npm이 인자의 옵션을 가로챈다. */
-function dcgen(starter: Starter, args: readonly string[]): RunResult {
-  return run('npx', ['--no', '--', 'dcgen', ...args], starter.dir)
-}
-
 /** Query Domain의 쿼리 키 모듈과 쿼리 모듈이 스냅샷과 같은지 본다. */
 async function expectQueryDomainToMatchSnapshots(starter: Starter, domain: string): Promise<void> {
   for (const file of [`${domain}.keys.ts`, `${domain}.queries.ts`]) {
@@ -234,7 +208,7 @@ describe('server Starter', () => {
   const queriesTree = () => readTree(join(starter.dir, QUERIES_DIR))
 
   beforeAll(() => {
-    addHarnessOperations(starter)
+    addOperations(starter, HARNESS_OPERATIONS)
     pristineQueries = join(starter.workdir, 'pristine-queries')
     cpSync(join(starter.dir, QUERIES_DIR), pristineQueries, { recursive: true })
   })
@@ -352,7 +326,7 @@ describe('static-export Starter', () => {
   const starter = useStarter({ prefix: 'dcgen-g-query-static-', renderingMode: 'static-export', install: true })
 
   beforeAll(() => {
-    addHarnessOperations(starter)
+    addOperations(starter, HARNESS_OPERATIONS)
   })
 
   test('query Schematic이 만든 코드로 Starter의 타입 검사, lint, 포맷 검사, 테스트가 모두 통과한다', () => {

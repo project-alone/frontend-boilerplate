@@ -10,4 +10,6 @@ Query Domain의 쿼리 키는 `['<domain>', '<operationId>', ...인자]`로 만�
 ## Consequences
 
 - 무효화 범위는 `<domain>Keys.all`(Query Domain 전체)이나 `[...<domain>Keys.all, '<operationId>']`(operation 하나의 모든 인자)로 정한다. 목록 쿼리만 묶어 무효화하려면 그 operation들의 키를 나열한다.
+- `mutation` Schematic이 만드는 뮤테이션 훅은 `<domain>Keys.all`을 무효화한다. 뮤테이션이 어느 쿼리를 바꾸는지는 명세에서 기계적으로 정할 수 없으므로, 오래된 캐시를 남기는 쪽 대신 Query Domain 전체를 다시 가져오는 쪽을 택하고 범위를 좁히는 것은 프로젝트가 판단한다. 뮤테이션 키는 따로 만들지 않는다.
+- 낙관적 업데이트(`mutation --optimistic <queryOperationId>`)는 그 쿼리의 queryOptions가 돌려주는 키로 캐시를 고치므로, 같은 Query Domain에 queryOptions가 먼저 있어야 한다.
 - 백엔드가 operationId를 바꾸면 쿼리 키와 queryOptions 이름도 바뀐다.

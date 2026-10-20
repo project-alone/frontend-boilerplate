@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import type { OpenAPIV3 } from 'openapi-types'
-import { Node, Project, QuoteKind, type SourceFile } from 'ts-morph'
+import { Node, Project, QuoteKind, type SourceFile, type TypeNode } from 'ts-morph'
 import { camelCase, splitWords } from './names.js'
 
 // `dcgen g`가 읽고 쓰는 곳. 모두 Starter 최상위(package.json이 있는 디렉터리) 기준이다.
@@ -36,13 +36,21 @@ export interface Operation {
   parameters: OpenAPIV3.ParameterObject[]
 }
 
+/** 타입 이름과 그 이름을 가져올 Starter 안의 import 경로 */
+export interface TypeImport {
+  name: string
+  moduleSpecifier: string
+}
+
 /** 재생성 계층(orval)이 operation마다 만든 fetch 함수 */
 export interface GeneratedFunction {
   name: string
   /** 요청 옵션을 뺀 인자. 순서는 fetch 함수와 같다. */
   parameters: { name: string; type: string; optional: boolean }[]
-  /** 인자 타입이 쓰는 이름과 그 이름을 가져올 Starter 안의 import 경로 */
-  typeImports: { name: string; moduleSpecifier: string }[]
+  /** 인자 타입이 쓰는 이름의 import */
+  typeImports: TypeImport[]
+  /** fetch 함수가 돌려주는 데이터의 타입(Promise<T>의 T)과 그 타입이 쓰는 이름의 import */
+  data: { type: string; typeImports: TypeImport[] }
 }
 
 /** 바꾼 파일. path는 Starter 최상위 기준이다. */
@@ -112,11 +120,19 @@ export class StarterProject {
       if (!Node.isFunctionLikeDeclaration(fn)) continue
 
       const parameters = fn.getParameters().filter((parameter) => parameter.getName() !== REQUEST_OPTIONS_ARGUMENT)
-      const typeNames = parameters.flatMap((parameter) => {
-        const typeNode = parameter.getTypeNodeOrThrow()
-        const references = [typeNode, ...typeNode.getDescendants()].filter(Node.isTypeReference)
-        return references.map((reference) => reference.getTypeName().getText())
-      })
+      const typeImportsOf = (typeNodes: readonly TypeNode[]): TypeImport[] => {
+        const references = typeNodes.flatMap((typeNode) => [typeNode, ...typeNode.getDescendants()])
+        const typeNames = references.filter(Node.isTypeReference).map((reference) => reference.getTypeName().getText())
+        return [...new Set(typeNames)].flatMap((typeName) => {
+          const moduleSpecifier = this.importOf(file, typeName)
+          return moduleSpecifier === undefined ? [] : [{ name: typeName, moduleSpecifier }]
+        })
+      }
+      // orval은 fetch 함수의 반환 타입을 Promise<T>로 적는다. 적지 않았으면 함수에서 타입을 끌어낸다.
+      const returnType = fn.getReturnTypeNode()
+      const dataType = Node.isTypeReference(returnType) && returnType.getTypeName().getText() === 'Promise'
+        ? returnType.getTypeArguments()[0]
+        : undefined
       return {
         name,
         parameters: parameters.map((parameter) => ({
@@ -124,10 +140,11 @@ export class StarterProject {
           type: parameter.getTypeNodeOrThrow().getText(),
           optional: parameter.isOptional(),
         })),
-        typeImports: [...new Set(typeNames)].flatMap((typeName) => {
-          const moduleSpecifier = this.importOf(file, typeName)
-          return moduleSpecifier === undefined ? [] : [{ name: typeName, moduleSpecifier }]
-        }),
+        typeImports: typeImportsOf(parameters.map((parameter) => parameter.getTypeNodeOrThrow())),
+        data:
+          dataType === undefined
+            ? { type: `Awaited<ReturnType<typeof ${name}>>`, typeImports: [] }
+            : { type: dataType.getText(), typeImports: typeImportsOf([dataType]) },
       }
     }
     throw new SchematicError(
