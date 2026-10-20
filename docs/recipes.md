@@ -141,6 +141,10 @@ Recipe 티켓은 Showcase에 반영된 것으로 완료를 확인한다.
 3. Showcase가 원본과 다르면 CI의 `showcase:check`가 실패한다. `apps/showcase/`를 직접 고쳐 맞추지 말고 원본을 고친 뒤 다시 만든다.
 4. 다른 Recipe와 부딪치는 패치나 테스트는 `harness/showcase-starter.test.ts`(모든 Recipe를 켠 Showcase)에서 드러난다.
 
+## 릴리스
+
+Recipe를 더하거나 고친 PR에는 changeset(`npm run changeset`)을 함께 커밋한다. 다음 Generator 버전과 CHANGELOG에 실린다([릴리스와 배포](release.md)).
+
 ## 예: dark-mode
 
 | 선언하는 것    | `recipes/dark-mode/`                                                                                                   |

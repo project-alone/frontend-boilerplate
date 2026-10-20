@@ -1,0 +1,117 @@
+name: Release
+
+# master에 push될 때마다 changesets가 할 일을 고른다(docs/release.md).
+# - 쌓인 changeset이 있으면 버전과 CHANGELOG를 올리는 Version PR을 열거나 고친다.
+# - changeset이 없고 Generator의 버전이 아직 npm에 없으면(Version PR을 머지한 직후) CI와 같은 검사를
+#   다시 통과한 뒤 npm에 배포한다. 배포는 trusted publishing(OIDC)으로 하므로 NPM_TOKEN을 쓰지 않고,
+#   provenance가 함께 붙는다. trusted publishing에는 npm 11.5.1 이상(Node 24.5 이상에 들어 있다)이 필요하다.
+on:
+  push:
+    branches: [master]
+
+# 잡마다 필요한 권한만 준다. npm에 배포할 수 있는 id-token: write는 publish 잡에만 있다.
+# 배포물을 만드는 잡이라 ci.yml과 달리 npm 캐시를 쓰지 않고(캐시 오염 방지), checkout한 git 자격 증명도 남기지 않는다.
+# changesets/action의 v2는 계속 움직이는 브랜치라서 릴리스(v2.1.2)의 커밋으로 고정한다. 올릴 때는 네 곳을 함께 바꾼다.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  select-mode:
+    name: Select release mode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+      publish-plan-artifact-id: ${{ steps.select-mode.outputs.publish-plan-artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - id: select-mode
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+  version:
+    name: Open the Version PR
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          script: npm run release:version
+          commit-message: 'chore: release devc-frontend-generator'
+          pr-title: 'chore: release devc-frontend-generator'
+
+  # 배포할 커밋이 CI의 검사(타입 검사와 하네스)를 통과해야 배포한다. CI 워크플로를 그대로 불러 같은 검사를 한다.
+  verify:
+    name: Verify before publishing
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'publish'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  pack:
+    name: Pack
+    needs: [select-mode, verify]
+    if: needs.select-mode.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run build
+      - id: pack
+        uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish-plan-artifact-id: ${{ needs.select-mode.outputs.publish-plan-artifact-id }}
+
+  publish:
+    name: Publish to npm
+    needs: pack
+    runs-on: ubuntu-latest
+    # npmjs.com의 trusted publisher 설정에 이 environment 이름을 적으면 이 잡에서만 배포할 수 있다.
+    environment: npm
+    permissions:
+      contents: write # git 태그와 GitHub Release
+      id-token: write # npm trusted publishing(OIDC)과 provenance
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}

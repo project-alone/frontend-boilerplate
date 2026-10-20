@@ -3,6 +3,7 @@ import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { TestProject } from 'vitest/node'
+import { packPackage } from './registry.ts'
 
 const GENERATOR_DIR = resolve(import.meta.dirname, '../packages/devc-frontend-generator')
 
@@ -16,13 +17,7 @@ export default function setup(project: TestProject) {
   const root = mkdtempSync(join(tmpdir(), 'dcgen-harness-'))
 
   execFileSync('npm', ['run', 'build'], { cwd: GENERATOR_DIR, stdio: 'inherit' })
-  const packed = execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', root], {
-    cwd: GENERATOR_DIR,
-    encoding: 'utf8',
-  })
-  const [packedFile] = JSON.parse(packed) as { filename: string }[]
-  if (packedFile === undefined) throw new Error(`npm pack 결과를 읽을 수 없습니다: ${packed}`)
-  const tarball = join(root, packedFile.filename)
+  const tarball = packPackage(GENERATOR_DIR, root)
 
   writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'harness-consumer', private: true }))
   execFileSync('npm', ['install', '--no-audit', '--no-fund', tarball], {

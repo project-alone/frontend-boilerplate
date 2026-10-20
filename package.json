@@ -6,6 +6,8 @@
     "packages/*"
   ],
   "scripts": {
+    "changeset": "changeset",
+    "release:version": "changeset version && npm install --package-lock-only --ignore-scripts --no-audit --no-fund",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
     "test": "vitest run",
@@ -15,6 +17,7 @@
     "showcase:dev": "node scripts/showcase.ts dev"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@types/node": "24.19.2",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",

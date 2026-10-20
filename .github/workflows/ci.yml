@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [master]
+  # 릴리스 워크플로(release.yml)가 npm에 배포하기 전에 같은 검사를 부른다.
+  workflow_call:
 
 jobs:
   harness:

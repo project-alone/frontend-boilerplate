@@ -2,16 +2,35 @@
   "name": "devc-frontend-generator",
   "version": "0.0.0",
   "description": "팀 프론트엔드 Starter를 만들고, Starter 안에서 Schematic으로 코드를 생성하는 CLI",
+  "keywords": [
+    "nextjs",
+    "react",
+    "starter",
+    "generator",
+    "cli",
+    "openapi",
+    "tanstack-query"
+  ],
+  "homepage": "https://github.com/project-alone/frontend-boilerplate/tree/master/packages/devc-frontend-generator#readme",
+  "bugs": {
+    "url": "https://github.com/project-alone/frontend-boilerplate/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/project-alone/frontend-boilerplate.git",
+    "directory": "packages/devc-frontend-generator"
+  },
   "license": "MIT",
   "type": "module",
   "bin": {
-    "dcgen": "./dist/cli.js"
+    "dcgen": "dist/cli.js"
   },
   "files": [
     "dist",
     "base",
     "rendering-modes",
-    "recipes"
+    "recipes",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc",
@@ -32,5 +51,9 @@
   },
   "engines": {
     "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
