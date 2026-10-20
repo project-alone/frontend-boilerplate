@@ -304,3 +304,19 @@ Recipe를 더하거나 고친 PR에는 changeset(`npm run changeset`)을 함께 
 | 자기 테스트    | `src/features/rendering-demo/browser-product-list.test.tsx`, `e2e/route-rendering.spec.ts`                       |
 | 필요한 Recipe  | 없음                                                                                                             |
 | Rendering Mode | `server`                                                                                                         |
+
+## 예: table
+
+TanStack Table로 정렬·필터·페이지를 백엔드가 처리하는 목록 테이블(`/members`)을 보여 주는 Recipe다. Base 명세의 operation은 고칠 수 없으므로 명세 조각으로 정렬·필터·페이지 파라미터를 받는 목록 operation `listMembers`(tag `members`)를 더하고, Query Domain(`src/queries/members/`)은 `npm run g -- query listMembers`가 만든 코드를 그대로 담는다. 테이블의 상태를 쿼리 파라미터로 바꿔 쿼리 키(ADR-0008)와 요청에 함께 담으므로, 브라우저가 상태가 바뀔 때마다 다시 요청한다. 그래서 서버에서 미리 가져오지 않고 두 Rendering Mode에서 같은 코드로 동작한다.
+
+생성된 MSW 핸들러는 명세의 `example`만 돌려주므로, 파라미터대로 거르고 정렬하는 핸들러(`src/shared/mocks/members.ts`)를 `src/shared/mocks/handlers.ts`의 패치로 생성된 핸들러 앞에 둔다. 이 자리는 아직 확장 지점이 아니다. 다른 Recipe도 직접 만든 MSW 핸들러를 같은 자리에 더하게 되면 확장 지점으로 만든다(ADR-0010).
+
+| 선언하는 것    | `recipes/table/`                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/members/page.tsx`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts` |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /members`(`listMembers`), 스키마 `Member`, `MemberRole`, `MemberPage`           |
+| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                            |
+| npm 의존성     | `@tanstack/react-table`                                                                                         |
+| 자기 테스트    | `src/features/member-table/member-table.test.tsx`, `e2e/table.spec.ts`                                          |
+| 필요한 Recipe  | 없음                                                                                                            |
+| Rendering Mode | `server`, `static-export`                                                                                       |

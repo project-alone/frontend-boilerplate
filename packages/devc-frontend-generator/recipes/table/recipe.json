@@ -1,0 +1,5 @@
+{
+  "description": "TanStack Table로 만든, 서버가 정렬·필터·페이지를 처리하는 목록 테이블(/members). 키보드로 정렬·필터를 조작한다",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}

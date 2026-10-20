@@ -1,0 +1,120 @@
+# table Recipe가 Base 명세에 더하는 명세 조각(docs/recipes.md의 "OpenAPI 명세 조각"). 정렬·필터·페이지를 쿼리
+# 파라미터로 받아 백엔드가 처리한 한 페이지를 돌려주는 목록 operation이다. 테이블(src/features/member-table)은 이 파라미터를
+# 쿼리 키에 담아 요청한다.
+tags:
+  - name: members
+    description: 회원
+paths:
+  /members:
+    get:
+      operationId: listMembers
+      summary: 회원 목록
+      description: 검색어와 역할로 거르고 정렬한 회원 목록의 한 페이지를 돌려준다.
+      tags: [members]
+      parameters:
+        - name: q
+          in: query
+          description: 이름이나 이메일에 들어 있는 검색어. 대소문자를 가리지 않는다.
+          required: false
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: 이 역할의 회원만 돌려준다.
+          required: false
+          schema:
+            $ref: '#/components/schemas/MemberRole'
+        - name: sort
+          in: query
+          description: 정렬할 항목. 없으면 가입한 순서(id 오름차순)다.
+          required: false
+          schema:
+            type: string
+            enum: [name, email, joinedAt]
+        - name: order
+          in: query
+          description: 정렬 방향. sort가 있을 때만 쓴다.
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+        - name: page
+          in: query
+          description: 1부터 세는 페이지 번호
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: 한 페이지의 회원 수
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: 회원 목록의 한 페이지
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPage'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 table Recipe의 핸들러(src/shared/mocks/members.ts)가
+              # 파라미터대로 정렬·필터한 결과를 대신 돌려준다.
+              example:
+                items:
+                  - id: 1
+                    name: 김하늘
+                    email: haneul.kim@example.com
+                    role: admin
+                    joinedAt: '2024-01-08'
+                  - id: 2
+                    name: 이도윤
+                    email: doyun.lee@example.com
+                    role: editor
+                    joinedAt: '2024-02-14'
+                total: 2
+                page: 1
+                pageSize: 10
+        '400':
+          description: 파라미터가 잘못되었다.
+components:
+  schemas:
+    MemberRole:
+      type: string
+      enum: [admin, editor, viewer]
+    Member:
+      type: object
+      required: [id, name, email, role, joinedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: '#/components/schemas/MemberRole'
+        joinedAt:
+          type: string
+          format: date
+          description: 가입일(YYYY-MM-DD)
+    MemberPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Member'
+        total:
+          type: integer
+          description: 거른 뒤의 전체 회원 수
+        page:
+          type: integer
+        pageSize:
+          type: integer
