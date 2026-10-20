@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, beforeEach, expect, inject, test } from 'vitest'
 import { run } from './run.ts'
+import { newStarter, readTree } from './starter.ts'
 
 let workdir: string
 
@@ -49,9 +50,7 @@ test('new는 Rendering Mode를 지정하지 않으면 server Starter를 만든�
   const generate = (directory: string, args: readonly string[]) => {
     const cwd = join(workdir, directory)
     mkdirSync(cwd)
-    const result = run(inject('dcgenBin'), ['new', 'my-app', ...args], cwd)
-    expect(result.status, result.output).toBe(0)
-    return join(cwd, 'my-app')
+    return newStarter(cwd, args)
   }
 
   const omitted = generate('omitted', [])
@@ -65,9 +64,7 @@ test('new는 Rendering Mode를 지정하지 않으면 server Starter를 만든�
 test.each(['server', 'static-export'])(
   'new --rendering-mode %s로 만든 Starter는 npm으로 설치되고 타입 검사, 테스트, 빌드, 린트, 포맷 검사를 모두 통과한다',
   (renderingMode) => {
-    const created = run(inject('dcgenBin'), ['new', 'my-app', '--rendering-mode', renderingMode], workdir)
-    expect(created.status, created.output).toBe(0)
-    const starter = join(workdir, 'my-app')
+    const starter = newStarter(workdir, ['--rendering-mode', renderingMode])
 
     // 빌드가 설정 파일(예: tsconfig.json)을 고쳐 써서 린트·포맷 검사를 깨뜨리지 않는지 보려고 둘을 빌드 뒤에 둔다.
     const steps = [
@@ -86,14 +83,3 @@ test.each(['server', 'static-export'])(
     expect(existsSync(join(starter, '.gitignore'))).toBe(true)
   },
 )
-
-/** 디렉터리 안의 모든 파일을 상대 경로와 내용의 목록으로 읽는다. */
-function readTree(directory: string): Record<string, string> {
-  const files = readdirSync(directory, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile())
-  return Object.fromEntries(
-    files.map((entry) => {
-      const path = join(entry.parentPath, entry.name)
-      return [relative(directory, path), readFileSync(path, 'utf8')]
-    }),
-  )
-}
