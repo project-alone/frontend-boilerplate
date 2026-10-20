@@ -28,6 +28,18 @@ npm run g                   # Schematic으로 코드 생성(아래 "코드 생�
 - `npm start`(`next start`): 빌드 결과로 서버를 띄웁니다. Next.js가 `"next start" does not work with "output: standalone" configuration` 경고를 출력하지만 서버는 정상으로 동작합니다(Next.js 16.4 기준). E2E도 이 방법으로 서버를 띄웁니다.
 - `node .next/standalone/server.js`: `node_modules` 없이 이 폴더만으로 실행됩니다. 포트와 주소는 `PORT`, `HOSTNAME` 환경 변수로 정합니다. 정적 파일(`.next/static`, `public`)은 standalone 폴더에 복사되지 않으므로 배포할 때 `.next/standalone/.next/static`, `.next/standalone/public`으로 함께 복사합니다.
 
+## 앱 조립 파일
+
+다음 파일은 Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 쓴 파일입니다. 이제는 이 프로젝트의 코드이므로 Provider나 래퍼를 더하고 뺄 때 직접 고칩니다.
+
+| 파일                            | 내용                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/app/app-shell.tsx`         | 루트 레이아웃(`src/app/layout.tsx`)이 모든 페이지를 감싸는 Provider(위에 적힌 것이 바깥)와 머리글  |
+| `next.config.plugins.ts`        | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것이 바깥       |
+| `src/instrumentation.ts`        | 서버가 뜰 때 실행할 코드(API 목킹이나 백엔드 주소 확인 등)와 서버가 요청을 처리하다 난 오류의 처리 |
+| `src/instrumentation-client.ts` | 브라우저에서 앱 코드보다 먼저 실행할 코드와 페이지 이동 알림. 넣은 코드가 있을 때만 있음           |
+| `src/proxy.ts`                  | 페이지 요청이 라우트에 닿기 전에 차례로 실행할 처리기(Next.js Proxy). 넣은 처리기가 있을 때만 있음 |
+
 ## GitLab CI
 
 `.gitlab-ci.yml`이 들어 있어 사내 GitLab에 저장소를 올리면 바로 파이프라인이 돕니다. 잡은 모두 위의 npm 스크립트를 부르므로 실패한 잡은 로컬에서 같은 명령으로 재현할 수 있습니다.
@@ -43,7 +55,7 @@ npm run g                   # Schematic으로 코드 생성(아래 "코드 생�
 - 린트와 포맷은 나뉘어 있습니다. ESLint는 코드 규칙만, Prettier는 포맷만 맡습니다.
 - import는 `app → features → queries → shared` 방향으로만 할 수 있고, 네 계층 밖의 `src` 파일은 import할 수 없습니다. `app` 밖의 파일은 `src/<계층>/<이름>/<파일>`보다 깊은 폴더에 둘 수 없습니다. 어기면 린트 오류가 납니다.
 - `app`이 `queries`를 직접 쓰는 것은 서버 컴포넌트에서 prefetch할 때만입니다. 린트로는 용도까지 가리지 못하므로 리뷰에서 지킵니다.
-- `process.env`에서 새 환경 변수를 읽으면 `process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다.
+- `process.env`에서 새 환경 변수를 읽으면 `process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다. 배포 환경에 넣어야 하는 변수라면 `.env.example`에도 적습니다. 배포할 때 넣는 변수는 모두 `.env.example`에 모여 있습니다.
 - 지원 브라우저는 Next.js 기본 범위(Chrome·Edge·Firefox 111+, Safari 16.4+)이며 `package.json`의 `browserslist`에 적혀 있습니다.
 
 ## 공통 UI와 디자인 토큰
@@ -113,11 +125,11 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 - 브라우저: BFF 프록시 `/api/proxy/*`(`src/app/api/proxy/[...path]/route.ts`)를 부르고, 프록시가 `API_BASE_URL`로 요청을 그대로 전달합니다. 토큰 첨부는 `auth` Recipe가 프록시에 더합니다.
 - 브라우저가 프록시 대신 백엔드를 직접 불러야 하면(서버가 없는 `static-export` 등) `NEXT_PUBLIC_API_BASE_URL`에 백엔드 주소를 적습니다. 빌드할 때 코드에 박히므로 바꾸면 다시 빌드하고, 백엔드가 그 출처의 CORS 요청을 허용해야 합니다.
 
-| 환경 변수                  | 읽는 곳                        | 값                                                                        |
-| -------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
-| `API_BASE_URL`             | 서버(실행할 때)                | 백엔드 주소. MSW를 끈 서버에는 꼭 넣습니다(배포 환경, 실제 백엔드 개발)   |
-| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)       | 비우면 BFF 프록시. 적으면 브라우저가 그 주소를 직접 부름                  |
-| `API_MOCKING`              | 서버(`src/instrumentation.ts`) | `enabled`이면 서버의 요청을 MSW가 받고, `API_BASE_URL`이 없어도 서버가 뜸 |
+| 환경 변수                  | 읽는 곳                                       | 값                                                                        |
+| -------------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| `API_BASE_URL`             | 서버(실행할 때)                               | 백엔드 주소. MSW를 끈 서버에는 꼭 넣습니다(배포 환경, 실제 백엔드 개발)   |
+| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)                      | 비우면 BFF 프록시. 적으면 브라우저가 그 주소를 직접 부름                  |
+| `API_MOCKING`              | 서버(`src/shared/api/api-instrumentation.ts`) | `enabled`이면 서버의 요청을 MSW가 받고, `API_BASE_URL`이 없어도 서버가 뜸 |
 
 ### 샘플 명세 바꾸기
 

@@ -1,0 +1,4 @@
+{
+  "description": "시험용: Base와 extension-a-fixture의 환경 변수에 다른 값을 적은 Recipe",
+  "renderingModes": ["server", "static-export"]
+}

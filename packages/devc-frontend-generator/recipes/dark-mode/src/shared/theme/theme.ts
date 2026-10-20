@@ -47,7 +47,7 @@ export function applyTheme(choice: string | null): void {
 }
 
 /**
- * 저장된 테마를 첫 화면을 그리기 전에 적용하는 inline script. 루트 레이아웃의 <head>에 넣는다(ThemeScript).
+ * 저장된 테마를 첫 화면을 그리기 전에 적용하는 inline script. <body>의 맨 앞에 넣는다(ThemeScript, ThemeProvider).
  * React가 뜬 뒤에 적용하면 잠깐 다른 테마가 보이므로(깜빡임) 앱 코드를 기다리지 않는다.
  */
 export const THEME_SCRIPT = `(${applyTheme.toString()})((${readStoredTheme.toString()})(${JSON.stringify(THEME_STORAGE_KEY)}))`

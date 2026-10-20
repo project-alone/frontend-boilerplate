@@ -133,10 +133,12 @@ test('주석을 달 수 있는 Showcase 파일은 생성된 파일이니 고치�
   for (const path of withoutComments) expect(readme, path).toContain(`\`${path}\``)
 })
 
-test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패치)을 알린다', () => {
-  expect(head(readShowcase('src/app/layout.tsx'))).toContain(
-    'base/src/app/layout.tsx, recipes/dark-mode/src/app/layout.tsx.patch',
+test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패치, 확장 지점의 선언)을 알린다', () => {
+  expect(head(readShowcase('.storybook/preview.tsx'))).toContain(
+    'base/.storybook/preview.tsx, recipes/dark-mode/.storybook/preview.tsx.patch',
   )
+  expect(head(readShowcase('src/app/app-shell.tsx'))).toContain('base/extensions.json, recipes/dark-mode/extensions.json')
+  expect(head(readShowcase('src/instrumentation.ts'))).toContain('원본(packages/devc-frontend-generator/): base/extensions.json')
   expect(head(readShowcase('src/features/theme-switcher/theme-switcher.tsx'))).toContain(
     'recipes/dark-mode/src/features/theme-switcher/theme-switcher.tsx',
   )
@@ -150,12 +152,16 @@ test('Showcase는 Generator에 담긴 모든 Recipe를 켠, 배포하지 않는 
   const readme = readShowcase('README.md')
 
   for (const recipe of readdirSync(RECIPES_DIR)) {
-    // Recipe가 Starter에 그대로 더하는 파일(선언, 병합하는 package.json·README, 지울 목록, 패치를 뺀 나머지)이 모두 있다.
+    // Recipe가 Starter에 그대로 더하는 파일(선언, 병합하는 package.json·README·명세 조각, 지울 목록, 패치를 뺀 나머지)이
+    // 모두 있다.
     const recipeDir = join(RECIPES_DIR, recipe)
     const added = readdirSync(recipeDir, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => relative(recipeDir, join(entry.parentPath, entry.name)))
-      .filter((path) => !['recipe.json', 'package.json', 'README.md', 'remove.txt'].includes(path))
+      .filter(
+        (path) =>
+          !['recipe.json', 'extensions.json', 'openapi.yaml', 'package.json', 'README.md', 'remove.txt'].includes(path),
+      )
       .filter((path) => !path.endsWith('.patch'))
     expect(added.length, recipe).toBeGreaterThan(0)
     for (const path of added) expect(existsSync(join(SHOWCASE_DIR, path)), `${recipe}: ${path}`).toBe(true)

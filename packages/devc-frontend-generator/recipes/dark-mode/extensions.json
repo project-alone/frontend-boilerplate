@@ -1,0 +1,4 @@
+{
+  "providers": [{ "path": "src/shared/theme/theme-provider.tsx", "export": "ThemeProvider", "order": 0 }],
+  "header": [{ "path": "src/features/theme-switcher/theme-switcher.tsx", "export": "ThemeSwitcher", "order": 100 }]
+}

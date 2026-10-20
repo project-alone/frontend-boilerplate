@@ -101,12 +101,44 @@ function commentFor(path: string): Comment | undefined {
   return undefined
 }
 
+// Generator가 확장 지점의 선언(Base와 Recipe의 extensions.json)으로 조립하는 파일과 그 파일에 모이는 확장 지점
+// (packages/devc-frontend-generator/src/extensions.ts)
+const EXTENSION_FILES: Record<string, readonly string[]> = {
+  'src/app/app-shell.tsx': ['providers', 'header'],
+  'next.config.plugins.ts': ['nextConfig'],
+  'src/instrumentation.ts': ['instrumentation'],
+  'src/instrumentation-client.ts': ['instrumentationClient'],
+  'src/proxy.ts': ['proxy'],
+}
+
+const OPENAPI_SPEC = 'openapi.yaml'
+const GENERATED_API_DIR = 'src/shared/api/generated/'
+
 /**
  * Showcase의 path를 만든 원본(Generator 패키지 기준 경로). Base 파일에 Recipe를 이름순으로 덧입혀, Recipe의 파일은 앞의
  * 원본을 대신하고 Recipe의 패치(<경로>.patch)는 앞의 원본을 고친다고 본다(docs/recipes.md). requires 때문에 덧입히는 순서가
- * 이름순과 다르면 패치의 나열 순서만 다를 수 있다.
+ * 이름순과 다르면 패치의 나열 순서만 다를 수 있다. 여러 원본을 병합하거나 모아 만드는 파일은 그 원본을 모두 알린다:
+ * 확장 지점의 조립 파일은 그 지점을 선언한 extensions.json, 명세(openapi.yaml)와 dotenv 파일은 Base와 Recipe의 같은 파일,
+ * 재생성 API 계층은 Recipe가 명세 조각을 더했으면 병합한 명세의 원본이다.
  */
 function sourcesOf(path: string, generatorDir: string, recipes: readonly string[]): string[] {
+  const existing = (candidates: readonly string[]) =>
+    candidates.filter((candidate) => existsSync(join(generatorDir, candidate)))
+  const points = EXTENSION_FILES[path]
+  if (points !== undefined) {
+    return existing(['base', ...recipes.map((recipe) => `recipes/${recipe}`)].map((dir) => `${dir}/extensions.json`)).filter(
+      (manifest) => {
+        const declared = JSON.parse(readFileSync(join(generatorDir, manifest), 'utf8')) as Record<string, unknown>
+        return points.some((point) => point in declared)
+      },
+    )
+  }
+  const specSources = existing([`base/${OPENAPI_SPEC}`, ...recipes.map((recipe) => `recipes/${recipe}/${OPENAPI_SPEC}`)])
+  if (path === OPENAPI_SPEC || (path.startsWith(GENERATED_API_DIR) && specSources.length > 1)) return specSources
+  if (/^\.env(?:\.|$)/.test(path)) {
+    return existing([`base/${path}`, ...recipes.map((recipe) => `recipes/${recipe}/${path}`)])
+  }
+
   // npm이 패키지에서 빼는 .gitignore는 Base에 _gitignore로 담겨 있다.
   const basePath = path === '.gitignore' ? '_gitignore' : path
   let sources = existsSync(join(generatorDir, 'base', basePath)) ? [`base/${basePath}`] : []

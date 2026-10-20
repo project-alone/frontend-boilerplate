@@ -1,0 +1,9 @@
+{
+  "instrumentationClient": [
+    {
+      "path": "src/shared/mocks/browser-instrumentation.ts",
+      "export": "browserMockingInstrumentation",
+      "order": 100
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "description": "시험용: Base와 extension-a-fixture의 명세와 겹치는 명세 조각을 가진 Recipe",
+  "renderingModes": ["server", "static-export"]
+}

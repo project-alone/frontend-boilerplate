@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { applyOverlay, RECIPE_MANIFEST } from './overlay.js'
+import { type Overlay, RECIPE_MANIFEST } from './overlay.js'
 import { isRenderingMode, RENDERING_MODES, type RenderingMode } from './rendering-mode.js'
 
 // Recipe는 `recipes/<이름>/`에 담긴 overlay(overlay.ts)와 그 최상위의 선언 파일 recipe.json이다.
@@ -149,9 +149,9 @@ export function resolveRecipes(
   return { recipes: ordered, added }
 }
 
-/** Recipe의 overlay를 Starter에 덧입힌다. */
-export async function applyRecipe(target: string, recipe: Recipe): Promise<void> {
-  await applyOverlay(target, recipe.dir, `Recipe ${recipe.name}`)
+/** Starter에 덧입힐 Recipe의 overlay */
+export function recipeOverlay(recipe: Recipe): Overlay {
+  return { label: `Recipe ${recipe.name}`, dir: recipe.dir }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

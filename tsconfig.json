@@ -5,6 +5,7 @@
     "noEmit": true
   },
   "include": ["harness", "scripts", "vitest.config.ts"],
-  // Schematic 생성 결과 스냅샷(harness/__snapshots__)은 Starter의 코드(@/ 경로 등)이므로 하네스와 함께 검사하지 않는다.
-  "exclude": ["harness/__snapshots__"]
+  // Schematic 생성 결과 스냅샷(harness/__snapshots__)과 시험용 Recipe(harness/fixtures)는 Starter의 코드(@/ 경로 등)이므로
+  // 하네스와 함께 검사하지 않는다. 시험용 Recipe는 그 Recipe를 넣은 Starter의 typecheck가 검사한다.
+  "exclude": ["harness/__snapshots__", "harness/fixtures"]
 }

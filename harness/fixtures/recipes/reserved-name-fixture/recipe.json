@@ -1,0 +1,4 @@
+{
+  "description": "시험용: 조립 파일이 쓰는 이름을 내보내는 조각을 선언한 Recipe",
+  "renderingModes": ["server", "static-export"]
+}

@@ -27,6 +27,29 @@ npm run changeset -- --patch devc-frontend-generator --message "<요약>"       
 - 요약: CHANGELOG에 그대로 실린다. Generator 사용자가 읽을 문장으로 쓴다.
 - Starter는 Generator를 정확한 버전으로 고정하므로, 이미 만든 Starter는 새 버전을 저절로 받지 않는다.
 
+## 의존성 버전 올리기
+
+Base(`packages/devc-frontend-generator/base/package.json`)는 의존성을 정확한 버전으로 고정하고(`^`, `~`를 쓰지 않는다), Generator(`packages/devc-frontend-generator/package.json`)도 Starter의 파일에 실행하는 도구를 정확한 버전으로 고정한다. 버전을 올린 PR에는 다음을 함께 담는다.
+
+- Generator의 의존성을 바꿨으면 레포 최상위에서 `npm install`을 실행해 `package-lock.json`을 맞춘다. Base는 워크스페이스가 아니어서 레포의 lockfile에 들지 않는다.
+- Base를 바꿨으면 `npm run showcase`로 Showcase를 다시 만든다(Showcase의 `package.json`도 생성 결과다).
+- changeset을 더한다(위 "changeset 더하기"). 만들어지는 Starter가 달라진다.
+
+Generator는 Starter를 만들 때 Base가 고정한 도구 몇 개를 Starter의 파일에 직접 실행한다. 이 도구는 Base와 Generator의 `package.json`에 따로 고정되어 있으므로, **한쪽을 올리면 다른 쪽도 같은 버전으로 올린다**. 버전이 다르면 생성 직후의 Starter에서 `npm run api:gen`이 재생성 계층을 바꾸거나 `format:check`가 실패할 수 있다. 하네스 `harness/tool-versions.test.ts`가 두 `package.json`의 버전을 비교해, 다르면 CI(`Typecheck and harness`)가 실패한다.
+
+| 도구       | Generator가 Starter를 만들 때 하는 일                                            | Starter에서 같은 도구를 쓰는 곳      |
+| ---------- | -------------------------------------------------------------------------------- | ------------------------------------ |
+| `orval`    | 명세 조각을 병합한 `openapi.yaml`로 재생성 API 계층을 만든다(`src/api-layer.ts`) | `npm run api:gen`                    |
+| `prettier` | 병합한 명세와 확장 지점의 조립 파일을 포맷한다(`src/format.ts`)                  | `npm run format`, `format:check`     |
+| `jiti`     | 그때 Starter의 `orval.config.ts`를 읽어 실행한다(`src/api-layer.ts`)             | ESLint가 `eslint.config.ts`를 읽는다 |
+
+- Generator가 Starter의 파일에 새 도구를 실행하게 되면 이 표와 `harness/tool-versions.test.ts`의 목록에 더한다. 하네스는 목록 밖이라도 Generator의 `dependencies`와 Base가 함께 가진 패키지는 같은 버전인지 본다.
+- Schematic(`dcgen g`)은 Starter에 설치된 Prettier로 포맷하므로 이 규칙과 상관없다.
+
+```sh
+npx vitest run harness/tool-versions.test.ts   # 몇 초 걸린다. Starter를 만들지 않고 두 package.json만 읽는다
+```
+
 ## 배포 흐름
 
 `release.yml`은 `master`에 push될 때마다 돌고, changesets가 상태를 보고 할 일을 고른다(`select-mode`).

@@ -2,6 +2,7 @@
 // 원본(packages/devc-frontend-generator/): base/next.config.ts
 
 import type { NextConfig } from 'next'
+import { withPlugins } from './next.config.plugins'
 
 const nextConfig: NextConfig = {
   // 특정 배포 방식에 묶이지 않도록, 필요한 파일만 모아 Node로 바로 띄우는 서버(.next/standalone)를 함께 만든다.
@@ -9,4 +10,5 @@ const nextConfig: NextConfig = {
   output: 'standalone',
 }
 
-export default nextConfig
+// Recipe가 더한 설정 래퍼(예: next-intl, Sentry의 플러그인)를 씌운다(next.config.plugins.ts).
+export default withPlugins(nextConfig)

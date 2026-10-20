@@ -42,12 +42,12 @@
 - 브라우저: BFF 프록시 없이 `NEXT_PUBLIC_API_BASE_URL`의 백엔드를 직접 부릅니다. 빌드할 때 코드에 박히므로 바꾸면 다시 빌드하고, 백엔드가 이 앱의 출처에서 오는 CORS 요청을 허용해야 합니다. 브라우저의 MSW를 끈 빌드에 `NEXT_PUBLIC_API_BASE_URL`이 없으면 요청할 때 무엇을 넣어야 하는지 알리는 오류로 실패합니다.
 - 서버 컴포넌트(빌드할 때, 개발 서버): `API_BASE_URL`의 백엔드를 부릅니다. MSW를 끈(`API_MOCKING`이 `enabled`가 아님) 개발 서버에 `API_BASE_URL`이 없으면 개발 서버가 오류를 내고 요청을 처리하지 않습니다.
 
-| 환경 변수                  | 읽는 곳                                                   | 값                                                                               |
-| -------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)                                  | 백엔드 주소. 배포용 빌드에는 꼭 넣습니다                                         |
-| `NEXT_PUBLIC_API_MOCKING`  | 브라우저(빌드할 때 박힘, `src/instrumentation-client.ts`) | `enabled`이면 브라우저의 요청을 MSW가 받음. 배포용 빌드는 `.env.production`이 끔 |
-| `API_BASE_URL`             | 서버 컴포넌트(빌드할 때, 개발 서버)                       | 백엔드 주소. 서버 컴포넌트가 백엔드를 부르면 넣습니다                            |
-| `API_MOCKING`              | 개발 서버(`src/instrumentation.ts`)                       | `enabled`이면 서버 컴포넌트의 요청을 MSW가 받음                                  |
+| 환경 변수                  | 읽는 곳                                                                 | 값                                                                               |
+| -------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)                                                | 백엔드 주소. 배포용 빌드에는 꼭 넣습니다                                         |
+| `NEXT_PUBLIC_API_MOCKING`  | 브라우저(빌드할 때 박힘, `src/shared/mocks/browser-instrumentation.ts`) | `enabled`이면 브라우저의 요청을 MSW가 받음. 배포용 빌드는 `.env.production`이 끔 |
+| `API_BASE_URL`             | 서버 컴포넌트(빌드할 때, 개발 서버)                                     | 백엔드 주소. 서버 컴포넌트가 백엔드를 부르면 넣습니다                            |
+| `API_MOCKING`              | 개발 서버(`src/shared/api/api-instrumentation.ts`)                      | `enabled`이면 서버 컴포넌트의 요청을 MSW가 받음                                  |
 
 ### 샘플 명세 바꾸기
 
@@ -67,7 +67,7 @@ MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세�
 - E2E: `playwright.config.ts`가 `NEXT_PUBLIC_API_MOCKING=enabled`로 다시 빌드한 정적 파일을 띄웁니다.
 - 배포용 빌드: `.env.production`의 `NEXT_PUBLIC_API_MOCKING=disabled` 때문에 MSW 코드가 빌드 결과에 들어가지 않습니다. 빌드할 때 서버 컴포넌트가 보내는 요청도 MSW가 받지 않습니다.
 
-브라우저의 요청은 서비스 워커(`public/mockServiceWorker.js`)가 받습니다. `src/instrumentation-client.ts`가 앱 코드보다 먼저 서비스 워커를 띄우고, 준비될 때까지 요청을 붙잡아 둡니다. 서비스 워커 파일은 MSW CLI가 만든 것이므로 고치지 않고, MSW를 올린 뒤에는 `npx msw init`으로 다시 만듭니다(`package.json`의 `msw.workerDirectory`).
+브라우저의 요청은 서비스 워커(`public/mockServiceWorker.js`)가 받습니다. `src/shared/mocks/browser-instrumentation.ts`가 앱 코드보다 먼저(`src/instrumentation-client.ts`가 부릅니다) 서비스 워커를 띄우고, 준비될 때까지 요청을 붙잡아 둡니다. 서비스 워커 파일은 MSW CLI가 만든 것이므로 고치지 않고, MSW를 올린 뒤에는 `npx msw init`으로 다시 만듭니다(`package.json`의 `msw.workerDirectory`).
 
 실제 백엔드로 바꾸려면 `.env.development.local`에 다음 네 줄을 적고 개발 서버를 다시 띄웁니다. `API_MOCKING`만 끄고 `API_BASE_URL`을 빠뜨리면 개발 서버가 오류를 내고 요청을 처리하지 않습니다.
 

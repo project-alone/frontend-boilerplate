@@ -1,6 +1,7 @@
-import { cp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
+import { access, cp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { applyPatch } from 'diff'
+import { isDotenvFile, mergeDotenv } from './dotenv.js'
 import { mergeMarkdownSections } from './markdown-sections.js'
 import { mergePackageJson, type PackageJson, updatePackageJson } from './package-json.js'
 
@@ -14,6 +15,12 @@ const REMOVE_LIST = 'remove.txt'
 const PACKAGE_JSON = 'package.json'
 const README = 'README.md'
 const PATCH_SUFFIX = '.patch'
+
+/** Starter에 덧입힐 overlay 디렉터리와 오류 메시지에 쓸 이름(예: 'Recipe dark-mode', 'Rendering Mode static-export') */
+export interface Overlay {
+  label: string
+  dir: string
+}
 
 export class OverlayError extends Error {
   constructor(message: string) {
@@ -29,15 +36,22 @@ export class OverlayError extends Error {
  *   그 경로가 Starter에 없으면 목록이 낡은 것이므로 실패한다. 다른 파일보다 먼저 처리한다.
  * - `package.json`: Starter의 package.json에 합친다(객체는 키별로 합치고, 그 밖의 값은 덮어쓴다).
  * - `README.md`: 절(`## ` 제목) 단위로 덧입힌다. Starter의 README.md에 같은 제목의 절이 있으면 바꾸고, 없으면 끝에 덧붙인다.
+ * - dotenv 파일(`.env`, `.env.<이름>`): 변수 단위로 병합한다(dotenv.ts). Starter에 그 파일이 없으면 새로 만든다.
  * - `<경로>.patch`: Starter의 `<경로>` 파일에 unified diff를 적용한다. 맥락 줄이 맞지 않으면 실패한다.
+ * - 최상위의 skip에 적힌 파일: 덧입히지 않는다. 확장 지점의 선언과 명세 조각처럼 모든 overlay를 덧입힌 뒤에 한꺼번에
+ *   조립하는 파일이다(create-starter.ts).
  * - 그 밖의 파일: Starter에 더한다. 같은 경로의 파일이 있으면 대신한다.
  */
-export async function applyOverlay(target: string, overlay: string, label: string): Promise<void> {
+export async function applyOverlay(
+  target: string,
+  { dir: overlay, label }: Overlay,
+  skip: readonly string[],
+): Promise<void> {
   const entries = await readdir(overlay, { recursive: true, withFileTypes: true })
   const paths = entries
     .filter((entry) => entry.isFile())
     .map((entry) => relative(overlay, join(entry.parentPath, entry.name)))
-    .filter((path) => path !== RECIPE_MANIFEST)
+    .filter((path) => path !== RECIPE_MANIFEST && !skip.includes(path))
     .sort()
   if (paths.includes(REMOVE_LIST)) {
     await removePaths(target, await readFile(join(overlay, REMOVE_LIST), 'utf8'), label)
@@ -53,6 +67,9 @@ export async function applyOverlay(target: string, overlay: string, label: strin
       await writeFile(readme, mergeMarkdownSections(await readFile(readme, 'utf8'), await readFile(source, 'utf8')))
     } else if (path.endsWith(PATCH_SUFFIX)) {
       await patchFile(target, path.slice(0, -PATCH_SUFFIX.length), await readFile(source, 'utf8'), label)
+    } else if (isDotenvFile(path)) {
+      const file = join(target, path)
+      await writeFile(file, mergeDotenv((await readOptionalFile(file)) ?? '', await readFile(source, 'utf8')))
     } else {
       await cp(source, join(target, path))
     }
@@ -109,4 +126,24 @@ async function removeEmptyDirectories(target: string, directory: string): Promis
 
 export function isNotFound(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
+/** 파일의 내용. 파일이 없으면 undefined다. */
+export async function readOptionalFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (error) {
+    if (isNotFound(error)) return undefined
+    throw error
+  }
+}
+
+export async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch (error) {
+    if (isNotFound(error)) return false
+    throw error
+  }
 }

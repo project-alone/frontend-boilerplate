@@ -1,0 +1,3 @@
+{
+  "providers": [{ "path": "src/shared/missing/missing-provider.tsx", "export": "MissingProvider", "order": 100 }]
+}

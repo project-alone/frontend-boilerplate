@@ -1,0 +1,4 @@
+{
+  "description": "시험용: 모든 확장 지점에 조각을 더하는 Recipe(extension-b-fixture와 함께 켠다)",
+  "renderingModes": ["server", "static-export"]
+}

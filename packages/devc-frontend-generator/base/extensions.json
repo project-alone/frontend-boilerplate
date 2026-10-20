@@ -1,0 +1,9 @@
+{
+  "providers": [
+    { "path": "src/shared/query-client/query-provider.tsx", "export": "QueryProvider", "order": 100 },
+    { "path": "src/shared/ui/toast.tsx", "export": "ToastProvider", "order": 200 }
+  ],
+  "instrumentation": [
+    { "path": "src/shared/api/api-instrumentation.ts", "export": "apiInstrumentation", "order": 100 }
+  ]
+}
