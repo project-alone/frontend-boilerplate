@@ -12,7 +12,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  // 빌드된 Starter(`npm run build`의 결과)를 띄워 검사한다. 서버가 보내는 API 요청은 MSW가 받는다.
+  // 빌드된 Starter(`npm run build`의 결과)를 `npm run start`로 띄워 검사한다.
+  // Next.js 서버가 뜨면(server Rendering Mode) 그 서버가 보내는 API 요청은 MSW가 받는다.
   webServer: {
     command: `npm run start -- --port ${PORT}`,
     url: baseURL,

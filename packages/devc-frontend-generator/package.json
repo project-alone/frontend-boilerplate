@@ -9,7 +9,8 @@
   },
   "files": [
     "dist",
-    "base"
+    "base",
+    "rendering-modes"
   ],
   "scripts": {
     "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc",

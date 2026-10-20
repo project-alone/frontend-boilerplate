@@ -1,9 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { setTimeout } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest'
-import { type BackgroundProcess, freePort, run, start } from './run.ts'
+import { freePort, run, start, waitForServer } from './run.ts'
 
 // Base의 MSW 예시 핸들러(src/shared/mocks/handlers.ts)가 받는 요청과 돌려주는 응답
 const EXAMPLE_API = {
@@ -46,18 +45,6 @@ function writeMswProbePage() {
 }
 `,
   )
-}
-
-async function waitForServer(url: string, server: BackgroundProcess) {
-  const deadline = Date.now() + 120_000
-  while (Date.now() < deadline) {
-    try {
-      return await fetch(url)
-    } catch {
-      await setTimeout(500)
-    }
-  }
-  throw new Error(`${url}에 연결하지 못했습니다.\n${server.output()}`)
 }
 
 beforeAll(() => {

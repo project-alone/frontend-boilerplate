@@ -55,7 +55,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 - 단위·컴포넌트 테스트: `src/` 안의 `*.test.ts(x)`. Vitest(jsdom)와 Testing Library로 작성합니다.
 - 스토리: `src/` 안의 `*.stories.tsx`. `npm run test:storybook`이 스토리마다 axe로 WCAG 2.2 AA를 검사하고, 위반이 하나라도 있으면 실패합니다.
-- E2E: `e2e/` 안의 `*.spec.ts`. Playwright가 빌드된 앱(`next start`)을 띄워 검사합니다.
+- E2E: `e2e/` 안의 `*.spec.ts`. Playwright가 빌드된 앱을 `npm run start`로 띄워 검사합니다.
 - Linux CI에서 Chromium에 필요한 시스템 라이브러리가 없으면 `npx playwright install --with-deps chromium`으로 설치합니다.
 
 ## API 목킹(MSW)
