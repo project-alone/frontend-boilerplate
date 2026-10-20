@@ -17,6 +17,7 @@ npm run build               # 프로덕션 빌드
 npm start                   # 빌드 결과로 서버 실행(build 다음에 실행)
 npm run test:e2e            # 빌드 결과로 E2E 테스트(build 다음에 실행)
 npm run storybook           # Storybook
+npm run api:gen             # OpenAPI 명세(openapi.yaml)에서 API 계층 재생성(orval)
 ```
 
 ## 실행과 배포
@@ -58,12 +59,59 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 - E2E: `e2e/` 안의 `*.spec.ts`. Playwright가 빌드된 앱을 `npm run start`로 띄워 검사합니다.
 - Linux CI에서 Chromium에 필요한 시스템 라이브러리가 없으면 `npx playwright install --with-deps chromium`으로 설치합니다.
 
+## API 계층
+
+백엔드의 OpenAPI 명세(`openapi.yaml`)가 원본입니다. 명세에서 다시 만드는 계층과 프로젝트가 직접 소유하는 계층이 나뉩니다.
+
+| 위치                         | 내용                                                                         | 누가 고치나                                    |
+| ---------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| `src/shared/api/generated/`  | 타입, fetch 함수, Zod 스키마, MSW 핸들러                                     | `npm run api:gen`(orval)만. 손으로 고치지 않음 |
+| `src/shared/api/`의 나머지   | fetch 클라이언트(`api-fetch.ts`), 요청 주소(`base-url.ts`), BFF 프록시       | 프로젝트                                       |
+| `src/queries/<Query Domain>` | 쿼리 키(`<domain>.keys.ts`), queryOptions·뮤테이션 훅(`<domain>.queries.ts`) | 프로젝트                                       |
+| `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                 | 프로젝트                                       |
+| `src/app`                    | 라우트. 서버 컴포넌트에서 prefetch                                           | 프로젝트                                       |
+
+- `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
+- 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
+- Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'list', params]`처럼 계층으로 만듭니다.
+- 샘플: `/products` 페이지(`src/app/products/page.tsx`)가 서버에서 `listProductsQueryOptions()`로 데이터를 가져오고(prefetch), `HydrationBoundary`로 넘긴 데이터를 `src/features/product-list`가 이어받습니다. 브라우저는 같은 데이터를 다시 요청하지 않습니다(`e2e/products.spec.ts`).
+
+### 요청이 가는 곳
+
+생성된 fetch 함수는 모두 `src/shared/api/api-fetch.ts`의 `apiFetch`를 거칩니다. `apiFetch`는 실행 환경에 따라 주소를 고르고, 응답을 명세의 Zod 스키마로 검증합니다. 2xx가 아닌 응답은 `ApiError`로 던집니다.
+
+- 서버(서버 컴포넌트, Route Handler): `API_BASE_URL`의 백엔드를 직접 부릅니다. MSW를 끈 서버(`API_MOCKING`이 `enabled`가 아님)에 `API_BASE_URL`이 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다. 엉뚱한 주소로 조용히 요청하지 않도록 기본값은 두지 않습니다.
+- 브라우저: BFF 프록시 `/api/proxy/*`(`src/app/api/proxy/[...path]/route.ts`)를 부르고, 프록시가 `API_BASE_URL`로 요청을 그대로 전달합니다. 토큰 첨부는 `auth` Recipe가 프록시에 더합니다.
+- 브라우저가 프록시 대신 백엔드를 직접 불러야 하면(서버가 없는 `static-export` 등) `NEXT_PUBLIC_API_BASE_URL`에 백엔드 주소를 적습니다. 빌드할 때 코드에 박히므로 바꾸면 다시 빌드하고, 백엔드가 그 출처의 CORS 요청을 허용해야 합니다.
+
+| 환경 변수                  | 읽는 곳                        | 값                                                                        |
+| -------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `API_BASE_URL`             | 서버(실행할 때)                | 백엔드 주소. MSW를 끈 서버에는 꼭 넣습니다(배포 환경, 실제 백엔드 개발)   |
+| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)       | 비우면 BFF 프록시. 적으면 브라우저가 그 주소를 직접 부름                  |
+| `API_MOCKING`              | 서버(`src/instrumentation.ts`) | `enabled`이면 서버의 요청을 MSW가 받고, `API_BASE_URL`이 없어도 서버가 뜸 |
+
+### 샘플 명세 바꾸기
+
+`openapi.yaml`은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플입니다. 실제 프로젝트에서는 다음 순서로 바꿉니다.
+
+1. `openapi.yaml`을 백엔드의 명세로 바꿉니다. 파일 대신 URL을 쓰려면 `orval.config.ts`의 `input.target`을 고칩니다.
+2. 샘플 코드를 지웁니다: `src/app/products/`, `src/features/product-list/`, `src/queries/products/`, `e2e/products.spec.ts`
+3. `npm run api:gen`을 실행하고 생성 결과를 커밋합니다.
+4. `.env.development.local`과 배포 환경에 `API_BASE_URL`을 넣습니다.
+
 ## API 목킹(MSW)
 
-MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`입니다. 지금 있는 핸들러는 MSW가 동작하는지 보여 주는 예시이고, API 계층을 붙이면 OpenAPI 명세에서 생성한 핸들러로 바뀝니다.
+MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다.
 
-- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`를 씁니다.
-- 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다. 실제 API를 쓰려면 `.env.development.local`에 `API_MOCKING=disabled`를 적습니다.
+- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
+- 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다.
 - E2E: `playwright.config.ts`가 서버를 `API_MOCKING=enabled`로 띄웁니다.
 
-MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저에서 바로 나가는 요청은 받지 않습니다.
+MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저의 요청도 BFF 프록시를 거쳐 서버에서 나가므로 MSW가 받습니다. `NEXT_PUBLIC_API_BASE_URL`로 브라우저가 백엔드를 직접 부르면 MSW가 받지 않습니다.
+
+실제 백엔드로 바꾸려면 `.env.development.local`에 다음 두 줄을 적고 개발 서버를 다시 띄웁니다. `API_MOCKING`만 끄고 `API_BASE_URL`을 빠뜨리면 개발 서버가 오류를 내고 요청을 처리하지 않습니다. 배포 환경에서는 `API_MOCKING`을 켜지 않습니다(MSW는 devDependency입니다).
+
+```sh
+API_MOCKING=disabled
+API_BASE_URL=https://<백엔드 주소>
+```

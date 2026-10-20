@@ -27,6 +27,10 @@ afterAll(() => {
   rmSync(workdir, { recursive: true, force: true })
 })
 
+// 배포한 서버처럼 MSW를 끄고 백엔드 주소를 넣어 띄운다. 홈 페이지는 백엔드를 부르지 않으므로 이 주소로 요청이 가지 않는다.
+// 주소가 없으면 Starter의 서버는 요청을 처리하지 않는다(README의 "API 계층").
+const DEPLOYED_ENV = { API_MOCKING: 'disabled', API_BASE_URL: 'https://backend.example.com' }
+
 /** 띄운 서버에서 홈 페이지를 받아 상태 코드와 HTML을 돌려주고 서버를 끈다. */
 async function fetchHomePage(origin: string, server: BackgroundProcess) {
   try {
@@ -41,6 +45,7 @@ test('빌드하면 standalone 서버가 만들어지고, 이 서버만으로 페
   const port = String(await freePort())
   // standalone 서버는 포트와 주소를 환경 변수로 받는다.
   const server = start('node', [join('.next', 'standalone', 'server.js')], starter, {
+    ...DEPLOYED_ENV,
     PORT: port,
     HOSTNAME: '127.0.0.1',
   })
@@ -53,7 +58,7 @@ test('빌드하면 standalone 서버가 만들어지고, 이 서버만으로 페
 
 test('standalone으로 빌드한 Starter는 npm start(next start)로도 실행된다', async () => {
   const port = String(await freePort())
-  const server = start('npm', ['start', '--', '--port', port], starter)
+  const server = start('npm', ['start', '--', '--port', port], starter, DEPLOYED_ENV)
 
   const { status, html, output } = await fetchHomePage(`http://localhost:${port}`, server)
 

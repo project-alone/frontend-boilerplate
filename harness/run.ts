@@ -19,6 +19,8 @@ export function run(
 
 export interface BackgroundProcess {
   output: () => string
+  /** 명령이 스스로 끝나면 종료 코드로(시그널로 끝나면 null로) 풀린다. */
+  exited: Promise<number | null>
   stop: () => Promise<void>
 }
 
@@ -33,10 +35,11 @@ export function start(
   let output = ''
   child.stdout.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
   child.stderr.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
-  const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+  const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)))
 
   return {
     output: () => output,
+    exited,
     stop: async () => {
       const running = child.exitCode === null && child.signalCode === null
       if (running && child.pid !== undefined) process.kill(-child.pid, 'SIGTERM')

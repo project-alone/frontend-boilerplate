@@ -58,11 +58,12 @@ function ciNpmScripts(starter: string): string[] {
   )
 }
 
-// Starter 단위 Rendering Mode마다 CI 설정을 검사한다. e2eInput은 E2E가 `npm run start`로 띄우는 빌드 결과다.
+// Starter 단위 Rendering Mode마다 CI 설정을 검사한다. e2eArtifacts는 E2E 잡이 build 잡에서 받아야 하는 빌드 결과다.
+// server는 `next start`로 띄울 .next/를 받고, static-export는 MSW를 켜고 직접 다시 빌드하므로 받지 않는다.
 describe.each([
-  { renderingMode: 'server', e2eInput: '.next/' },
-  { renderingMode: 'static-export', e2eInput: 'out/' },
-])('Rendering Mode $renderingMode', ({ renderingMode, e2eInput }) => {
+  { renderingMode: 'server', e2eArtifacts: ['.next/'] },
+  { renderingMode: 'static-export', e2eArtifacts: [] },
+])('Rendering Mode $renderingMode', ({ renderingMode, e2eArtifacts }) => {
   let starter: string
 
   beforeAll(() => {
@@ -112,19 +113,23 @@ describe.each([
     for (const image of images) expect(image).toMatch(new RegExp(`^node:${nvmrc}(?:-|$)`))
   })
 
-  test(`E2E 잡은 build 잡이 아티팩트로 넘긴 빌드 결과(${e2eInput})로 돈다`, () => {
+  test(`E2E 잡은 build 잡에서 필요한 빌드 결과(${e2eArtifacts.join(', ') || '없음'})만 받는다`, () => {
     const config = readGitlabCi(starter)
     const e2eJob = Object.values(config)
       .filter(isRecord)
       .find((section) => npmScriptsIn(section['script']).includes('test:e2e'))
-    expect(e2eJob, 'test:e2e를 실행하는 잡').toBeDefined()
+    if (e2eJob === undefined) throw new Error('test:e2e를 실행하는 잡이 없습니다.')
 
-    const needs = [e2eJob?.['needs']].flat().map((need) => (isRecord(need) ? need['job'] : need))
-    const artifactPaths = needs
+    // 아티팩트를 받을 잡은 needs나 dependencies로 적는다. 둘 다 없으면 GitLab이 앞 단계의 아티팩트를 모두 받으므로 허용하지 않는다.
+    const sources = e2eJob['needs'] ?? e2eJob['dependencies']
+    expect(sources, 'E2E 잡의 needs 또는 dependencies').toBeDefined()
+    const artifactPaths = [sources]
+      .flat()
+      .map((source) => (isRecord(source) ? source['job'] : source))
       .map((name) => (typeof name === 'string' ? config[name] : undefined))
       .filter(isRecord)
       .flatMap((job) => (isRecord(job['artifacts']) ? [job['artifacts']['paths']].flat() : []))
 
-    expect(artifactPaths).toContain(e2eInput)
+    expect(artifactPaths).toEqual(e2eArtifacts)
   })
 })
