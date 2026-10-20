@@ -1,7 +1,7 @@
 import { cpSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { dcgen, readTree, type Starter, useStarter } from './starter.ts'
+import { dcgen, expectFileToPass, readTree, runVitestScript, type Starter, useStarter } from './starter.ts'
 
 // 생성 결과 스냅샷. Starter의 코드이므로 하네스의 타입 검사 대상에서 뺀다(tsconfig.json).
 const SNAPSHOTS = './__snapshots__/g-component'
@@ -25,27 +25,6 @@ const CHECKED_COMPONENTS = [
   { args: ['ProductCard', '--feature', 'product-list'], stem: 'src/features/product-list/product-card' },
   { args: ['status-badge', '--shared'], stem: 'src/shared/ui/status-badge' },
 ]
-
-interface VitestReport {
-  testResults: { name: string; status: string; assertionResults: unknown[] }[]
-}
-
-/** Starter의 npm 스크립트(Vitest)를 JSON 보고서와 함께 실행해 성공했는지 확인하고 보고서를 돌려준다. */
-function runVitestScript(starter: Starter, script: readonly string[]): VitestReport {
-  const report = join(starter.workdir, 'vitest-report.json')
-  starter.expectNpmSuccess([...script, '--', '--reporter=default', '--reporter=json', `--outputFile.json=${report}`])
-  return JSON.parse(readFileSync(report, 'utf8')) as VitestReport
-}
-
-/** report에서 file로 끝나는 테스트 파일이 runs번 실행되었고 모두 통과했는지 본다. */
-function expectFileToPass(report: VitestReport, file: string, runs: number): void {
-  const results = report.testResults.filter(({ name }) => name.endsWith(`/${file}`))
-  expect(results, file).toHaveLength(runs)
-  for (const result of results) {
-    expect(result.status, file).toBe('passed')
-    expect(result.assertionResults.length, file).toBeGreaterThan(0)
-  }
-}
 
 /**
  * CHECKED_COMPONENTS를 만든 Starter가 타입 검사, lint, 포맷 검사를 통과하고, 생성된 테스트와 스토리(접근성 검사)가

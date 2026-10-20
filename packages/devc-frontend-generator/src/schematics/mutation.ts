@@ -121,12 +121,13 @@ async function optimisticTarget(
   return { operationId, fetcher, optionsName: queryOptionsName(fetcher, 'query') }
 }
 
-function hookNameOf(fetcher: GeneratedFunction): string {
+/** operation의 뮤테이션 훅(use<OperationId>Mutation)의 이름. form Schematic이 폼과 이을 훅을 찾을 때도 쓴다. */
+export function mutationHookName(fetcher: GeneratedFunction): string {
   return `use${upperFirst(fetcher.name)}Mutation`
 }
 
 function mutationHook({ name, keysName }: QueryDomain, fetcher: GeneratedFunction): MutationCode {
-  const hookName = hookNameOf(fetcher)
+  const hookName = mutationHookName(fetcher)
   const variables = variablesOf(fetcher)
   return {
     hookName,
@@ -151,7 +152,7 @@ function optimisticMutationHook(
   fetcher: GeneratedFunction,
   target: OptimisticTarget,
 ): MutationCode {
-  const hookName = hookNameOf(fetcher)
+  const hookName = mutationHookName(fetcher)
   const updateName = `apply${upperFirst(fetcher.name)}`
   const variables = variablesOf(fetcher)
   const { input } = variables

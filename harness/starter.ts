@@ -160,6 +160,28 @@ export default defineConfig({
   }
 }
 
+/** Starter의 Vitest 스크립트(npm test, npm run test:storybook)가 남긴 JSON 보고서 */
+export interface VitestReport {
+  testResults: { name: string; status: string; assertionResults: unknown[] }[]
+}
+
+/** Starter의 npm 스크립트(Vitest)를 JSON 보고서와 함께 실행해 성공했는지 확인하고 보고서를 돌려준다. */
+export function runVitestScript(starter: Starter, script: readonly string[]): VitestReport {
+  const report = join(starter.workdir, 'vitest-report.json')
+  starter.expectNpmSuccess([...script, '--', '--reporter=default', '--reporter=json', `--outputFile.json=${report}`])
+  return JSON.parse(readFileSync(report, 'utf8')) as VitestReport
+}
+
+/** report에서 file로 끝나는 테스트 파일이 runs번 실행되었고 모두 통과했는지 본다. 생성한 테스트가 실제로 돌았는지 확인할 때 쓴다. */
+export function expectFileToPass(report: VitestReport, file: string, runs: number): void {
+  const results = report.testResults.filter(({ name }) => name.endsWith(`/${file}`))
+  expect(results, file).toHaveLength(runs)
+  for (const result of results) {
+    expect(result.status, file).toBe('passed')
+    expect(result.assertionResults.length, file).toBeGreaterThan(0)
+  }
+}
+
 /** 디렉터리 아래 모든 파일을 { 상대 경로: 내용 }으로 읽는다. */
 export function readTree(directory: string): Record<string, string> {
   const files = readdirSync(directory, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile())
