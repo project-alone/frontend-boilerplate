@@ -217,6 +217,7 @@ components:
 overlay의 dotenv 파일(`.env`, `.env.<이름>`)은 Starter의 같은 파일을 대신하지 않고 변수 단위로 병합된다.
 
 - 변수 한 줄과 그 바로 위에 빈 줄 없이 붙은 주석이 한 항목이다. Starter에 같은 변수가 있으면 그 항목을 그 자리에서 바꾸고, 새 변수는 overlay의 문단 그대로 끝에 덧붙인다. 변수에 붙지 않은 주석 문단도 덧붙는다. Starter에 그 파일이 없으면 새로 만든다.
+- 같은 파일의 같은 변수는 같은 값으로만 다시 적을 수 있다(주석은 바꿔도 된다). Base, Rendering Mode, Recipe 가운데 둘이 같은 변수에 다른 값을 적으면 어느 값이 맞는지 정할 수 없으므로, 무엇을 만들기 전에 그런 변수와 두 곳의 값을 모두 알리며 실패한다. 예: `- .env.development의 API_MOCKING: Base에서 'enabled', Recipe <이름>에서 'disabled'`. 값은 dotenv가 읽는 값으로 비교하므로 감싼 따옴표나 값 뒤의 주석만 다른 것(`X=`, `X=""`, `X= # 설명`)은 같은 값이다. 다른 파일(`.env.development`와 `.env.production`)의 같은 변수는 비교하지 않는다. 다른 값이 필요하면 Recipe 이름을 담은 새 변수를 쓰고, Base의 값을 바꿔야 하면 Base를 고친다. `harness/extension-points.test.ts`가 시험용 Recipe `dotenv-conflict-fixture`로 검증한다.
 - `.env.example`: 배포 환경에 넣을 변수의 목록이다. Next.js는 읽지 않으므로 값은 비우고, 주석에 무엇을 넣는지 적는다. 운영에 필요한 변수(비밀 값, DSN 등)는 여기에 더한다.
 - `.env.development`: `npm run dev`가 읽는 기본값. 개발 서버가 바로 뜨는 데 필요한, 비밀이 아닌 값만 둔다.
 - 변수의 타입은 Recipe의 `process-env.<Recipe 이름>.d.ts`(Starter 최상위)에 `declare namespace NodeJS { interface ProcessEnv { readonly <이름>?: string } }`로 선언한다. TypeScript가 Base의 `process-env.d.ts`와 합치므로 Base 파일을 고치지 않는다.

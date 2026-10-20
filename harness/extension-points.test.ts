@@ -108,7 +108,8 @@ describe('환경 변수', () => {
       expect(result.status, result.output).toBe(0)
 
       const development = readFileSync(join(result.starter, '.env.development'), 'utf8')
-      // Base의 변수(API_MOCKING)를 다시 적은 Recipe는 그 자리에서 바꾸고, 새 변수는 덧입힌 순서대로 끝에 덧붙인다.
+      // Base의 변수(API_MOCKING)를 같은 값으로 다시 적은 Recipe는 그 항목(주석 포함)을 그 자리에서 바꾸고, 새 변수는 덧입힌
+      // 순서대로 끝에 덧붙인다.
       expect(variables(development)).toEqual(['API_MOCKING', ...modeVariables, 'FIXTURE_A_DEV', 'FIXTURE_B_DEV'])
       expect(development).toContain('# extension-b-fixture: Base의 변수를 같은 값으로 다시 적는다.')
       expect(development).toContain('# extension-b-fixture가 더하는 값(변수에 붙지 않은 주석)\n\n# FIXTURE_B_DEV의 설명\n')
@@ -119,6 +120,25 @@ describe('환경 변수', () => {
       expect(example).toContain('# extension-a-fixture의 배포 환경 값\nFIXTURE_A_SECRET=\n')
     },
   )
+
+  test('같은 dotenv 파일의 같은 변수에 Base나 다른 Recipe와 다른 값을 적으면 변수와 두 곳을 모두 알리고 아무것도 만들지 않는다', () => {
+    // dotenv-conflict-fixture는 extension-a-fixture보다 먼저 덧입혀진다(이름순).
+    const result = dcgenNew(['--recipe', 'extension-a-fixture', '--recipe', 'dotenv-conflict-fixture'])
+
+    expect(result.status).not.toBe(0)
+    expect(result.output).toContain('환경 변수 파일의 같은 변수에 서로 다른 값을 적은 곳이 있어 병합할 수 없습니다.')
+    expect(result.output).toContain(
+      "- .env.development의 API_MOCKING: Base에서 'enabled', Recipe dotenv-conflict-fixture에서 'disabled'",
+    )
+    expect(result.output).toContain(
+      "- .env.development의 FIXTURE_A_DEV: Recipe dotenv-conflict-fixture에서 'conflict', Recipe extension-a-fixture에서 'a'",
+    )
+    // 따옴표나 값 뒤의 주석만 다른 같은 값(.env.example의 API_BASE_URL="", FIXTURE_A_SECRET= # ...)은 겹친 것이 아니다.
+    expect(result.output).not.toContain('API_BASE_URL')
+    expect(result.output).not.toContain('FIXTURE_A_SECRET')
+    expect(readdirSync(workdir)).toEqual([])
+    expect(existsSync(result.starter)).toBe(false)
+  })
 })
 
 describe('Provider, 머리글, proxy, next.config, instrumentation의 선언(extensions.json)', () => {

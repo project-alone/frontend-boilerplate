@@ -17,8 +17,8 @@ interface Item {
 
 /**
  * overlay의 dotenv 파일을 base에 병합한 내용을 돌려준다. 변수와 그 바로 위의 주석(빈 줄 없이 붙은 주석)을 한 항목으로 보고,
- * base에 같은 변수가 있으면 그 항목을 그 자리에서 바꾼다. 나머지(새 변수와 변수에 붙지 않은 주석)는 overlay의 문단 그대로
- * base의 끝에 덧붙인다. 같은 문단이 이미 있으면 다시 덧붙이지 않는다.
+ * base에 같은 변수가 있으면 그 항목을 그 자리에서 바꾼다(값이 같은지는 findDotenvConflicts로 미리 확인하므로 주석만 바뀐다).
+ * 나머지(새 변수와 변수에 붙지 않은 주석)는 overlay의 문단 그대로 base의 끝에 덧붙인다. 같은 문단이 이미 있으면 다시 덧붙이지 않는다.
  */
 export function mergeDotenv(base: string, overlay: string): string {
   const paragraphs = parseParagraphs(base)
@@ -39,6 +39,54 @@ export function mergeDotenv(base: string, overlay: string): string {
     }
   }
   return `${render(paragraphs)}\n`
+}
+
+/** Base나 overlay가 담은 dotenv 파일 하나 */
+export interface DotenvSource {
+  /** 파일을 담은 곳. 오류 메시지에 쓴다(예: 'Base', 'Recipe dark-mode'). */
+  label: string
+  /** Starter 최상위 기준 경로(예: .env.development) */
+  path: string
+  text: string
+}
+
+/** 같은 dotenv 파일의 같은 변수에 두 곳이 서로 다른 값을 적은 것. first가 먼저 덧입혀진다. */
+export interface DotenvConflict {
+  path: string
+  key: string
+  first: { label: string; value: string }
+  second: { label: string; value: string }
+}
+
+/**
+ * 덧입히는 순서(Base, Rendering Mode, Recipe)대로 늘어놓은 dotenv 파일에서, 같은 파일의 같은 변수에 먼저 적힌 값과 다른 값을
+ * 적은 곳을 모두 찾는다. 나중 값이 조용히 앞의 값을 덮어쓰면 어느 Recipe의 값이 쓰일지 덧입히는 순서에 달리므로 병합하지 않는다.
+ * 값은 dotenv가 읽는 값으로 비교하므로 감싼 따옴표나 값 뒤의 주석만 다른 것은 같은 값이다. 다른 파일(.env.development와
+ * .env.production 등)의 같은 변수는 서로 다른 환경의 값이므로 비교하지 않는다.
+ */
+export function findDotenvConflicts(sources: readonly DotenvSource[]): DotenvConflict[] {
+  const defined = new Map<string, { label: string; value: string }>()
+  const conflicts: DotenvConflict[] = []
+  for (const { label, path, text } of sources) {
+    for (const item of parseParagraphs(text).flat()) {
+      if (item.key === undefined) continue
+      const value = valueOf(item.lines.at(-1) ?? '')
+      const id = `${path}\n${item.key}`
+      const first = defined.get(id)
+      if (first === undefined) defined.set(id, { label, value })
+      else if (first.value !== value) conflicts.push({ path, key: item.key, first, second: { label, value } })
+    }
+  }
+  return conflicts
+}
+
+// `=` 뒤의 값: 따옴표로 감싼 값은 따옴표 안, 따옴표 없는 값은 `#`(주석) 앞까지에서 앞뒤 공백을 뺀 것. dotenv가 읽는 방법이다.
+const VALUE = /^\s*(?:'([^']*)'|"((?:\\"|[^"])*)"|`([^`]*)`|([^#]*))/
+
+/** 변수 줄(`NAME=값`)의 값 */
+function valueOf(line: string): string {
+  const [, single, double, backtick, bare] = VALUE.exec(line.slice(line.indexOf('=') + 1)) ?? []
+  return single ?? double ?? backtick ?? (bare ?? '').trim()
 }
 
 function parseParagraphs(text: string): Item[][] {

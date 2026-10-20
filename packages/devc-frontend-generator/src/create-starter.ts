@@ -1,7 +1,8 @@
 import { cp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { basename, join, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { regenerateApiLayer } from './api-layer.js'
+import { type DotenvSource, findDotenvConflicts, isDotenvFile } from './dotenv.js'
 import { checkExtensions, EXTENSIONS_MANIFEST, readExtensions, writeExtensionFiles } from './extensions.js'
 import { formatForStarter } from './format.js'
 import { generatorPackage } from './generator-package.js'
@@ -43,7 +44,8 @@ export async function prepareTarget(name: string, cwd: string): Promise<string> 
 /**
  * Base에 Rendering Mode와 Recipe를 차례로 덧입혀 target에 Starter를 만든다(ADR-0002, ADR-0007). 그다음 overlay의 명세 조각을
  * Base 명세에 병합하고, Base와 overlay가 선언한 확장 지점의 조각(extensions.json)으로 조립 파일을 만든다(ADR-0010).
- * 확장 지점의 선언과 명세 조각은 무엇을 쓰기 전에 읽어 보고, 잘못되었거나 명세가 겹치면 OverlayError로 실패한다.
+ * 확장 지점의 선언, 명세 조각, dotenv 파일은 무엇을 쓰기 전에 읽어 보고, 잘못되었거나 명세가 겹치거나 같은 변수에 다른 값을
+ * 적었으면 OverlayError로 실패한다.
  * 도중에 실패하면 반쯤 만든 Starter를 지운다. prepareTarget이 확인했듯 target은 없거나 빈 디렉터리였으므로,
  * 원래 있던 빈 디렉터리는 비운 채로 남긴다.
  */
@@ -56,6 +58,7 @@ export async function createStarter(target: string, { renderingMode, recipes }: 
   const fragments = await readSpecFragments(overlays)
   // 쓰기 전에 병합해 보아 겹치는 명세 조각을 먼저 알린다.
   mergeOpenApiFragments(await readFile(join(BASE_DIR, OPENAPI_SPEC), 'utf8'), fragments)
+  checkDotenvSources(await readDotenvSources([BASE, ...overlays]))
 
   const existed = await readdir(target).then(
     () => true,
@@ -80,6 +83,40 @@ export async function createStarter(target: string, { renderingMode, recipes }: 
     else await rm(target, { recursive: true, force: true })
     throw error
   }
+}
+
+/** Base와 overlay의 dotenv 파일(.env, .env.<이름>)을 덧입히는 순서대로 읽는다. */
+async function readDotenvSources(overlays: readonly Overlay[]): Promise<DotenvSource[]> {
+  const sources: DotenvSource[] = []
+  for (const { label, dir } of overlays) {
+    const entries = await readdir(dir, { recursive: true, withFileTypes: true })
+    const paths = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(dir, join(entry.parentPath, entry.name)))
+      .filter(isDotenvFile)
+      .sort()
+    for (const path of paths) sources.push({ label, path, text: await readFile(join(dir, path), 'utf8') })
+  }
+  return sources
+}
+
+/**
+ * dotenv 파일은 변수 단위로 병합하므로(overlay.ts), Base·Rendering Mode·Recipe 가운데 둘이 같은 파일의 같은 변수에 다른 값을
+ * 적었으면 어느 쪽의 값이 맞는지 Generator가 정할 수 없다. 그런 변수를 모두 알리는 OverlayError를 던진다. 값이 같으면 된다.
+ */
+function checkDotenvSources(sources: readonly DotenvSource[]): void {
+  const conflicts = findDotenvConflicts(sources)
+  if (conflicts.length === 0) return
+  throw new OverlayError(
+    [
+      '환경 변수 파일의 같은 변수에 서로 다른 값을 적은 곳이 있어 병합할 수 없습니다. 같은 값을 적거나, 다른 값이 필요하면 ' +
+        'Recipe 이름을 담은 다른 변수를 쓰세요(docs/recipes.md의 "환경 변수").',
+      ...conflicts.map(
+        ({ path, key, first, second }) =>
+          `- ${path}의 ${key}: ${first.label}에서 '${first.value}', ${second.label}에서 '${second.value}'`,
+      ),
+    ].join('\n'),
+  )
 }
 
 /** overlay 최상위의 명세 조각(openapi.yaml)을 덧입히는 순서대로 읽는다. */

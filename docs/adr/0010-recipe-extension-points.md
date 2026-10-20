@@ -3,7 +3,7 @@
 모든 Recipe를 켜는 Showcase에서는 여러 Recipe가 Base의 같은 파일, 같은 자리를 고친다. 루트 레이아웃의 Provider, Next.js proxy, `next.config`, instrumentation, OpenAPI 명세, 환경 변수 파일이 그렇다. ADR-0007의 줄 단위 패치로는 이 자리에서 Recipe끼리 맥락 줄이 어긋나 함께 켤 수 없으므로, 이런 자리는 확장 지점으로 만들어 각 Recipe가 자기 조각만 더하고 Generator가 모든 overlay를 덧입힌 뒤 한꺼번에 조립한다. 확장 지점은 남은 Recipe(#16~#27) 가운데 둘 이상이 쓸 자리만 둔다.
 
 - **TypeScript 조립 파일**(Provider와 머리글, proxy 처리기, `next.config` 래퍼, 서버·브라우저 instrumentation): overlay 최상위의 `extensions.json`에 지점마다 `{ path, export, order }`(Starter의 모듈, 내보내는 이름, 순서)를 적는다. Generator는 Base(`base/extensions.json`), Rendering Mode, Recipe의 선언을 `order` 순으로 모아 지점마다 조립 파일 하나(`src/app/app-shell.tsx`, `src/proxy.ts`, `next.config.plugins.ts`, `src/instrumentation.ts`, `src/instrumentation-client.ts`)를 쓴다. 조립 파일은 조각을 이름으로 import해 쓰므로 조각의 모양은 Starter의 타입 검사가 확인한다.
-- **구조적 병합**: overlay의 `openapi.yaml`은 Base 명세를 대신하지 않고 명세 조각으로서 `paths`, `components`, `tags`가 병합된다. 경로, 컴포넌트 이름, tag, operationId가 겹치면 무엇을 쓰기 전에 실패한다. 병합한 명세로 재생성 API 계층(ADR-0003)도 다시 만든다. dotenv 파일(`.env`, `.env.<이름>`)은 변수 단위로 병합한다.
+- **구조적 병합**: overlay의 `openapi.yaml`은 Base 명세를 대신하지 않고 명세 조각으로서 `paths`, `components`, `tags`가 병합된다. 경로, 컴포넌트 이름, tag, operationId가 겹치면 무엇을 쓰기 전에 실패한다. 병합한 명세로 재생성 API 계층(ADR-0003)도 다시 만든다. dotenv 파일(`.env`, `.env.<이름>`)은 변수 단위로 병합하고, 같은 파일의 같은 변수에 다른 값을 적으면 무엇을 쓰기 전에 실패한다.
 
 ## Considered Options
 
