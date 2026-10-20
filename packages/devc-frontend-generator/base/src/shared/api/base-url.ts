@@ -4,15 +4,24 @@
 export const BFF_PROXY_PATH = '/api/proxy'
 
 /**
+ * MSW가 요청을 받을 때 백엔드 주소가 없으면 대신 쓰는 주소(샘플 명세 openapi.yaml의 servers).
+ * 이 주소로 가는 요청은 MSW가 받으므로 실제로 나가지 않는다.
+ */
+export const MOCK_API_BASE_URL = 'https://api.example.com'
+
+/**
  * 서버(서버 컴포넌트, Route Handler)가 백엔드를 직접 부를 때 쓰는 주소. BFF 프록시도 이 주소로 전달한다.
- * 서버에서만 읽는 환경 변수 API_BASE_URL에서 가져온다.
+ * 서버에서만 읽는 환경 변수 API_BASE_URL에서 가져온다. API_BASE_URL이 없으면 MSW가 켜져 있을 때(API_MOCKING=enabled)만
+ * MOCK_API_BASE_URL을 쓰고, MSW가 꺼져 있으면 엉뚱한 곳을 부르지 않도록 실패한다.
+ * 서버가 뜰 때 src/instrumentation.ts가 한 번 불러서, 설정이 빠졌으면 요청을 받기 전에 알린다.
  */
 export function backendBaseUrl(): string {
   const url = nonEmpty(process.env.API_BASE_URL)
-  if (url === undefined) {
-    throw new Error('API_BASE_URL 환경 변수가 없습니다. 서버가 부를 백엔드 주소를 넣어 주세요(README의 "API 계층").')
-  }
-  return withoutTrailingSlash(url)
+  if (url !== undefined) return withoutTrailingSlash(url)
+  if (process.env.API_MOCKING === 'enabled') return MOCK_API_BASE_URL
+  throw new Error(
+    'API_BASE_URL 환경 변수가 없습니다. MSW를 끈(API_MOCKING이 enabled가 아닌) 서버는 API_BASE_URL의 백엔드를 부르므로 백엔드 주소를 넣어 주세요(README의 "API 계층").',
+  )
 }
 
 /**

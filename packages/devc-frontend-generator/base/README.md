@@ -80,15 +80,15 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 생성된 fetch 함수는 모두 `src/shared/api/api-fetch.ts`의 `apiFetch`를 거칩니다. `apiFetch`는 실행 환경에 따라 주소를 고르고, 응답을 명세의 Zod 스키마로 검증합니다. 2xx가 아닌 응답은 `ApiError`로 던집니다.
 
-- 서버(서버 컴포넌트, Route Handler): `API_BASE_URL`의 백엔드를 직접 부릅니다.
+- 서버(서버 컴포넌트, Route Handler): `API_BASE_URL`의 백엔드를 직접 부릅니다. MSW를 끈 서버(`API_MOCKING`이 `enabled`가 아님)에 `API_BASE_URL`이 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다. 엉뚱한 주소로 조용히 요청하지 않도록 기본값은 두지 않습니다.
 - 브라우저: BFF 프록시 `/api/proxy/*`(`src/app/api/proxy/[...path]/route.ts`)를 부르고, 프록시가 `API_BASE_URL`로 요청을 그대로 전달합니다. 토큰 첨부는 `auth` Recipe가 프록시에 더합니다.
 - 브라우저가 프록시 대신 백엔드를 직접 불러야 하면(서버가 없는 `static-export` 등) `NEXT_PUBLIC_API_BASE_URL`에 백엔드 주소를 적습니다. 빌드할 때 코드에 박히므로 바꾸면 다시 빌드하고, 백엔드가 그 출처의 CORS 요청을 허용해야 합니다.
 
-| 환경 변수                  | 읽는 곳                        | 값                                                       |
-| -------------------------- | ------------------------------ | -------------------------------------------------------- |
-| `API_BASE_URL`             | 서버(실행할 때)                | 백엔드 주소. 서버를 띄우는 모든 환경에 넣습니다          |
-| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)       | 비우면 BFF 프록시. 적으면 브라우저가 그 주소를 직접 부름 |
-| `API_MOCKING`              | 서버(`src/instrumentation.ts`) | `enabled`이면 서버의 요청을 MSW가 받음                   |
+| 환경 변수                  | 읽는 곳                        | 값                                                                        |
+| -------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `API_BASE_URL`             | 서버(실행할 때)                | 백엔드 주소. MSW를 끈 서버에는 꼭 넣습니다(배포 환경, 실제 백엔드 개발)   |
+| `NEXT_PUBLIC_API_BASE_URL` | 브라우저(빌드할 때 박힘)       | 비우면 BFF 프록시. 적으면 브라우저가 그 주소를 직접 부름                  |
+| `API_MOCKING`              | 서버(`src/instrumentation.ts`) | `enabled`이면 서버의 요청을 MSW가 받고, `API_BASE_URL`이 없어도 서버가 뜸 |
 
 ### 샘플 명세 바꾸기
 
@@ -109,7 +109,7 @@ MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세�
 
 MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저의 요청도 BFF 프록시를 거쳐 서버에서 나가므로 MSW가 받습니다. `NEXT_PUBLIC_API_BASE_URL`로 브라우저가 백엔드를 직접 부르면 MSW가 받지 않습니다.
 
-실제 백엔드로 바꾸려면 `.env.development.local`에 다음 두 줄을 적고 개발 서버를 다시 띄웁니다. 배포 환경에서는 `API_MOCKING`을 켜지 않습니다(MSW는 devDependency입니다).
+실제 백엔드로 바꾸려면 `.env.development.local`에 다음 두 줄을 적고 개발 서버를 다시 띄웁니다. `API_MOCKING`만 끄고 `API_BASE_URL`을 빠뜨리면 개발 서버가 오류를 내고 요청을 처리하지 않습니다. 배포 환경에서는 `API_MOCKING`을 켜지 않습니다(MSW는 devDependency입니다).
 
 ```sh
 API_MOCKING=disabled

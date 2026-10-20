@@ -18,6 +18,6 @@ export default defineConfig({
     command: `npm run start -- --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    env: { API_MOCKING: 'enabled', API_BASE_URL: 'https://api.example.com' },
+    env: { API_MOCKING: 'enabled' },
   },
 })

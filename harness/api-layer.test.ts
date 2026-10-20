@@ -2,6 +2,7 @@ import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync }
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
+import { setTimeout } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest'
 import { type BackgroundProcess, freePort, run, start, waitForServer } from './run.ts'
 
@@ -174,6 +175,9 @@ describe('api:gen', () => {
   })
 })
 
+// MSW를 끈 서버에 API_BASE_URL이 없을 때 Starter가 내는 오류(src/shared/api/base-url.ts)
+const MISSING_API_BASE_URL_MESSAGE = 'API_BASE_URL 환경 변수가 없습니다'
+
 // 샘플 명세의 listProducts example. 개발 서버와 E2E 대상 서버는 MSW가 이 값을 돌려준다.
 const SAMPLE_PRODUCT_NAMES = ['기본 티셔츠', '데님 재킷']
 
@@ -235,9 +239,45 @@ describe('빌드한 Starter', () => {
       expect(await response.json()).toEqual({ echoed: JSON.stringify({ memo: '문 앞에 놓아 주세요' }) })
     })
   })
+
+  test('MSW를 끄고 API_BASE_URL을 넣지 않은 서버는 요청을 처리하지 않고 무엇을 넣어야 하는지 알린다', async () => {
+    const port = await freePort()
+    // 하네스를 띄운 셸에 API_BASE_URL이 있어도 결과가 같도록 빈 값으로 덮는다(빈 값은 없는 것으로 본다).
+    const app = start('npm', ['run', 'start', '--', '--port', String(port)], starter, {
+      API_MOCKING: 'disabled',
+      API_BASE_URL: '',
+    })
+
+    try {
+      const response = await waitForServer(`http://localhost:${String(port)}/products`, app)
+
+      expect(response.status, app.output()).toBe(500)
+      expect(app.output()).toContain(MISSING_API_BASE_URL_MESSAGE)
+    } finally {
+      await app.stop()
+    }
+  })
 })
 
 describe('개발 서버', () => {
+  test('.env.development.local에서 MSW만 끄고 API_BASE_URL을 빠뜨리면 개발 서버가 무엇을 넣어야 하는지 알리고 멈춘다', async () => {
+    const envFile = join(starter, '.env.development.local')
+    writeFileSync(envFile, 'API_MOCKING=disabled\n')
+    const port = await freePort()
+    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter, { API_BASE_URL: '' })
+
+    try {
+      const exitCode = await Promise.race([devServer.exited, setTimeout(120_000, '2분이 지나도 실행 중')])
+
+      expect(exitCode, devServer.output()).not.toBe(0)
+      expect(exitCode, devServer.output()).not.toBe('2분이 지나도 실행 중')
+      expect(devServer.output()).toContain(MISSING_API_BASE_URL_MESSAGE)
+    } finally {
+      await devServer.stop()
+      rmSync(envFile)
+    }
+  })
+
   test('npm run dev만 실행하면 서버 컴포넌트와 BFF 프록시를 거친 요청 모두 MSW가 돌려준 샘플 명세의 응답을 받는다', async () => {
     const port = await freePort()
     const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter)

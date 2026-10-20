@@ -8,7 +8,7 @@ declare namespace NodeJS {
     readonly NEXT_RUNTIME?: 'nodejs' | 'edge'
     /** enabled이면 Next.js 서버가 보내는 API 요청을 MSW가 받는다(src/instrumentation.ts). */
     readonly API_MOCKING?: 'enabled' | 'disabled'
-    /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/base-url.ts) */
+    /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/base-url.ts). API_MOCKING이 enabled가 아니면 꼭 넣는다. */
     readonly API_BASE_URL?: string
     /** 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 서버가 없는 static-export에서 쓴다(src/shared/api/base-url.ts). */
     readonly NEXT_PUBLIC_API_BASE_URL?: string
