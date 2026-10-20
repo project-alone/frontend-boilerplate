@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import { generateComponent } from './schematics/component.js'
 import { generateMutation } from './schematics/mutation.js'
 import { generateQuery } from './schematics/query.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
@@ -42,6 +43,19 @@ export function registerGenerateCommand(program: Command): void {
           ? ''
           : `\n응답 전에 보일 값은 ${mutation.optimisticUpdateName}에서 만듭니다. 지금은 캐시를 그대로 두므로 직접 채우세요.`
       report(`${operationId}의 뮤테이션 훅(${mutation.hookName})을 만들었습니다.${optimistic}`, mutation.changed)
+    })
+
+  generate
+    .command('component')
+    .description('컴포넌트와 Storybook 스토리, 테스트를 Feature(src/features/<feature>) 또는 공통 UI(src/shared/ui)에 만든다')
+    .argument('<name>', '컴포넌트 이름(kebab-case 또는 PascalCase). 파일 이름은 kebab-case, 컴포넌트는 PascalCase가 된다')
+    .option('--feature <feature>', '컴포넌트를 둘 Feature. src/features/<feature>/에 만든다')
+    .option('--shared', '공통 UI(src/shared/ui/)에 만든다. --feature와 --shared 가운데 하나를 꼭 고른다')
+    .action(async (name: string, options: { feature?: string; shared?: boolean }, command: Command) => {
+      const changed = await runSchematic(command, () =>
+        generateComponent(process.cwd(), name, { feature: options.feature, shared: options.shared === true }),
+      )
+      report(`${name} 컴포넌트와 스토리, 테스트를 만들었습니다.`, changed)
     })
 }
 

@@ -65,7 +65,7 @@ interface Prettier {
 }
 
 /**
- * Schematic이 코드를 만들어 넣을 Starter. 모든 Schematic이 같은 순서를 따른다.
+ * Schematic이 코드를 만들어 넣을 Starter. 모든 Schematic이 같은 순서를 따르고, 명세를 읽지 않는 Schematic(component)은 2, 3을 건너뛴다.
  *
  * 1. `open`: 현재 디렉터리에서 위로 올라가며 package.json이 있는 Starter 최상위를 찾는다.
  * 2. `findOperation`: Starter 최상위의 openapi.yaml에서 operationId로 operation을 찾는다.

@@ -1,8 +1,8 @@
 import { cpSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { addOperations, dcgen } from './schematic.ts'
-import { readTree, type Starter, useStarter } from './starter.ts'
+import { addOperations } from './schematic.ts'
+import { dcgen, readTree, type Starter, useStarter } from './starter.ts'
 
 const QUERIES_DIR = 'src/queries'
 
@@ -463,7 +463,7 @@ const applyUpdateProduct = () => undefined
       args: ['addCartItem', '--optimistic', 'getCart'],
       reason: 'npm run g -- query getCart로 만드세요',
     },
-  ])('$problem는 이유를 알리고 아무 파일도 바꾸지 않은 채 실패한다', ({ args, reason }) => {
+  ])('$problem: 이유를 알리고 아무 파일도 바꾸지 않은 채 실패한다', ({ args, reason }) => {
     const before = queriesTree()
 
     const result = dcgen(starter, ['g', 'mutation', ...args])
