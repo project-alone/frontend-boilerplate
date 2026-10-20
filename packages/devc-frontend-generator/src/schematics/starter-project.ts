@@ -255,6 +255,15 @@ export class StarterProject {
   }
 }
 
+/** operation이 성공(2xx)했을 때 돌려주는 JSON 응답 본문의 스키마. 응답 본문이 없으면 undefined다. */
+export function successSchema(operation: Operation): OpenAPIV3.SchemaObject | undefined {
+  const [, response] =
+    Object.entries(operation.definition.responses).find(([status]) => status.startsWith('2')) ?? []
+  return (response as OpenAPIV3.ResponseObject | undefined)?.content?.['application/json']?.schema as
+    | OpenAPIV3.SchemaObject
+    | undefined
+}
+
 /**
  * file에 named import를 더한다. 이미 가져오고 있으면 그대로 두고, 같은 경로의 import(type 전용 여부도 같은)가 있으면
  * 거기에 더하고, 없으면 import 문을 새로 더한다.

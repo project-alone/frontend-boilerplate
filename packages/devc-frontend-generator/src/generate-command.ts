@@ -2,6 +2,7 @@ import type { Command } from 'commander'
 import { generateComponent } from './schematics/component.js'
 import { generateForm } from './schematics/form.js'
 import { generateMutation } from './schematics/mutation.js'
+import { generatePage, PAGE_MODES } from './schematics/page.js'
 import { generateQuery } from './schematics/query.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
 
@@ -63,6 +64,57 @@ export function registerGenerateCommand(program: Command): void {
           : `\n입력 요소로 만들지 않은 선택 필드: ${form.skippedFields.join(', ')}. 보내야 하면 폼에 직접 더하세요.`
       report(`${operationId}의 폼(${form.componentName})과 스토리, 테스트를 만들었습니다.${skipped}`, form.changed)
     })
+
+  generate
+    .command('page')
+    .description(
+      '라우트(src/app/<route>)에 페이지와 로딩·오류 상태, 메타데이터를 만들고 라우트의 Rendering Mode를 고른다. 앞서 만든 쿼리와 폼을 끼워 넣는다',
+    )
+    .argument(
+      '<route>',
+      'src/app 아래 라우트(예: products/new, products/[productId]). 세그먼트는 kebab-case, 동적 세그먼트는 [이름], 경로 그룹은 (이름)',
+    )
+    .option(
+      '--mode <mode>',
+      `라우트의 Rendering Mode: ${PAGE_MODES.join(', ')}. 기본은 server Starter에서 ssr, static-export Starter에서 csr(static-export는 ssg, csr만)`,
+    )
+    .option(
+      '--query <operationId>',
+      '이 GET operation의 queryOptions(npm run g -- query)로 데이터를 가져와 보여 준다. 결과를 보여 줄 컴포넌트는 --feature에 만든다',
+    )
+    .option('--form <operationId>', '이 operation의 폼(npm run g -- form)을 페이지에 넣는다')
+    .option(
+      '--feature <feature>',
+      '--query의 결과를 보여 줄 컴포넌트를 둘 Feature. --form의 폼이 여러 Feature에 있으면 이 Feature의 폼을 쓴다',
+    )
+    .action(
+      async (
+        route: string,
+        options: { mode?: string; query?: string; form?: string; feature?: string },
+        command: Command,
+      ) => {
+        const page = await runSchematic(command, () =>
+          generatePage(process.cwd(), route, {
+            mode: options.mode,
+            query: options.query,
+            form: options.form,
+            feature: options.feature,
+          }),
+        )
+        const notes = [
+          ...(page.view?.reused === true ? [`Feature에 있던 ${page.view.name}(${page.view.path})를 씁니다.`] : []),
+          ...(page.fetchesAtBuild
+            ? [
+                '빌드할 때 서버 컴포넌트가 백엔드에서 데이터를 가져오므로, npm run build를 실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣으세요.',
+              ]
+            : []),
+        ]
+        report(
+          [`${page.path} 페이지(${page.modeLabel})와 로딩·오류 상태를 만들었습니다.`, ...notes].join('\n'),
+          page.changed,
+        )
+      },
+    )
 
   generate
     .command('component')

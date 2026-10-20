@@ -40,8 +40,8 @@ const FORMAT_SAMPLES = new Map([
   ['date-time-local', '2026-01-01T00:00:00'],
 ])
 
-// 폼의 props로 받는 인자(경로 파라미터)의 타입마다 테스트와 스토리가 넘길 값
-const PROP_SAMPLES = new Map([
+// 폼의 props로 받는 인자(경로 파라미터)의 타입마다 테스트와 스토리가 넘길 값. page Schematic이 만드는 컴포넌트의 테스트도 쓴다.
+export const PROP_SAMPLES = new Map([
   ['number', '1'],
   ['string', "'1'"],
   ['boolean', 'true'],
@@ -211,8 +211,7 @@ export async function generateForm(
 
   const form: FormModel = {
     operationId,
-    componentName: `${operationName}Form`,
-    fileName: `${kebabCase(splitWords(operationId))}-form`,
+    ...formComponentOf(operationId, fetcher),
     feature,
     submitLabel: operation.definition.summary?.trim() || '제출',
     domainName: domain.name,
@@ -239,6 +238,16 @@ export async function generateForm(
     { stem: `${stem}.test`, source: testSource(form) },
   ])
   return { componentName: form.componentName, skippedFields, changed: await starter.save() }
+}
+
+/** operation의 폼 컴포넌트(<OperationId>Form)와 파일 이름(<operation-id>-form). page Schematic이 끼워 넣을 폼을 찾을 때도 쓴다. */
+export function formComponentOf(operationId: string, fetcher: GeneratedFunction): { componentName: string; fileName: string } {
+  return { componentName: `${upperFirst(fetcher.name)}Form`, fileName: `${kebabCase(splitWords(operationId))}-form` }
+}
+
+/** 폼이 props로 받는 인자(필수 경로 파라미터)의 이름과 타입. page Schematic이 폼에 넘길 값을 정할 때 쓴다. */
+export function formPropsOf(operation: Operation, fetcher: GeneratedFunction): { name: string; type: string }[] {
+  return formArguments(operation, fetcher).props.map(({ name, type }) => ({ name, type }))
 }
 
 /** operation의 JSON 요청 본문 스키마. 없으면 폼을 만들 수 없다. */
@@ -802,7 +811,7 @@ function failureTitle(form: FormModel): string {
 }
 
 // JSX 안의 글자. JSX가 해석하는 문자(중괄호, 꺾쇠, &)나 줄바꿈이 있으면 문자열 식으로 넣는다.
-function jsxText(text: string): string {
+export function jsxText(text: string): string {
   return /[{}<>&\n]/.test(text) ? `{${JSON.stringify(text)}}` : text
 }
 
