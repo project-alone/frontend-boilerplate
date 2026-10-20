@@ -1,8 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { OpenAPIV3 } from 'openapi-types'
 import type { SourceFile } from 'ts-morph'
-import { type Feature, featureNamed } from './feature.js'
+import type { RenderingMode } from '../rendering-mode.js'
+import { type Feature, FEATURES_DIR, featureNamed } from './feature.js'
 import { formComponentOf, formPropsOf, jsxText, PROP_SAMPLES } from './form.js'
 import { kebabCase, pascalCase, splitWords, upperFirst } from './names.js'
 import { hasDeclaration, queryDomainOf, queryOptionsName } from './query-domain.js'
@@ -15,32 +14,57 @@ import {
 } from './starter-project.js'
 
 const APP_DIR = 'src/app'
-const FEATURES_DIR = 'src/features'
 
 /** 라우트마다 고르는 Rendering Mode(GLOSSARY). server Starter 안의 선택이다. */
 export const PAGE_MODES = ['ssr', 'ssg', 'isr', 'streaming', 'csr'] as const
 
 export type PageMode = (typeof PAGE_MODES)[number]
 
-const MODE_LABELS: Record<PageMode, string> = {
-  ssr: 'SSR',
-  ssg: 'SSG',
-  isr: 'ISR',
-  streaming: '스트리밍',
-  csr: 'CSR',
+/** 라우트의 Rendering Mode가 페이지를 언제, 어디서 렌더링하는지 */
+interface ModeTraits {
+  label: string
+  /** 요청마다 서버에서 렌더링한다(connection()). */
+  perRequest: boolean
+  /** 빌드할 때 렌더링해 둔다(ISR은 그 뒤로 정한 시간마다 다시 렌더링한다). */
+  prerendered: boolean
+  /** --query의 데이터를 서버가 가져와 hydration으로 넘긴다. 아니면 브라우저가 가져온다. */
+  serverData: boolean
+  /**
+   * static-export Starter에서 쓸 수 없는 이유. static-export에는 요청을 받는 Next.js 서버가 없으므로 빌드 결과(정적 파일)만으로
+   * 동작하는 모드만 쓴다.
+   */
+  serverOnlyReason?: string
 }
 
-// static-export Starter에는 요청을 받는 Next.js 서버가 없으므로, 빌드 결과(정적 파일)만으로 동작하는 모드만 쓴다.
-// 나머지 모드는 static-export에서 쓸 수 없는 이유를 함께 알린다.
-const SERVER_ONLY_REASONS: Partial<Record<PageMode, string>> = {
-  ssr: '요청마다 서버에서 렌더링해야 합니다.',
-  isr: '정한 시간마다 서버에서 다시 렌더링해야 합니다.',
-  streaming: '요청마다 서버가 응답을 이어 보내야 합니다.',
+const MODES: Record<PageMode, ModeTraits> = {
+  ssr: {
+    label: 'SSR',
+    perRequest: true,
+    prerendered: false,
+    serverData: true,
+    serverOnlyReason: '요청마다 서버에서 렌더링해야 합니다.',
+  },
+  ssg: { label: 'SSG', perRequest: false, prerendered: true, serverData: true },
+  isr: {
+    label: 'ISR',
+    perRequest: false,
+    prerendered: true,
+    serverData: true,
+    serverOnlyReason: '정한 시간마다 서버에서 다시 렌더링해야 합니다.',
+  },
+  streaming: {
+    label: '스트리밍',
+    perRequest: true,
+    prerendered: false,
+    serverData: true,
+    serverOnlyReason: '요청마다 서버가 응답을 이어 보내야 합니다.',
+  },
+  csr: { label: 'CSR', perRequest: false, prerendered: false, serverData: false },
 }
 
 // --mode를 주지 않았을 때의 모드. server Starter는 Base의 샘플(/products)처럼 요청마다 서버에서 렌더링하고,
 // static-export Starter는 그 Rendering Mode의 샘플처럼 페이지 뼈대를 미리 만들고 데이터는 브라우저가 가져온다.
-const DEFAULT_MODES: Record<StarterRenderingMode, PageMode> = { server: 'ssr', 'static-export': 'csr' }
+const DEFAULT_MODES: Record<RenderingMode, PageMode> = { server: 'ssr', 'static-export': 'csr' }
 
 // ISR 페이지를 다시 렌더링하는 간격(초). 만든 뒤 화면에 맞게 고친다.
 const ISR_REVALIDATE_SECONDS = 60
@@ -58,9 +82,6 @@ const LABEL_PROPERTIES = ['name', 'title', 'label']
 const KEY_PROPERTY = 'id'
 
 const LOADING_MESSAGE = '불러오는 중입니다.'
-
-/** Starter 단위 Rendering Mode(next.config의 output으로 정해진다) */
-type StarterRenderingMode = 'server' | 'static-export'
 
 export interface PageSchematicOptions {
   /** 라우트의 Rendering Mode. 없으면 Starter의 Rendering Mode에 맞는 기본값(DEFAULT_MODES)이다. */
@@ -126,6 +147,7 @@ interface View {
   feature: Feature
   /** Starter 최상위 기준, 확장자를 뺀 경로 */
   stem: string
+  importPath: string
   /** Feature에 이미 있어 새로 만들지 않는다. */
   reused: boolean
   shape: ViewShape
@@ -190,7 +212,7 @@ export async function generatePage(
   }
 
   const starter = StarterProject.open(cwd)
-  const mode = pageMode(starterRenderingMode(starter), options.mode, route)
+  const mode = pageMode(starter.renderingMode(), options.mode, route)
   const query =
     options.query === undefined || feature === undefined
       ? undefined
@@ -223,12 +245,12 @@ export async function generatePage(
   return {
     path: route.path,
     mode,
-    modeLabel: MODE_LABELS[mode],
+    modeLabel: MODES[mode].label,
     view:
       query === undefined
         ? undefined
         : { name: query.view.name, path: `${query.view.stem}.tsx`, reused: query.view.reused },
-    fetchesAtBuild: query !== undefined && (mode === 'ssg' || mode === 'isr') && route.params.length === 0,
+    fetchesAtBuild: fetchesAtBuild(page),
     changed: await starter.save(),
   }
 }
@@ -266,26 +288,18 @@ function parseRoute(argument: string): Route {
   }
 }
 
-/** Starter의 next.config가 output: 'export'면 static-export Starter다. */
-function starterRenderingMode(starter: StarterProject): StarterRenderingMode {
-  for (const file of ['next.config.ts', 'next.config.mjs', 'next.config.js']) {
-    const path = join(starter.root, file)
-    if (existsSync(path) && /\boutput\s*:\s*['"]export['"]/.test(readFileSync(path, 'utf8'))) return 'static-export'
-  }
-  return 'server'
-}
-
 /** --mode의 값을 검사하고, 없으면 Starter의 Rendering Mode에 맞는 기본값을 고른다. */
-function pageMode(starterMode: StarterRenderingMode, option: string | undefined, route: Route): PageMode {
+function pageMode(starterMode: RenderingMode, option: string | undefined, route: Route): PageMode {
   const mode = option ?? DEFAULT_MODES[starterMode]
   if (!isPageMode(mode)) {
     throw new SchematicError(`쓸 수 없는 Rendering Mode입니다: '${mode}'. ${PAGE_MODES.join(', ')} 가운데 하나를 고르세요.`)
   }
   if (starterMode !== 'static-export') return mode
-  const reason = SERVER_ONLY_REASONS[mode]
-  if (reason !== undefined) {
+  const { label, serverOnlyReason } = MODES[mode]
+  if (serverOnlyReason !== undefined) {
+    const allowed = PAGE_MODES.filter((candidate) => MODES[candidate].serverOnlyReason === undefined)
     throw new SchematicError(
-      `static-export Starter에서는 ${MODE_LABELS[mode]} 페이지를 만들 수 없습니다. ${reason} 요청을 받는 서버 없이 동작하는 ssg, csr 가운데 하나를 고르세요.`,
+      `static-export Starter에서는 ${label} 페이지를 만들 수 없습니다. ${serverOnlyReason} 요청을 받는 서버 없이 동작하는 ${allowed.join(', ')} 가운데 하나를 고르세요.`,
     )
   }
   if (route.params.length > 0) {
@@ -318,8 +332,13 @@ async function pageQuery(
   const optionsName = queryOptionsName(fetcher, 'query')
   const queries = starter.existingModule(domain.queriesPath)
   if (queries === undefined || !hasDeclaration(queries, optionsName)) {
+    const infinite = queryOptionsName(fetcher, 'infinite')
+    const onlyInfinite =
+      queries !== undefined && hasDeclaration(queries, infinite)
+        ? ` ${infinite}(npm run g -- query ${operationId} --infinite)는 끼워 넣지 않으니 페이지를 만든 뒤 직접 바꾸세요.`
+        : ''
     throw new SchematicError(
-      `${domain.queriesPath}에 ${optionsName}가 없습니다. 페이지는 이 queryOptions로 데이터를 가져오므로 먼저 npm run g -- query ${operationId}로 만드세요.`,
+      `${domain.queriesPath}에 ${optionsName}가 없습니다. 페이지는 이 queryOptions로 데이터를 가져오므로 먼저 npm run g -- query ${operationId}로 만드세요.${onlyInfinite}`,
     )
   }
   const pathCount = pathParameters(operation).length
@@ -356,6 +375,7 @@ async function pageQuery(
       fileName,
       feature,
       stem,
+      importPath: starter.importPath(stem),
       // Feature에 같은 컴포넌트가 있으면(같은 쿼리를 보여 주는 다른 페이지가 만들었다) 새로 만들지 않고 쓴다.
       // 같은 파일에 그 컴포넌트가 없으면 손으로 쓴 코드일 수 있으므로 새로 만들려다 겹친다고 알린다.
       reused: existing !== undefined && hasExport(existing, name),
@@ -380,11 +400,7 @@ async function pageForm(
   const operation = await starter.findOperation(operationId)
   const fetcher = starter.generatedFunction(operation)
   const { componentName, fileName } = formComponentOf(operationId, fetcher)
-  const featuresDir = join(starter.root, FEATURES_DIR)
-  const features = existsSync(featuresDir)
-    ? readdirSync(featuresDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map(({ name }) => name)
-    : []
-  const found = features.filter((name) => {
+  const found = starter.subdirectories(FEATURES_DIR).filter((name) => {
     const module = starter.existingModule(`${FEATURES_DIR}/${name}/${fileName}.tsx`)
     return module !== undefined && hasExport(module, componentName)
   })
@@ -396,8 +412,11 @@ async function pageForm(
     )
   }
   if (chosen.length > 1) {
+    // --feature는 --query의 컴포넌트를 둘 곳이기도 하므로, 그 Feature에 폼이 없으면 어느 폼인지 고를 수 없다.
+    const elsewhere =
+      feature === undefined ? '' : ` --feature의 ${feature.name}에는 이 폼이 없습니다. 넣을 폼 하나만 남기거나 직접 고치세요.`
     throw new SchematicError(
-      `${componentName}가 여러 Feature에 있습니다: ${chosen.join(', ')}. 페이지에 넣을 폼이 있는 Feature를 --feature로 고르세요.`,
+      `${componentName}가 여러 Feature에 있습니다: ${chosen.join(', ')}. 페이지에 넣을 폼이 있는 Feature를 --feature로 고르세요.${elsewhere}`,
     )
   }
   return {
@@ -479,8 +498,8 @@ function viewShape(schema: OpenAPIV3.SchemaObject | undefined): ViewShape {
 /** 페이지(page.tsx). 메타데이터와 라우트의 Rendering Mode 설정, 데이터를 가져오는 코드, 폼을 담는다. */
 function pageSource(page: PageModel): string {
   const { route, mode, query, form, args } = page
-  const serverPrefetch = query !== undefined && mode !== 'csr'
-  const requestTime = mode === 'ssr' || mode === 'streaming'
+  const { perRequest, prerendered, serverData } = MODES[mode]
+  const serverPrefetch = query !== undefined && serverData
   const pageName = `${route.componentPrefix}Page`
   const prefetchedName = query === undefined ? '' : `Prefetched${upperFirst(query.view.name.replace(/View$/, ''))}`
 
@@ -488,11 +507,11 @@ function pageSource(page: PageModel): string {
   if (serverPrefetch) imports.set('@tanstack/react-query', 'import { dehydrate, HydrationBoundary }')
   imports.set('next', 'import type { Metadata }')
   if (args.some((arg) => arg.type === 'number')) imports.set('next/navigation', 'import { notFound }')
-  if (requestTime) imports.set('next/server', 'import { connection }')
+  if (perRequest) imports.set('next/server', 'import { connection }')
   if (serverPrefetch && mode === 'streaming') imports.set('react', 'import { Suspense }')
   if (form !== undefined) imports.set(form.importPath, `import { ${form.componentName} }`)
   if (query !== undefined) {
-    imports.set(`@/features/${query.view.feature.name}/${query.view.fileName}`, `import { ${query.view.name} }`)
+    imports.set(query.view.importPath, `import { ${query.view.name} }`)
     if (serverPrefetch) {
       imports.set(query.optionsModule, `import { ${query.optionsName} }`)
       imports.set('@/shared/query-client/get-query-client', 'import { getQueryClient }')
@@ -510,22 +529,25 @@ export const dynamic = 'error'`)
 // 보내고 뒤에서 다시 렌더링한다. Next.js가 빌드할 때 읽으므로 값은 상수로 적는다.
 export const revalidate = ${String(ISR_REVALIDATE_SECONDS)}`)
   }
-  if ((mode === 'ssg' || mode === 'isr') && route.params.length > 0) {
+  if (prerendered && route.params.length > 0) {
     config.push(`// 빌드할 때 미리 렌더링할 경로. 빈 목록이면 빌드할 때는 렌더링하지 않고, 처음 요청이 온 경로를 렌더링해 두었다가
 // 다음 요청부터 보낸다. 빌드할 때 렌더링할 경로가 있으면 { ${route.params.map((param) => `${param}: '1'`).join(', ')} }처럼 돌려준다.
-export function generateStaticParams(): { ${route.params.map((param) => `${param}: string`).join('; ')} }[] {
+export function generateStaticParams(): ${paramsType(route)}[] {
   return []
 }`)
   }
 
   const comments: string[] = {
-    ssr: ['SSR: 요청마다 서버에서 렌더링한다. connection()을 기다리면 Next.js가 이 라우트를 빌드할 때 미리 렌더링하지 않는다.'],
+    ssr: [
+      'SSR: 요청마다 서버에서 렌더링한다. connection()을 기다리면 Next.js가 이 라우트를 빌드할 때 미리 렌더링하지 않는다.',
+      '페이지가 데이터를 기다리는 동안에는 loading.tsx를 먼저 보낸다.',
+    ],
     ssg: [],
     isr: [],
     streaming: [
-      '스트리밍: SSR처럼 요청마다 렌더링하고, 느린 부분만 <Suspense>로 감싼다. 서버는 나머지와 대체 UI(fallback)를 먼저 보내고,',
-      '느린 부분이 준비되면 같은 응답에 이어 보낸다.',
-      ...(query === undefined ? ['느린 데이터를 가져오는 서버 컴포넌트를 <Suspense>로 감싼다.'] : []),
+      '스트리밍: SSR처럼 요청마다 렌더링하고, 느린 부분만 <Suspense>로 감싼다. 서버는 제목 같은 나머지와 대체 UI(fallback)를',
+      '먼저 보내고, 느린 부분이 준비되면 같은 응답에 이어 보낸다.',
+      ...(query === undefined ? ['느린 데이터를 가져오는 서버 컴포넌트를 만들어 <Suspense>로 감싼다.'] : []),
     ],
     csr: [
       args.length === 0
@@ -533,19 +555,22 @@ export function generateStaticParams(): { ${route.params.map((param) => `${param
         : 'CSR: 서버는 데이터 없이 페이지 뼈대만 렌더링하고(경로의 값을 읽으므로 요청마다), 데이터는 브라우저가 클라이언트 컴포넌트에서 가져온다.',
     ],
   }[mode]
-  if (serverPrefetch) {
+  if (serverPrefetch && !prerendered) {
     comments.push(
       `${query.operationId}의 데이터는 서버에서 가져와(prefetch) ${query.view.name}에 hydration으로 넘기므로 브라우저가 다시 요청하지 않는다.`,
     )
-    if ((mode === 'ssg' || mode === 'isr') && route.params.length === 0) {
-      comments.push('빌드할 때 서버 컴포넌트가 백엔드를 부르므로 npm run build를 실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣는다.')
-    }
-    if ((mode === 'ssg' || mode === 'isr') && route.params.length > 0) {
-      comments.push(
-        'generateStaticParams가 돌려준 경로는 빌드할 때 렌더링하며 백엔드를 부르므로, 그런 경로가 있으면 npm run build를',
-        '실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣는다.',
-      )
-    }
+  }
+  if (serverPrefetch && prerendered) {
+    comments.push(
+      `${query.operationId}의 데이터는 렌더링할 때 서버에서 가져와(prefetch) ${query.view.name}에 hydration으로 넘긴다. 가져온 지`,
+      'staleTime(src/shared/query-client/get-query-client.ts)이 지난 데이터는 브라우저가 화면을 연 뒤 다시 가져온다.',
+      ...(fetchesAtBuild(page)
+        ? ['빌드할 때 서버 컴포넌트가 백엔드를 부르므로 npm run build를 실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣는다.']
+        : [
+            'generateStaticParams가 돌려준 경로는 빌드할 때 렌더링하며 백엔드를 부르므로, 그런 경로가 있으면 npm run build를',
+            '실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣는다.',
+          ]),
+    )
   }
   comments.push('화면은 Feature의 컴포넌트를 조합해 그린다(ADR-0005).')
 
@@ -554,7 +579,7 @@ export function generateStaticParams(): { ${route.params.map((param) => `${param
     args.length === 0
       ? ''
       : `interface ${propsName} {
-  params: Promise<{ ${route.params.map((param) => `${param}: string`).join('; ')} }>
+  params: Promise<${paramsType(route)}>
 }
 
 `
@@ -564,10 +589,10 @@ export function generateStaticParams(): { ${route.params.map((param) => `${param
       ? []
       : [
           `${indent}const queryClient = getQueryClient()`,
-          `${indent}await queryClient.query(${query.optionsName}(${query.args.map(({ name }) => name).join(', ')}))`,
+          `${indent}await queryClient.query(${query.optionsName}(${argumentList(query.args)}))`,
         ]
   const body = [
-    ...(requestTime ? ['  await connection()'] : []),
+    ...(perRequest ? ['  await connection()'] : []),
     ...readParams,
     ...(serverPrefetch && mode !== 'streaming' ? prefetch('  ') : []),
   ]
@@ -637,6 +662,21 @@ ${[...data, ...formSection].join('\n')}
 `
 }
 
+/** 빌드할 때 서버 컴포넌트가 백엔드에서 --query의 데이터를 가져오는가. 동적 세그먼트의 라우트는 빌드할 때 렌더링할 경로가 없다. */
+function fetchesAtBuild({ mode, query, route }: PageModel): boolean {
+  return query !== undefined && MODES[mode].serverData && MODES[mode].prerendered && route.params.length === 0
+}
+
+/** 라우트의 동적 세그먼트 값(params)의 타입. 값은 모두 문자열이다. */
+function paramsType(route: Route): string {
+  return `{ ${route.params.map((param) => `${param}: string`).join('; ')} }`
+}
+
+/** 인자를 이름 그대로 넘기는 인자 목록(productId, ...) */
+function argumentList(args: readonly PathArgument[]): string {
+  return args.map(({ name }) => name).join(', ')
+}
+
 /** 페이지가 경로의 동적 세그먼트를 읽어 쿼리나 폼에 넘길 값으로 바꾸는 문장 */
 function paramsStatements(args: readonly PathArgument[]): string[] {
   const numbers = args.filter((arg) => arg.type === 'number')
@@ -657,7 +697,7 @@ function elementProps(args: readonly PathArgument[]): string {
 
 function componentParameters(args: readonly PathArgument[]): string {
   if (args.length === 0) return ''
-  return `{ ${args.map(({ name }) => name).join(', ')} }: { ${args.map(({ name, type }) => `${name}: ${type}`).join('; ')} }`
+  return `{ ${argumentList(args)} }: { ${args.map(({ name, type }) => `${name}: ${type}`).join('; ')} }`
 }
 
 /** 로딩 상태(loading.tsx) */
@@ -713,7 +753,7 @@ ${args.map(({ name, type }) => `  /** 요청 경로의 ${name} */\n  ${name}: ${
 }
 
 `
-  const parameters = args.length === 0 ? '' : `{ ${args.map(({ name }) => name).join(', ')} }: ${propsName}`
+  const parameters = args.length === 0 ? '' : `{ ${argumentList(args)} }: ${propsName}`
   const { shape } = view
   const rendering = (() => {
     switch (shape.kind) {
@@ -764,7 +804,7 @@ ${propsInterface}/**
  * ${rendering.comment} 보여 줄 값과 모양은 화면에 맞게 고친다.
  */
 export function ${view.name}(${parameters}) {
-  const { data, isPending, isError } = useQuery(${query.optionsName}(${args.map(({ name }) => name).join(', ')}))
+  const { data, isPending, isError } = useQuery(${query.optionsName}(${argumentList(args)}))
 
   if (isPending) return <p role="status">${LOADING_MESSAGE}</p>
   if (isError) return <p role="alert">불러오지 못했습니다.</p>

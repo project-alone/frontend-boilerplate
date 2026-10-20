@@ -47,7 +47,7 @@ npx dcgen g --help                                     # 쓸 수 있는 Schemati
 | `page`      | 라우트의 페이지(메타데이터, `--mode`의 Rendering Mode), 로딩·오류 상태. `--query`의 결과를 보여 줄 컴포넌트(Feature), `--form`의 폼을 넣음 |
 | `component` | 컴포넌트, Storybook 스토리, 테스트(Feature 또는 공통 UI)                                                                                   |
 
-`query`, `mutation`, `form`, `page`는 Starter 최상위의 `openapi.yaml`을 읽어 코드를 만듭니다. 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고 실패합니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다. Schematic마다의 자세한 사용법은 만들어진 Starter의 README에 있습니다.
+`query`, `mutation`, `form`, `page`는 Starter 최상위의 `openapi.yaml`을 읽어 코드를 만듭니다. 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고 실패합니다. `page`만은 `--query`의 결과를 보여 줄 컴포넌트가 그 Feature에 이미 있으면 새로 만들지 않고 씁니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다. Schematic마다의 자세한 사용법은 만들어진 Starter의 README에 있습니다.
 
 ## 더 보기
 

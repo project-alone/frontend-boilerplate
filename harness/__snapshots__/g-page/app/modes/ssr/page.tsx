@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 }
 
 // SSR: 요청마다 서버에서 렌더링한다. connection()을 기다리면 Next.js가 이 라우트를 빌드할 때 미리 렌더링하지 않는다.
+// 페이지가 데이터를 기다리는 동안에는 loading.tsx를 먼저 보낸다.
 // listProducts의 데이터는 서버에서 가져와(prefetch) ListProductsView에 hydration으로 넘기므로 브라우저가 다시 요청하지 않는다.
 // 화면은 Feature의 컴포넌트를 조합해 그린다(ADR-0005).
 export default async function ModesSsrPage() {

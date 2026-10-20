@@ -10,8 +10,8 @@ export const metadata: Metadata = {
   title: '상품 목록',
 }
 
-// 스트리밍: SSR처럼 요청마다 렌더링하고, 느린 부분만 <Suspense>로 감싼다. 서버는 나머지와 대체 UI(fallback)를 먼저 보내고,
-// 느린 부분이 준비되면 같은 응답에 이어 보낸다.
+// 스트리밍: SSR처럼 요청마다 렌더링하고, 느린 부분만 <Suspense>로 감싼다. 서버는 제목 같은 나머지와 대체 UI(fallback)를
+// 먼저 보내고, 느린 부분이 준비되면 같은 응답에 이어 보낸다.
 // listProducts의 데이터는 서버에서 가져와(prefetch) ListProductsView에 hydration으로 넘기므로 브라우저가 다시 요청하지 않는다.
 // 화면은 Feature의 컴포넌트를 조합해 그린다(ADR-0005).
 export default async function ModesStreamingPage() {
