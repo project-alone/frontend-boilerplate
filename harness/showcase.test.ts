@@ -69,6 +69,19 @@ test('커밋된 Showcase는 Base에 server와 모든 Recipe를 덧입혀 다시 
   expect(result.status, result.output).toBe(0)
 })
 
+test('레포의 Generator로 검사해도(CI) 기여자가 흘린 파일(.DS_Store 등)은 npm pack처럼 빼고 만든다', () => {
+  // git과 npm pack이 무시하는 파일. Finder가 폴더를 열면 생긴다.
+  const stray = join(REPO_ROOT, 'packages/devc-frontend-generator/base/src/app/.DS_Store')
+  writeFileSync(stray, 'Finder가 남긴 파일')
+  try {
+    const result = npmAtRoot(['run', 'showcase:check'])
+
+    expect(result.status, result.output).toBe(0)
+  } finally {
+    rmSync(stray, { force: true })
+  }
+})
+
 test('Showcase가 원본과 어긋나면 어긋남 검사가 다른 파일을 모두 알리며 실패하고, 다시 만들면 원본대로 돌아간다', () => {
   const out = join(workdir, 'showcase')
   generateInto(out)
@@ -155,12 +168,16 @@ test('Showcase는 Generator에 담긴 모든 Recipe를 켠, 배포하지 않는 
   expect(readShowcase('next.config.ts')).toContain("output: 'standalone'")
 })
 
-/** condition이 참이 될 때까지(1분) 기다린다. */
-async function waitUntil(condition: () => boolean, process: BackgroundProcess, description: string): Promise<void> {
+/** condition이 참이 될 때까지(1분) 기다린다. 끝내 참이 되지 않으면 description과 process의 출력으로 실패한다. */
+async function waitUntil(
+  condition: () => boolean | Promise<boolean>,
+  process: BackgroundProcess,
+  description: string,
+): Promise<void> {
   const deadline = Date.now() + 60_000
-  while (!condition()) {
+  while (!(await condition())) {
     if (Date.now() > deadline) throw new Error(`${description}\n${process.output()}`)
-    await setTimeout(200)
+    await setTimeout(300)
   }
 }
 
@@ -226,13 +243,11 @@ test('showcase:dev는 Showcase를 레포 밖에 설치해 MSW 목으로 개발 �
 
     const page = join(showcase, 'src/app/page.tsx')
     writeFileSync(page, readFileSync(page, 'utf8').replace('<h1>Starter</h1>', '<h1>Mirrored</h1>'))
-    const deadline = Date.now() + 60_000
-    let home = ''
-    while (!home.includes('<h1>Mirrored</h1>') && Date.now() < deadline) {
-      await setTimeout(500)
-      home = await (await fetch(`${origin}/`)).text()
-    }
-    expect(home, dev.output()).toContain('<h1>Mirrored</h1>')
+    await waitUntil(
+      async () => (await (await fetch(`${origin}/`)).text()).includes('<h1>Mirrored</h1>'),
+      dev,
+      'Showcase에서 고친 내용이 개발 서버에 반영되지 않았습니다.',
+    )
   } finally {
     await dev.stop()
   }

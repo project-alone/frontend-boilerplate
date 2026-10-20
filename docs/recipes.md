@@ -137,7 +137,7 @@ Showcase(`apps/showcase/`)는 Base에 Rendering Mode `server`와 Generator에 �
 Recipe 티켓은 Showcase에 반영된 것으로 완료를 확인한다.
 
 1. Recipe를 고치는 동안 `npm run showcase:watch`와 `npm run showcase:dev`를 터미널 두 개에 띄워 두면, 고친 결과가 Showcase에 다시 생성되고 개발 서버에 바로 보인다.
-2. 끝나면 `npm run showcase`로 다시 만들어 Recipe의 변경과 `apps/showcase/`의 변경을 함께 커밋한다. 생성 결과만 따로 커밋해 두면 리뷰하기 쉽다.
+2. 끝나면 `npm run showcase`로 다시 만들어 Recipe의 변경과 `apps/showcase/`의 변경을 같은 PR에 올린다. 생성 결과는 따로 커밋해 두면 리뷰하기 쉽다.
 3. Showcase가 원본과 다르면 CI의 `showcase:check`가 실패한다. `apps/showcase/`를 직접 고쳐 맞추지 말고 원본을 고친 뒤 다시 만든다.
 4. 다른 Recipe와 부딪치는 패치나 테스트는 `harness/showcase-starter.test.ts`(모든 Recipe를 켠 Showcase)에서 드러난다.
 

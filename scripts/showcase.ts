@@ -2,21 +2,22 @@
 // showcase* 스크립트가 부른다. Showcase는 Base에 Rendering Mode server와 모든 Recipe를 덧입혀 생성한 Starter이고 직접
 // 고치지 않는다(ADR-0002). 쓰는 법은 docs/recipes.md의 "Showcase"에 있다.
 //
-//   generate [--generator <dir>] [--out <dir>]   Showcase를 만들어 out(기본 apps/showcase)을 그 결과와 같게 만든다
+//   generate [--generator <dir>] [--out <dir>]   Showcase를 만들어 out(기본 apps/showcase)을 그 결과와 같게 맞춘다
 //   check    [--generator <dir>] [--out <dir>]   다시 만든 결과와 out이 다르면 다른 파일을 알리고 실패한다(CI)
 //   watch    [--generator <dir>] [--out <dir>]   Generator의 Base, Recipe, Rendering Mode overlay, 소스가 바뀔 때마다 generate한다
 //   dev [--showcase <dir>] [--run-dir <dir>] [next dev 인자...]
 //                                                Showcase를 레포 밖에 설치해 MSW 목으로 개발 서버를 띄운다
 //
-// --generator는 Showcase를 만들 Generator 패키지의 디렉터리다. 주지 않으면 레포의 Generator를 빌드해 쓴다.
+// --generator는 Showcase를 만들 Generator 패키지의 디렉터리다(예: 하네스가 npm pack으로 설치한 것). 주지 않으면 레포의
+// Generator를 빌드하고 npm pack으로 묶은 내용으로 만든다.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, watch } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { runDev } from './showcase/dev.ts'
-import { compareFiles, listFiles, writeFiles } from './showcase/directory.ts'
+import { compareFiles, listShowcaseFiles, syncDirectory, watchDirectories } from './showcase/directory.ts'
 import { generateShowcase } from './showcase/generate.ts'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
@@ -43,55 +44,84 @@ switch (command) {
     process.exitCode = 1
 }
 
-interface Target {
-  /** Showcase를 만들 Generator 패키지 디렉터리 */
-  generatorDir: string
-  /** 레포의 Generator라 소스(src)를 빌드해 써야 한다 */
-  fromRepo: boolean
+interface ShowcaseOptions {
+  /** --generator로 받은 Generator 패키지 디렉터리. 없으면 레포의 Generator를 쓴다. */
+  generatorDir: string | undefined
   /** Showcase를 둘 디렉터리 */
   out: string
 }
 
-function parseTarget(): Target {
+function parseShowcaseOptions(): ShowcaseOptions {
   const { values } = parseArgs({ args, options: { generator: { type: 'string' }, out: { type: 'string' } } })
   return {
-    generatorDir: values.generator === undefined ? REPO_GENERATOR : resolve(values.generator),
-    fromRepo: values.generator === undefined,
+    generatorDir: values.generator === undefined ? undefined : resolve(values.generator),
     out: values.out === undefined ? REPO_SHOWCASE : resolve(values.out),
   }
 }
 
-function display(path: string): string {
+function relativeToCwd(path: string): string {
   return relative(process.cwd(), path) || '.'
 }
 
-function buildRepoGenerator(): void {
-  const result = spawnSync('npm', ['run', 'build'], { cwd: REPO_GENERATOR, encoding: 'utf8' })
-  if (result.status !== 0) throw new Error(`Generator를 빌드하지 못했습니다.\n${result.stdout}${result.stderr}`)
+/** 명령을 실행하고 표준 출력을 돌려준다. 실패하면 출력과 함께 오류를 던진다. */
+function exec(command: string, commandArgs: readonly string[], cwd: string): string {
+  const result = spawnSync(command, commandArgs, { cwd, encoding: 'utf8' })
+  if (result.status !== 0) {
+    throw new Error(`${command} ${commandArgs.join(' ')}이(가) 실패했습니다.\n${result.stdout}${result.stderr}`)
+  }
+  return result.stdout
+}
+
+/**
+ * Showcase를 만들어 돌려준다. --generator가 없으면 레포의 Generator를 (build이면 빌드하고) npm pack으로 묶어 꺼낸 내용으로
+ * 만든다. 배포되는 패키지와 같은 파일로 만들어야, 기여자의 컴퓨터에 흘린 파일(.DS_Store 등)이 끼지 않고 npm이 빼는
+ * dotfile이 드러나 어디서 만들어도 같은 결과가 나온다. 레포의 node_modules 아래에 꺼내 Generator의 의존성(레포 최상위에
+ * 설치된)을 그대로 찾게 한다.
+ */
+function buildShowcase({ generatorDir }: ShowcaseOptions, build: boolean) {
+  if (generatorDir !== undefined) return generateShowcase(generatorDir)
+
+  if (build) exec('npm', ['run', 'build'], REPO_GENERATOR)
+  const cache = join(REPO_ROOT, 'node_modules', '.cache')
+  mkdirSync(cache, { recursive: true })
+  const packDir = mkdtempSync(join(cache, 'devc-showcase-generator-'))
+  try {
+    const packed = JSON.parse(
+      exec('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', packDir], REPO_GENERATOR),
+    ) as { filename: string }[]
+    const tarball = packed[0]?.filename
+    if (tarball === undefined) throw new Error('npm pack이 만든 Generator tarball을 찾지 못했습니다.')
+    exec('tar', ['-xzf', join(packDir, tarball), '-C', packDir], REPO_ROOT)
+    return generateShowcase(join(packDir, 'package'))
+  } finally {
+    rmSync(packDir, { recursive: true, force: true })
+  }
+}
+
+/** Showcase를 만들어 out을 그 결과와 같게 맞추고, 바꾸거나 지운 파일 수를 알리는 문장을 돌려준다. */
+function regenerate(options: ShowcaseOptions, build: boolean): string {
+  const { written, removed } = syncDirectory(options.out, buildShowcase(options, build), listShowcaseFiles(options.out))
+  return `바꾼 파일 ${String(written.length)}개, 지운 파일 ${String(removed.length)}개`
 }
 
 function generate(): void {
-  const { generatorDir, fromRepo, out } = parseTarget()
-  if (fromRepo) buildRepoGenerator()
-  const { written, removed } = writeFiles(out, generateShowcase(generatorDir), listFiles(out))
-  console.log(
-    `Showcase를 만들었습니다: ${display(out)} (바꾼 파일 ${String(written.length)}개, 지운 파일 ${String(removed.length)}개)`,
-  )
+  const options = parseShowcaseOptions()
+  console.log(`Showcase를 만들었습니다: ${relativeToCwd(options.out)} (${regenerate(options, true)})`)
 }
 
 function check(): void {
-  const { generatorDir, fromRepo, out } = parseTarget()
-  if (fromRepo) buildRepoGenerator()
-  const { changed, missing, extra } = compareFiles(out, generateShowcase(generatorDir), listFiles(out))
+  const options = parseShowcaseOptions()
+  const { out } = options
+  const { changed, missing, extra } = compareFiles(out, buildShowcase(options, true), listShowcaseFiles(out))
   if (changed.length + missing.length + extra.length === 0) {
-    console.log(`Showcase(${display(out)})가 Base와 Recipe로 다시 만든 결과와 같습니다.`)
+    console.log(`Showcase(${relativeToCwd(out)})가 Base와 Recipe로 다시 만든 결과와 같습니다.`)
     return
   }
   const list = (label: string, paths: readonly string[]) =>
     paths.length > 0 ? [`  ${label}: ${paths.join(', ')}`] : []
   console.error(
     [
-      `Showcase(${display(out)})가 Base와 Recipe로 다시 만든 결과와 다릅니다.`,
+      `Showcase(${relativeToCwd(out)})가 Base와 Recipe로 다시 만든 결과와 다릅니다.`,
       ...list('내용이 다른 파일', changed),
       ...list('빠진 파일', missing),
       ...list('남는 파일', extra),
@@ -102,39 +132,29 @@ function check(): void {
 }
 
 function watchSources(): void {
-  const { generatorDir, fromRepo, out } = parseTarget()
-  const regenerate = (rebuild: boolean) => {
+  const options = parseShowcaseOptions()
+  const generatorDir = options.generatorDir ?? REPO_GENERATOR
+  const run = (build: boolean) => {
     try {
-      if (rebuild) buildRepoGenerator()
-      const { written, removed } = writeFiles(out, generateShowcase(generatorDir), listFiles(out))
-      const time = new Date().toLocaleTimeString('ko-KR')
-      console.log(
-        `[${time}] Showcase를 다시 만들었습니다(바꾼 파일 ${String(written.length)}개, 지운 파일 ${String(removed.length)}개).`,
-      )
+      const summary = regenerate(options, build)
+      console.log(`[${new Date().toLocaleTimeString('ko-KR')}] Showcase를 다시 만들었습니다(${summary}).`)
     } catch (error) {
       // 패치가 맞지 않는 등 생성이 실패해도 고칠 때까지 계속 지켜본다.
       console.error(error instanceof Error ? error.message : error)
     }
   }
-  regenerate(fromRepo)
+  run(true)
 
-  // Generator의 소스(src)가 바뀌면 빌드한 뒤에 만든다. 여러 파일이 한꺼번에 바뀌어도 한 번만 만든다.
-  let timer: NodeJS.Timeout | undefined
-  let rebuild = false
-  const sources = ['base', 'recipes', 'rendering-modes', ...(fromRepo ? ['src'] : [])]
-  for (const source of sources.filter((name) => existsSync(join(generatorDir, name)))) {
-    watch(join(generatorDir, source), { recursive: true }, () => {
-      rebuild ||= source === 'src'
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        const shouldRebuild = rebuild
-        rebuild = false
-        regenerate(shouldRebuild)
-      }, 300)
-    })
-  }
+  // Generator의 소스(src)가 바뀌었으면 빌드한 뒤에 만든다.
+  const src = join(generatorDir, 'src')
+  const sources = ['base', 'recipes', 'rendering-modes', 'src']
+    .map((name) => join(generatorDir, name))
+    .filter((directory) => existsSync(directory))
+  watchDirectories(sources, (changed) => {
+    run(changed.has(src))
+  })
   console.log(
-    `Generator(${display(generatorDir)})의 ${sources.join(', ')}에서 파일이 바뀌면 Showcase(${display(out)})를 다시 만듭니다.`,
+    `Generator(${relativeToCwd(generatorDir)})의 base, recipes, rendering-modes, src에서 파일이 바뀌면 Showcase(${relativeToCwd(options.out)})를 다시 만듭니다.`,
   )
 }
 
@@ -156,7 +176,7 @@ async function dev(): Promise<number> {
   }
   // 실행용 디렉터리는 레포 밖(운영체제의 임시 디렉터리)에 Showcase마다 하나씩 두고, 다음 실행에서 설치를 다시 쓴다.
   const hash = createHash('sha256').update(showcaseDir).digest('hex').slice(0, 8)
-  buildRepoGenerator()
+  exec('npm', ['run', 'build'], REPO_GENERATOR)
   return runDev({
     showcaseDir,
     runDir: runDir ?? join(tmpdir(), `devc-frontend-showcase-${hash}`),

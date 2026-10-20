@@ -1,26 +1,32 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, watch, writeFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import type { ShowcaseFiles } from './generate.ts'
 
+/** directory 아래 모든 파일의 경로(directory 기준, 구분자 /, 이름순) */
+export function readAllPaths(directory: string): string[] {
+  return readdirSync(directory, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(directory, join(entry.parentPath, entry.name)).split(sep).join('/'))
+    .sort()
+}
+
 /**
- * directory에 있는 Showcase 파일(최상위 기준 경로, 이름순). git 저장소 안이면 git이 무시하는 파일(node_modules, .next 등)은
+ * directory에 있는 Showcase 파일(directory 기준 경로, 이름순). git 저장소 안이면 git이 무시하는 파일(node_modules, .next 등)은
  * 빼고 아직 커밋하지 않은 파일은 넣는다. 저장소 밖이면 모든 파일이다.
  */
-export function listFiles(directory: string): string[] {
+export function listShowcaseFiles(directory: string): string[] {
   if (!existsSync(directory)) return []
   const git = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
     cwd: directory,
     encoding: 'utf8',
   })
-  const paths =
-    git.status === 0
-      ? git.stdout.split('\0').filter((path) => path !== '')
-      : readdirSync(directory, { recursive: true, withFileTypes: true })
-          .filter((entry) => entry.isFile())
-          .map((entry) => relative(directory, join(entry.parentPath, entry.name)).split(sep).join('/'))
+  if (git.status !== 0) return readAllPaths(directory)
   // git은 지운 채 아직 커밋하지 않은 파일도 알려 준다.
-  return paths.filter((path) => existsSync(join(directory, path))).sort()
+  return git.stdout
+    .split('\0')
+    .filter((path) => path !== '' && existsSync(join(directory, path)))
+    .sort()
 }
 
 export interface Difference {
@@ -32,7 +38,7 @@ export interface Difference {
   extra: string[]
 }
 
-/** directory의 파일(existing)을 files와 비교한다. */
+/** directory에 있는 파일(existing)을 files와 비교한다. */
 export function compareFiles(directory: string, files: ShowcaseFiles, existing: readonly string[]): Difference {
   const present = new Set(existing)
   const changed: string[] = []
@@ -45,10 +51,10 @@ export function compareFiles(directory: string, files: ShowcaseFiles, existing: 
 }
 
 /**
- * directory를 files와 같게 만든다. 내용이 다르거나 없는 파일만 쓰고(개발 서버가 바뀐 파일만 다시 읽도록),
- * existing 가운데 files에 없는 파일은 지운다. 쓰거나 지운 파일을 돌려준다.
+ * directory를 files와 같게 맞춘다. 내용이 다르거나 없는 파일만 쓰고(개발 서버가 바뀐 파일만 다시 읽도록), existing 가운데
+ * files에 없는 파일은 지운다. 쓰거나 지운 파일을 돌려준다.
  */
-export function writeFiles(
+export function syncDirectory(
   directory: string,
   files: ShowcaseFiles,
   existing: readonly string[],
@@ -74,5 +80,32 @@ function removeEmptyDirectories(directory: string, from: string): void {
   while (current !== directory && current.startsWith(directory) && readdirSync(current).length === 0) {
     rmdirSync(current)
     current = dirname(current)
+  }
+}
+
+/**
+ * directories 아래의 파일이 바뀌면 onChange에 바뀐 디렉터리를 넘긴다. 여러 파일이 한꺼번에 바뀌어도(편집기 저장, 다시 생성)
+ * 잠잠해진 뒤에 한 번만 부른다. 지켜보기를 그만두는 함수를 돌려준다.
+ */
+export function watchDirectories(
+  directories: readonly string[],
+  onChange: (changed: ReadonlySet<string>) => void,
+): () => void {
+  let timer: NodeJS.Timeout | undefined
+  let changed = new Set<string>()
+  const watchers = directories.map((directory) =>
+    watch(directory, { recursive: true }, () => {
+      changed.add(directory)
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        const settled = changed
+        changed = new Set()
+        onChange(settled)
+      }, 300)
+    }),
+  )
+  return () => {
+    clearTimeout(timer)
+    for (const watcher of watchers) watcher.close()
   }
 }

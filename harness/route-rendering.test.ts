@@ -24,7 +24,7 @@ test('route-rendering Recipe는 요청을 받는 서버가 있어야 하므로 s
 })
 
 // 하네스 매트릭스: Base에 route-rendering Recipe를 넣은 server Starter를 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은
-// 테스트(CSR 목록의 단위 테스트, e2e/route-rendering.spec.ts)가 통과하는지 본다. 모든 Recipe를 켠 조합은 showcase.test.ts가 본다.
+// 테스트(CSR 목록의 단위 테스트, e2e/route-rendering.spec.ts)가 통과하는지 본다. 모든 Recipe를 켠 조합은 showcase-starter.test.ts가 본다.
 describe('Rendering Mode server에 route-rendering Recipe를 넣은 Starter', () => {
   const starter = useStarter({
     prefix: 'dcgen-route-rendering-',
