@@ -1,0 +1,22 @@
+{
+  "LocaleSwitcher": {
+    "label": "Language"
+  },
+  "HomePage": {
+    "title": "Starter",
+    "description": "This Starter supports Korean and English. Change the language in the header.",
+    "exampleLink": "See the internationalization example"
+  },
+  "I18nExample": {
+    "title": "Internationalization example",
+    "description": "The same message keys read differently in each locale. The two lines below are translated by a Server Component at build time.",
+    "releaseDate": "Released: {date, date, full}",
+    "price": "Price: {price, number, ::currency/KRW}",
+    "homeLink": "Home"
+  },
+  "CartCounter": {
+    "description": "Below, a Client Component translates in the browser.",
+    "count": "{count, plural, =0 {Your cart is empty} one {# item in your cart} other {# items in your cart}}.",
+    "add": "Add item"
+  }
+}

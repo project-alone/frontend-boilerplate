@@ -1,5 +1,5 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/vitest.config.ts, recipes/dark-mode/vitest.config.ts.patch
+// 원본(packages/devc-frontend-generator/): base/vitest.config.ts, recipes/dark-mode/vitest.config.ts.patch, recipes/i18n/vitest.config.ts.patch
 
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
@@ -18,6 +18,9 @@ export default defineConfig({
           include: ['src/**/*.test.{ts,tsx}'],
           environment: 'jsdom',
           setupFiles: ['./vitest.setup.ts'],
+          // i18n Recipe: next-intl의 proxy(next-intl/middleware)는 next/server를 확장자 없이 import해 Node.js가 바로 불러오지
+          // 못하므로 Vite가 변환해 불러오게 한다(src/shared/i18n/i18n-proxy.test.ts).
+          server: { deps: { inline: ['next-intl'] } },
         },
       },
       {
