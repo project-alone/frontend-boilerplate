@@ -1,0 +1,112 @@
+# GitLab CI. 사내 GitLab에 저장소를 올리면 바로 돈다.
+# 검사(lint, 포맷, 타입, 단위 테스트, 스토리 접근성) → 빌드 → E2E 순서로 실행한다.
+# 잡은 모두 package.json의 npm 스크립트를 부르므로, 로컬에서 같은 스크립트로 똑같이 확인할 수 있다.
+
+stages:
+  - check
+  - build
+  - e2e
+
+variables:
+  # GitLab은 프로젝트 디렉터리 안만 캐시하므로 npm 캐시를 프로젝트 안에 둔다.
+  npm_config_cache: $CI_PROJECT_DIR/.npm
+
+default:
+  # Node는 .nvmrc와 같은 메이저 버전을 쓴다. .nvmrc를 바꾸면 이 태그도 함께 바꾼다.
+  # Debian 13(trixie)은 Playwright가 Chromium 시스템 라이브러리를 설치할 수 있는 배포판이다.
+  image: node:24-trixie
+  interruptible: true
+  # node_modules 대신 npm이 내려받은 패키지를 package-lock.json이 바뀔 때까지 캐시한다.
+  # 캐시는 build 잡만 갱신하고 나머지 잡은 받기만 한다.
+  cache:
+    - &npm-cache
+      key:
+        prefix: npm
+        files:
+          - package-lock.json
+      paths:
+        - .npm/
+      policy: pull
+  before_script:
+    - &npm-ci npm ci --prefer-offline --no-audit --no-fund
+
+lint:
+  stage: check
+  script:
+    - npm run lint
+
+format:check:
+  stage: check
+  script:
+    - npm run format:check
+
+typecheck:
+  stage: check
+  script:
+    - npm run typecheck
+
+test:
+  stage: check
+  script:
+    - npm test
+
+# Storybook 테스트와 E2E가 쓰는 Chromium. 시스템 라이브러리는 이미지에 없으므로 잡마다 설치한다.
+# 브라우저는 버전별 폴더에 받으므로 키 하나로 캐시한다. Playwright를 올리면 새 버전만 받고 쓰지 않는 버전은 지운다.
+.chromium:
+  variables:
+    PLAYWRIGHT_BROWSERS_PATH: $CI_PROJECT_DIR/.cache/ms-playwright
+  cache:
+    - *npm-cache
+    - &playwright-cache
+      key: playwright
+      paths:
+        - .cache/ms-playwright/
+      policy: pull
+  before_script:
+    - *npm-ci
+    - npm run playwright:install -- --with-deps
+
+test:storybook:
+  extends: .chromium
+  stage: check
+  # Chromium을 먼저 쓰는 이 잡이 브라우저 캐시를 갱신하고, E2E는 받기만 한다.
+  cache:
+    - *npm-cache
+    - <<: *playwright-cache
+      policy: pull-push
+  script:
+    - npm run test:storybook
+
+build:
+  stage: build
+  cache:
+    - <<: *npm-cache
+      policy: pull-push
+    # Next.js 빌드 캐시. 없으면 next build가 CI에서 경고를 내고 매번 처음부터 빌드한다.
+    - key: next-$CI_COMMIT_REF_SLUG
+      paths:
+        - .next/cache/
+  script:
+    - npm run build
+  # E2E가 `next start`로 띄울 빌드 결과. 빌드 캐시와 standalone 결과물은 E2E에 필요 없어 넘기지 않는다.
+  artifacts:
+    paths:
+      - .next/
+    exclude:
+      - .next/cache/**/*
+      - .next/standalone/**/*
+    expire_in: 1 day
+
+test:e2e:
+  extends: .chromium
+  stage: e2e
+  needs:
+    - build
+  script:
+    - npm run test:e2e
+  # 실패한 테스트의 trace(playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.
+  artifacts:
+    when: on_failure
+    paths:
+      - test-results/
+    expire_in: 1 week

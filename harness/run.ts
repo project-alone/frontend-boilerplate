@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createServer } from 'node:net'
+import { setTimeout } from 'node:timers/promises'
 
 export interface RunResult {
   status: number | null
@@ -22,8 +23,13 @@ export interface BackgroundProcess {
 }
 
 // 개발 서버처럼 스스로 끝나지 않는 명령을 띄운다. `stop`은 명령이 띄운 자식 프로세스까지 함께 끝낸다.
-export function start(command: string, args: readonly string[], cwd: string): BackgroundProcess {
-  const child = spawn(command, args, { cwd, env: envWithoutVitest(), detached: true })
+export function start(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {},
+): BackgroundProcess {
+  const child = spawn(command, args, { cwd, env: { ...envWithoutVitest(), ...env }, detached: true })
   let output = ''
   child.stdout.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
   child.stderr.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
@@ -37,6 +43,19 @@ export function start(command: string, args: readonly string[], cwd: string): Ba
       await exited
     },
   }
+}
+
+// 띄운 서버가 응답할 때까지 기다렸다가 첫 응답을 돌려준다. 2분 안에 연결되지 않으면 서버 출력과 함께 실패한다.
+export async function waitForServer(url: string, server: BackgroundProcess): Promise<Response> {
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline) {
+    try {
+      return await fetch(url)
+    } catch {
+      await setTimeout(500)
+    }
+  }
+  throw new Error(`${url}에 연결하지 못했습니다.\n${server.output()}`)
 }
 
 // 다른 프로세스(예: 다른 워크트리에서 도는 하네스)가 쓰지 않는 포트를 고른다.
