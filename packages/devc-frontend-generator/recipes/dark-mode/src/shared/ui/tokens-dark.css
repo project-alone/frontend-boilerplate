@@ -1,0 +1,29 @@
+/*
+ * 다크 모드 토큰(dark-mode Recipe). tokens.css의 색 토큰 값만 어두운 테마의 값으로 덮어쓴다.
+ * 컴포넌트는 토큰으로 만든 유틸리티만 쓰므로 컴포넌트 코드는 고치지 않는다.
+ *
+ * - <html data-theme="dark">일 때 적용된다. data-theme은 src/shared/theme/theme.ts가 저장된 선택과
+ *   운영체제 설정(prefers-color-scheme)으로 정하며, 첫 화면을 그리기 전에 붙인다.
+ * - tokens.css에 색 토큰을 더하면 여기에도 어두운 테마의 값을 더한다. 색이 아닌 토큰(글자 크기, 간격 등)은 두 테마가 같이 쓴다.
+ * - 지금 값은 tokens.css처럼 무채색 자리표시 값(WCAG 2.2 AA 명도 대비 충족)이다. 디자이너의 값으로 바꿔 쓴다.
+ */
+@layer theme {
+  [data-theme='dark'] {
+    /* 스크롤바, 기본 폼 컨트롤 같은 브라우저 기본 UI도 어두운 테마로 그린다. */
+    color-scheme: dark;
+
+    --color-background: #121212;
+    --color-foreground: #ededed;
+    --color-muted: #262626;
+    --color-muted-foreground: #a3a3a3;
+    --color-border: #8c8c8c;
+    --color-primary: #ededed;
+    --color-primary-hover: #c7c7c7;
+    --color-primary-foreground: #121212;
+    --color-danger: #ffb4ab;
+    --color-danger-hover: #ff8a7d;
+    --color-danger-foreground: #5c0a04;
+    --color-focus-ring: #ededed;
+    --color-overlay: rgb(0 0 0 / 0.7);
+  }
+}

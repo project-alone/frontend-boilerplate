@@ -10,7 +10,8 @@
   "files": [
     "dist",
     "base",
-    "rendering-modes"
+    "rendering-modes",
+    "recipes"
   ],
   "scripts": {
     "build": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\" && tsc",
@@ -19,7 +20,9 @@
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "13.1.0",
+    "@clack/prompts": "1.8.1",
     "commander": "^15.0.0",
+    "diff": "9.0.0",
     "ts-morph": "28.0.0"
   },
   "devDependencies": {

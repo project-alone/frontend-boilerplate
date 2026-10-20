@@ -1,0 +1,5 @@
+{
+  "description": "시험용: dark-mode가 필요한 Recipe",
+  "requires": ["dark-mode"],
+  "renderingModes": ["server", "static-export"]
+}

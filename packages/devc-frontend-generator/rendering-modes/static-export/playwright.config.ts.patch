@@ -1,0 +1,22 @@
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -12,12 +12,15 @@
+     trace: 'retain-on-failure',
+   },
+   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+-  // 빌드된 Starter(`npm run build`의 결과)를 `npm run start`로 띄워 검사한다.
+-  // Next.js 서버가 뜨면(server Rendering Mode) 그 서버가 보내는 API 요청은 MSW가 받는다.
++  // Rendering Mode static-export: 브라우저의 MSW를 켜고(NEXT_PUBLIC_API_MOCKING=enabled) 빌드한 out/을 정적 파일 서버
++  // (`npm run start`)로 띄워 검사한다. 브라우저가 백엔드로 보내는 API 요청은 MSW 서비스 워커가 받는다.
++  // NEXT_PUBLIC_ 값은 빌드할 때 코드에 박히므로 E2E가 직접 다시 빌드한다. 이렇게 만든 out/은 배포하지 않는다.
+   webServer: {
+-    command: `npm run start -- --port ${PORT}`,
++    command: `npm run build && npm run start -- --port ${PORT}`,
+     url: baseURL,
+     reuseExistingServer: !process.env.CI,
+-    env: { API_MOCKING: 'enabled' },
++    env: { NEXT_PUBLIC_API_MOCKING: 'enabled' },
++    // 빌드가 끝날 때까지 기다린다.
++    timeout: 5 * 60_000,
+   },
+ })

@@ -1,0 +1,34 @@
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -1,5 +1,6 @@
+ # GitLab CI. 사내 GitLab에 저장소를 올리면 바로 돈다.
+ # 검사(lint, 포맷, 타입, 단위 테스트, 스토리 접근성) → 빌드 → E2E 순서로 실행한다.
++# Rendering Mode static-export용이다. server Starter와는 빌드 결과(out/)를 남기는 build 잡과, 직접 빌드하는 E2E 잡이 다르다.
+ # 잡은 모두 package.json의 npm 스크립트를 부르므로, 로컬에서 같은 스크립트로 똑같이 확인할 수 있다.
+ 
+ stages:
+@@ -88,20 +89,17 @@
+         - .next/cache/
+   script:
+     - npm run build
+-  # E2E가 `next start`로 띄울 빌드 결과. 빌드 캐시와 standalone 결과물은 E2E에 필요 없어 넘기지 않는다.
++  # 빌드 결과는 out/의 정적 파일이 전부다. 배포할 때 이것만 올린다.
+   artifacts:
+     paths:
+-      - .next/
+-    exclude:
+-      - .next/cache/**/*
+-      - .next/standalone/**/*
++      - out/
+     expire_in: 1 day
+ 
+ test:e2e:
+   extends: .chromium
+   stage: e2e
+-  needs:
+-    - build
++  # E2E는 브라우저의 MSW를 켜고 다시 빌드한 out/으로 돈다(playwright.config.ts). build 잡의 배포용 out/은 받지 않는다.
++  dependencies: []
+   script:
+     - npm run test:e2e
+   # 실패한 테스트의 trace(playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.

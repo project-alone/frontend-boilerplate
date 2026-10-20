@@ -1,0 +1,11 @@
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -1,7 +1,7 @@
+ export default function HomePage() {
+   return (
+     <main>
+-      <h1>Base에 없는 제목</h1>
++      <h1>패치한 제목</h1>
+     </main>
+   )
+ }
