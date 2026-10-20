@@ -55,7 +55,7 @@ Recipe의 코드와 테스트는 Starter의 같은 경로에 새 파일로 더�
 
 ### 설정 패치(`<경로>.patch`)
 
-Base의 기존 파일(레이아웃, 설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `src/app/layout.tsx.patch`, `.storybook/preview.tsx.patch`. 패치 하나는 파일 하나만 고친다.
+Base의 기존 파일(레이아웃, 설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `src/app/layout.tsx.patch`, `.storybook/preview.tsx.patch`. 패치 하나는 파일 하나만 고친다. 사본 대신 패치를 쓰는 이유는 ADR-0007에 있다.
 
 - 패치는 덧입히는 시점의 Starter 파일, 곧 Base에 Rendering Mode와 앞서 덧입힌 Recipe가 적용된 파일에 적용된다. 줄 번호가 달라도 맥락 줄이 맞는 곳을 찾아 적용하지만, 맥락 줄이 맞지 않으면 생성이 어느 패치인지 알리며 실패하고 만들던 Starter를 지운다.
 - Recipe가 지원하는 모든 Rendering Mode에서 맞아야 한다. Rendering Mode가 대신하는 파일(`rendering-modes/<mode>/`에 있는 파일)은 되도록 고치지 않는다.
