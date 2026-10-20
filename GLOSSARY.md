@@ -15,7 +15,7 @@ _Avoid_: core, skeleton, 템플릿
 _Avoid_: 케이스, 예제, 모듈, 플러그인
 
 **Rendering Mode**:
-페이지를 렌더링하고 배포하는 방식(SPA, SSR, SSG 등). Starter 전체에 적용되는 것(정적 export)과 라우트마다 고르는 것(SSR, SSG, ISR, 스트리밍)이 있다.
+페이지를 렌더링하고 배포하는 방식. Starter 전체에는 `server`(서버에서 실행)와 `static-export`(정적 파일만으로 배포) 중 하나를 적용하고, `server` 안에서는 라우트마다 SSR, SSG, ISR, 스트리밍 중에서 고른다.
 _Avoid_: 케이스, 렌더링 전략
 
 **Archetype**:

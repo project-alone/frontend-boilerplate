@@ -1,6 +1,8 @@
-import { cp, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { cp, readdir, rename } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { updatePackageJson } from './package-json.js'
+import { applyRenderingMode, type RenderingMode } from './rendering-mode.js'
 
 const BASE_DIR = fileURLToPath(new URL('../base', import.meta.url))
 
@@ -14,13 +16,14 @@ export class TargetNotEmptyError extends Error {
   }
 }
 
-export async function createStarter(name: string, cwd: string): Promise<string> {
+export async function createStarter(name: string, cwd: string, renderingMode: RenderingMode): Promise<string> {
   const target = resolve(cwd, name)
   if (await isNonEmptyDirectory(target)) throw new TargetNotEmptyError(target)
 
   await cp(BASE_DIR, target, { recursive: true })
   await rename(join(target, PACKED_GITIGNORE), join(target, '.gitignore'))
-  await setPackageName(target, basename(target))
+  await applyRenderingMode(target, renderingMode)
+  await updatePackageJson(target, (packageJson) => ({ ...packageJson, name: basename(target) }))
 
   return target
 }
@@ -32,10 +35,4 @@ async function isNonEmptyDirectory(directory: string): Promise<boolean> {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false
     throw error
   }
-}
-
-async function setPackageName(target: string, packageName: string): Promise<void> {
-  const packageJsonPath = join(target, 'package.json')
-  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8')) as Record<string, unknown>
-  await writeFile(packageJsonPath, `${JSON.stringify({ ...packageJson, name: packageName }, null, 2)}\n`)
 }
