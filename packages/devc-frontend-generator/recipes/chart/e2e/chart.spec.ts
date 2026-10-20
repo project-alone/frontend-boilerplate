@@ -65,16 +65,18 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
       const background = await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)
       const line = await page.locator('.recharts-line-curve').evaluate((path) => getComputedStyle(path).stroke)
-      const bars = await page
-        .locator('.recharts-bar')
-        .evaluateAll((series) =>
-          series.map((bar) => getComputedStyle(bar.querySelector('.recharts-rectangle') ?? bar).fill),
-        )
+      // 비교 차트의 계열은 지난달(테두리만 그린 막대), 이번 달(채운 막대) 순서다.
+      const [previous, current] = await page.locator('.recharts-bar').evaluateAll((series) =>
+        series.map((bar) => {
+          const { fill, stroke } = getComputedStyle(bar.querySelector('.recharts-rectangle') ?? bar)
+          return { fill, stroke }
+        }),
+      )
       const ticks = await page
         .locator('.recharts-cartesian-axis-tick-value')
         .evaluateAll((texts) => texts.map((text) => getComputedStyle(text).fill))
 
-      for (const mark of [line, ...bars]) {
+      for (const mark of [line, previous?.stroke ?? '', current?.fill ?? '']) {
         expect(contrastRatio(mark, background), mark).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
       }
       expect(ticks.length).toBeGreaterThan(0)

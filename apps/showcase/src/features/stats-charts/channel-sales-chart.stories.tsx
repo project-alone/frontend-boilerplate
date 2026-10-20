@@ -31,24 +31,23 @@ export const Default: Story = {
     ).toEqual(['판매 채널', '지난달', '이번 달'])
     await expect(within(table).getAllByRole('row')).toHaveLength(5)
 
-    // 계열마다 채널 수만큼 막대를 그렸고, 그림은 보조 기술에서 숨겼다.
-    const series = await waitFor(() => {
+    // 계열(지난달, 이번 달)마다 채널 수만큼 막대를 그렸고, 그림은 보조 기술에서 숨겼다.
+    const [previous, current] = await waitFor(() => {
       const bars = [...canvasElement.querySelectorAll('.recharts-bar')].map((bar) => [
         ...bar.querySelectorAll('.recharts-rectangle'),
       ])
       if (bars.length !== 2 || bars.some((rectangles) => rectangles.length !== 4)) {
         throw new Error('막대를 아직 다 그리지 않았습니다.')
       }
-      return bars
+      return bars.flatMap(([first]) => (first === undefined ? [] : [getComputedStyle(first)]))
     })
     await expect(canvasElement.querySelector('.recharts-surface')?.closest('[aria-hidden="true"]')).not.toBeNull()
 
-    // 두 계열은 색이 서로 다르고, 둘 다 지금 테마의 배경 위에서 읽힌다.
+    // 두 계열은 색만으로 나누지 않는다. 지난달은 테두리만 그리고(안쪽은 배경색) 이번 달은 채운다. 둘 다 지금 테마의
+    // 배경 위에서 읽힌다.
     const background = getComputedStyle(document.body).backgroundColor
-    const fills = series.map(([first]) => (first === undefined ? '' : getComputedStyle(first).fill))
-    await expect(new Set(fills).size).toBe(2)
-    for (const fill of fills) {
-      await expect(contrastRatio(fill, background)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
-    }
+    await expect(previous?.fill).toBe(background)
+    await expect(contrastRatio(previous?.stroke ?? '', background)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
+    await expect(contrastRatio(current?.fill ?? '', background)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
   },
 }

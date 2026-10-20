@@ -3,10 +3,8 @@
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import type { DailyVisits } from '@/shared/api/generated/model'
 import { ChartFigure } from '@/shared/chart/chart-figure'
-import { CHART_COLORS, CHART_TOOLTIP_STYLE } from '@/shared/chart/chart-theme'
-import { formatLongDate, formatShortDate, formatVisits } from './stats-format'
-
-const DAILY_VISITS_TITLE = '일별 방문 수'
+import { CHART_COLORS, CHART_GRID_PROPS, CHART_PROPS, CHART_TOOLTIP_STYLE } from '@/shared/chart/chart-theme'
+import { formatCount, formatLongDate, formatShortDate, formatVisits } from './stats-format'
 
 /** 하루 방문 수가 가장 많은 날과 가장 적은 날을 한 문장으로 알린다. */
 function summarize(visits: readonly DailyVisits[]): string {
@@ -25,7 +23,7 @@ function summarize(visits: readonly DailyVisits[]): string {
 export function DailyVisitsChart({ visits }: Readonly<{ visits: readonly DailyVisits[] }>) {
   return (
     <ChartFigure
-      title={DAILY_VISITS_TITLE}
+      title="일별 방문 수"
       summary={summarize(visits)}
       rows={visits}
       rowKey={(day) => day.date}
@@ -34,16 +32,10 @@ export function DailyVisitsChart({ visits }: Readonly<{ visits: readonly DailyVi
         { header: '방문 수', cell: (day) => formatVisits(day.visits) },
       ]}
     >
-      <LineChart
-        responsive
-        accessibilityLayer={false}
-        data={visits}
-        style={{ width: '100%', height: '100%' }}
-        margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
-      >
-        <CartesianGrid vertical={false} stroke={CHART_COLORS.grid} strokeDasharray="3 3" />
+      <LineChart {...CHART_PROPS} data={visits}>
+        <CartesianGrid {...CHART_GRID_PROPS} />
         <XAxis dataKey="date" tickFormatter={formatShortDate} stroke={CHART_COLORS.axis} />
-        <YAxis width={48} tickFormatter={(value: number) => value.toLocaleString('ko-KR')} stroke={CHART_COLORS.axis} />
+        <YAxis width={48} tickFormatter={formatCount} stroke={CHART_COLORS.axis} />
         <Tooltip
           {...CHART_TOOLTIP_STYLE}
           cursor={{ stroke: CHART_COLORS.grid }}

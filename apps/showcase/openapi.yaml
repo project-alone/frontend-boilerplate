@@ -67,7 +67,7 @@ paths:
                 id: 3
                 name: 울 니트
                 price: 59000
-  # chart Recipe가 더한 operation. 차트 데모(src/features/stats-charts)가 시계열 차트와 비교 차트로 그린다.
+  # chart Recipe가 더한 operation. 샘플 차트(src/features/stats-charts)가 시계열 차트와 비교 차트로 그린다.
   /stats/daily-visits:
     get:
       operationId: listDailyVisits
