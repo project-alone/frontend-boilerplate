@@ -61,6 +61,67 @@ export async function waitForServer(url: string, server: BackgroundProcess): Pro
   throw new Error(`${url}에 연결하지 못했습니다.\n${server.output()}`)
 }
 
+/** 터미널에서 누르는 키 */
+export const KEYS = { down: '\x1b[B', space: ' ', enter: '\r', ctrlC: '\x03' }
+
+export interface TerminalSession {
+  /** 화면에 text가 나올 때까지(10초) 기다린다. */
+  waitFor: (text: string) => Promise<void>
+  /** 키를 누른다(KEYS). */
+  press: (keys: string) => void
+  /** 지금까지 화면에 나온 내용. 색 같은 ANSI 제어 문자는 뺀다. */
+  output: () => string
+  /** 명령이 끝나면 종료 코드로 풀린다. */
+  exited: Promise<number | null>
+}
+
+/**
+ * 사람이 터미널에서 실행한 것처럼 명령을 가상 터미널(pty)에서 실행한다. 대화형 입력을 시험할 때 쓴다.
+ * 하네스가 CI에서 돌더라도 사람의 터미널처럼 CI 환경 변수는 빼고 실행한다(env로 다시 넣을 수 있다).
+ * Node에는 pty가 없어 python3의 pty 모듈을 쓴다(macOS·Linux). 긴 안내가 줄바꿈되지 않도록 화면을 넓게 정한다.
+ */
+export function runInTerminal(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {},
+): TerminalSession {
+  const child = spawn(
+    'python3',
+    [
+      '-c',
+      'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]) >> 8)',
+      'sh',
+      '-c',
+      'stty cols 400 rows 60 && exec "$0" "$@"',
+      command,
+      ...args,
+    ],
+    { cwd, env: { ...envWithoutVitest(), CI: undefined, ...env } },
+  )
+  let raw = ''
+  child.stdout.setEncoding('utf8').on('data', (chunk: string) => (raw += chunk))
+  child.stderr.setEncoding('utf8').on('data', (chunk: string) => (raw += chunk))
+  const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)))
+  // 색, 커서 이동 같은 ANSI 제어 문자를 지운다.
+  const output = () => raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
+
+  return {
+    output,
+    exited,
+    press: (keys) => child.stdin.write(keys),
+    waitFor: async (text) => {
+      const deadline = Date.now() + 10_000
+      while (!output().includes(text)) {
+        if (Date.now() > deadline || child.exitCode !== null) {
+          throw new Error(`터미널에 "${text}"가 나오지 않았습니다.\n${output()}`)
+        }
+        await setTimeout(50)
+      }
+    },
+  }
+}
+
 // 다른 프로세스(예: 다른 워크트리에서 도는 하네스)가 쓰지 않는 포트를 고른다.
 // 이미 떠 있는 엉뚱한 서버를 대상으로 검사하는 일을 막는다.
 export async function freePort(): Promise<number> {

@@ -6,7 +6,11 @@ import { run, type RunResult } from './run.ts'
 
 export type RenderingMode = 'server' | 'static-export'
 
-/** 설치된 Generator의 `dcgen new`로 cwd에 my-app Starter를 만들고 그 경로를 돌려준다. */
+/**
+ * 설치된 Generator의 `dcgen new`로 cwd에 my-app Starter를 만들고 그 경로를 돌려준다.
+ * `dcgen new`는 의존성까지 설치하는데, Starter가 고정한 Generator는 아직 npm에 없어 설치가 실패한다.
+ * 그래서 args에 `--skip-install`을 넣고, 설치가 필요하면 linkPackedGenerator를 거쳐 설치한다(useStarter).
+ */
 export function newStarter(cwd: string, args: readonly string[] = []): string {
   const created = run(inject('dcgenBin'), ['new', 'my-app', ...args], cwd)
   expect(created.status, created.output).toBe(0)
@@ -17,7 +21,8 @@ export function newStarter(cwd: string, args: readonly string[] = []): string {
 export const GENERATOR_PACKAGE = 'devc-frontend-generator'
 
 /**
- * Starter가 devDependencies에 고정한 Generator를 하네스가 npm pack으로 만든 tarball로 바꾼다. Starter를 설치하기 전에 부른다.
+ * Starter가 devDependencies에 고정한 Generator를 하네스가 npm pack으로 만든 tarball로 바꾼다. Starter를 설치하기 전에
+ * 불러야 하므로 `dcgen new --skip-install`로 만든 Starter에 쓴다.
  * Starter는 Generator를 npm 레지스트리의 정확한 버전으로 고정하지만 Generator는 아직 npm에 배포되지 않았으므로,
  * 하네스에서는 그 항목만 tarball 경로(`file:`)로 바꿔 지금 소스로 만든 Generator를 설치한다. Generator 코드에는 하네스용 분기를 두지 않는다.
  */
@@ -53,7 +58,12 @@ export interface StarterOptions {
   prefix: string
   /** `dcgen new --rendering-mode`. 없으면 플래그 없이 만든다(server). */
   renderingMode?: RenderingMode
-  /** npm으로 설치까지 한다. Generator는 하네스가 팩한 tarball로 설치한다(linkPackedGenerator). */
+  /** `dcgen new --recipe`로 넣을 Recipe */
+  recipes?: readonly string[]
+  /**
+   * npm으로 설치까지 한다. `dcgen new --skip-install`로 만든 뒤 Generator를 하네스가 팩한 tarball로 바꾸고(linkPackedGenerator)
+   * 설치한다. `dcgen new`가 직접 설치하는 경로는 new.test.ts가 하네스의 레지스트리(registry.ts)로 검증한다.
+   */
   install?: boolean
   /** Storybook 테스트와 E2E가 쓰는 Chromium을 받는다(이미 받아 두었으면 건너뛴다). install이 필요하다. */
   playwright?: boolean
@@ -96,7 +106,11 @@ export function useStarter(options: StarterOptions): Starter {
 
   beforeAll(() => {
     const workdir = mkdtempSync(join(tmpdir(), options.prefix))
-    const args = options.renderingMode === undefined ? [] : ['--rendering-mode', options.renderingMode]
+    const args = [
+      ...(options.renderingMode === undefined ? [] : ['--rendering-mode', options.renderingMode]),
+      ...(options.recipes ?? []).flatMap((recipe) => ['--recipe', recipe]),
+      '--skip-install',
+    ]
     created = { workdir, dir: newStarter(workdir, args) }
     if (options.install === true) {
       linkPackedGenerator(starter.dir)

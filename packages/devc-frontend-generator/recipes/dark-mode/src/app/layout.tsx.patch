@@ -1,0 +1,33 @@
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -1,6 +1,8 @@
+ import type { Metadata } from 'next'
+ import type { ReactNode } from 'react'
++import { ThemeSwitcher } from '@/features/theme-switcher/theme-switcher'
+ import { QueryProvider } from '@/shared/query-client/query-provider'
++import { ThemeScript } from '@/shared/theme/theme-script'
+ import { ToastProvider } from '@/shared/ui/toast'
+ import '@/shared/ui/styles.css'
+ 
+@@ -10,10 +12,19 @@
+ 
+ export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+   return (
+-    <html lang="ko">
++    // ThemeScript가 첫 화면 전에 <html>에 data-theme을 붙이므로 그 속성의 hydration 불일치 경고를 끈다.
++    <html lang="ko" suppressHydrationWarning>
++      <head>
++        <ThemeScript />
++      </head>
+       <body>
+         <QueryProvider>
+-          <ToastProvider>{children}</ToastProvider>
++          <ToastProvider>
++            <header className="flex justify-end p-4">
++              <ThemeSwitcher />
++            </header>
++            {children}
++          </ToastProvider>
+         </QueryProvider>
+       </body>
+     </html>

@@ -1,0 +1,10 @@
+--- a/src/shared/ui/styles.css
++++ b/src/shared/ui/styles.css
+@@ -4,6 +4,7 @@
+  */
+ @import 'tailwindcss' source('../..');
+ @import './tokens.css';
++@import './tokens-dark.css';
+ 
+ @layer base {
+   body {

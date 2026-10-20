@@ -1,0 +1,19 @@
+--- a/vitest.config.ts
++++ b/vitest.config.ts
+@@ -32,7 +32,15 @@
+             enabled: true,
+             headless: true,
+             provider: playwright(),
+-            instances: [{ browser: 'chromium' }],
++            instances: [
++              { browser: 'chromium' },
++              // dark-mode Recipe: 운영체제가 다크 모드인 브라우저에서도 모든 스토리를 검사한다(.storybook/preview.tsx의 테마).
++              {
++                browser: 'chromium',
++                name: 'storybook (chromium, dark)',
++                provider: playwright({ contextOptions: { colorScheme: 'dark' } }),
++              },
++            ],
+           },
+         },
+       },

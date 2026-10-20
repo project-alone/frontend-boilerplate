@@ -1,0 +1,5 @@
+{
+  "description": "시험용: server-only-fixture가 필요한 Recipe",
+  "requires": ["server-only-fixture"],
+  "renderingModes": ["server", "static-export"]
+}

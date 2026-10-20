@@ -1,0 +1,5 @@
+{
+  "description": "디자인 토큰 값만 바꾸는 다크 모드와 테마 전환 UI. 운영체제 설정을 따르고 고른 테마를 저장한다",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}
