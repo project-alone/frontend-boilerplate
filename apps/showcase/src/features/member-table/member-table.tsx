@@ -34,9 +34,10 @@ const PAGE_SIZE = 10
 
 const ROLE_LABELS: Record<MemberRole, string> = { admin: '관리자', editor: '편집자', viewer: '뷰어' }
 
-// 역할 필터의 선택지. 역할이 아닌 값(all)을 고르면 필터를 지운다.
+// 역할 필터의 선택지. 역할이 아닌 값(ALL_ROLES)을 고르면 필터를 지운다.
+const ALL_ROLES = 'all'
 const ROLE_FILTER_OPTIONS = [
-  { value: 'all', label: '전체' },
+  { value: ALL_ROLES, label: '전체' },
   ...MemberRole.options.map((role) => ({ value: role, label: ROLE_LABELS[role] })),
 ]
 
@@ -56,6 +57,8 @@ const columns = columnHelper.columns([
   columnHelper.accessor('role', { header: '역할', cell: (info) => ROLE_LABELS[info.getValue()], enableSorting: false }),
   columnHelper.accessor('joinedAt', { header: '가입일' }),
 ])
+
+const NO_MATCH_MESSAGE = '조건에 맞는 회원이 없습니다.'
 
 // 데이터를 받기 전에 넘기는 빈 목록. 렌더링할 때마다 새 배열을 넘기면 테이블이 행을 매번 다시 만든다.
 const NO_MEMBERS: Member[] = []
@@ -96,8 +99,8 @@ function toListMembersParams({
 }
 
 /** 받은 페이지가 거른 회원 가운데 몇 번째부터 몇 번째까지인지 알린다. */
-function summary({ items, total, page, pageSize }: MemberPage): string {
-  if (total === 0) return '조건에 맞는 회원이 없습니다.'
+function pageSummary({ items, total, page, pageSize }: MemberPage): string {
+  if (total === 0) return NO_MATCH_MESSAGE
   const first = (page - 1) * pageSize + 1
   return `회원 ${String(total)}명 중 ${String(first)}–${String(first + items.length - 1)}번째`
 }
@@ -117,10 +120,13 @@ export function MemberTable() {
     placeholderData: keepPreviousData,
   })
 
-  // 정렬이나 필터가 바뀌면 결과가 달라지므로 첫 페이지로 돌아간다.
-  const backToFirstPage = () => {
-    setPagination((current) => ({ ...current, pageIndex: 0 }))
-  }
+  // 정렬이나 필터가 바뀌면 결과가 달라지므로 그 상태를 바꾸면서 첫 페이지로 돌아간다.
+  const andBackToFirstPage =
+    <T,>(setState: (updater: Updater<T>) => void) =>
+    (updater: Updater<T>) => {
+      setState(updater)
+      setPagination((current) => ({ ...current, pageIndex: 0 }))
+    }
   const table = useTable({
     features,
     columns,
@@ -128,18 +134,9 @@ export function MemberTable() {
     rowCount: data?.total ?? 0,
     getRowId: (member) => String(member.id),
     state: { sorting, columnFilters, globalFilter, pagination },
-    onSortingChange: (updater) => {
-      setSorting(updater)
-      backToFirstPage()
-    },
-    onColumnFiltersChange: (updater) => {
-      setColumnFilters(updater)
-      backToFirstPage()
-    },
-    onGlobalFilterChange: (updater: Updater<string>) => {
-      setGlobalFilter(updater)
-      backToFirstPage()
-    },
+    onSortingChange: andBackToFirstPage(setSorting),
+    onColumnFiltersChange: andBackToFirstPage(setColumnFilters),
+    onGlobalFilterChange: andBackToFirstPage(setGlobalFilter),
     onPaginationChange: setPagination,
     manualSorting: true,
     manualFiltering: true,
@@ -172,14 +169,14 @@ export function MemberTable() {
         <Select
           label="역할"
           options={ROLE_FILTER_OPTIONS}
-          value={roleFilterOf(columnFilters) ?? 'all'}
+          value={roleFilterOf(columnFilters) ?? ALL_ROLES}
           className="w-40"
           onValueChange={(value) => {
             table.getColumn('role')?.setFilterValue(MemberRole.safeParse(value).data)
           }}
         />
       </div>
-      <p role="status">{data === undefined ? (isError ? '' : '회원을 불러오는 중입니다.') : summary(data)}</p>
+      <p role="status">{data === undefined ? (isError ? '' : '회원을 불러오는 중입니다.') : pageSummary(data)}</p>
       {isError && <p role="alert">회원 목록을 불러오지 못했습니다.</p>}
       {data !== undefined && !isError && (
         <>
@@ -228,7 +225,7 @@ export function MemberTable() {
               {data.total === 0 && (
                 <tr>
                   <td colSpan={columns.length} className="border-b border-border px-3 py-2 text-muted-foreground">
-                    조건에 맞는 회원이 없습니다.
+                    {NO_MATCH_MESSAGE}
                   </td>
                 </tr>
               )}

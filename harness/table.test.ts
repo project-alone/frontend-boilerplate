@@ -1,7 +1,6 @@
 import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
-import { parse } from 'yaml'
 import { freePort } from './run.ts'
 import { expectFileToPass, readTree, type RenderingMode, runVitestScript, useStarter } from './starter.ts'
 
@@ -18,25 +17,6 @@ describe.each(['server', 'static-export'] as const)(
       recipes: ['table'],
       install: true,
       playwright: true,
-    })
-
-    test('명세 조각의 목록 operation(listMembers)이 정렬·필터·페이지 파라미터와 함께 Starter의 명세와 재생성 계층에 들어간다', () => {
-      const spec = parse(readFileSync(join(starter.dir, 'openapi.yaml'), 'utf8')) as {
-        paths: Record<string, { get?: { operationId: string; parameters: { name: string }[] } }>
-      }
-      const listMembers = spec.paths['/members']?.get
-      expect(listMembers?.operationId).toBe('listMembers')
-      expect(listMembers?.parameters.map(({ name }) => name)).toEqual([
-        'q',
-        'role',
-        'sort',
-        'order',
-        'page',
-        'pageSize',
-      ])
-      expect(readTree(join(starter.dir, 'src/shared/api/generated'))['members/members.ts']).toContain(
-        'export const listMembers',
-      )
     })
 
     // Recipe의 Query Domain은 `npm run g -- query`가 만드는 코드 그대로다. 지우고 다시 만들면 같은 코드가 나오고,

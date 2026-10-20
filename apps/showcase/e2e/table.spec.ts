@@ -127,14 +127,22 @@ test('다음 페이지로 넘기고, 정렬을 바꾸면 첫 페이지로 돌아
   expect(requests.at(-1)).toEqual({ sort: 'joinedAt', order: 'asc', page: '1', pageSize: '10' })
 })
 
-test('회원 페이지에 WCAG 2.2 AA 접근성 위반이 없다(정렬한 상태 포함)', async ({ page }) => {
-  await page.goto('/members')
-  await expect(page.getByRole('heading', { level: 1, name: '회원' })).toBeVisible()
-  await expect(page.getByRole('status')).toHaveText('회원 24명 중 1–10번째')
-  await page.getByRole('button', { name: '이름' }).click()
-  await expect(page.getByRole('columnheader', { name: '이름' })).toHaveAttribute('aria-sort', 'ascending')
-  await expect(page.getByRole('table', { name: '회원 목록' })).toHaveAttribute('aria-busy', 'false')
+// 운영체제가 다크 모드이면 다크 테마를 더하는 Recipe(dark-mode)와 함께 켠 Starter는 다크 테마로 연다. 그런 Recipe가 없으면
+// 두 경우 모두 Base의 테마다.
+for (const colorScheme of ['light', 'dark'] as const) {
+  test.describe(`운영체제가 ${colorScheme} 모드이면`, () => {
+    test.use({ colorScheme })
 
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG_22_AA_TAGS).analyze()
-  expect(violations).toEqual([])
-})
+    test('회원 페이지에 WCAG 2.2 AA 접근성 위반이 없다(정렬한 상태 포함)', async ({ page }) => {
+      await page.goto('/members')
+      await expect(page.getByRole('heading', { level: 1, name: '회원' })).toBeVisible()
+      await expect(page.getByRole('status')).toHaveText('회원 24명 중 1–10번째')
+      await page.getByRole('button', { name: '이름' }).click()
+      await expect(page.getByRole('columnheader', { name: '이름' })).toHaveAttribute('aria-sort', 'ascending')
+      await expect(page.getByRole('table', { name: '회원 목록' })).toHaveAttribute('aria-busy', 'false')
+
+      const { violations } = await new AxeBuilder({ page }).withTags(WCAG_22_AA_TAGS).analyze()
+      expect(violations).toEqual([])
+    })
+  })
+}
