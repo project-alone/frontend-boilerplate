@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법을 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법과, Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`다.
 
 ## Starter를 조립하는 순서
 
@@ -108,13 +108,38 @@ Recipe는 자기 테스트를 Starter에 함께 넣는다. Starter의 스크립�
 | 스토리(접근성·상호작용) | `src/**/*.stories.tsx` | `npm run test:storybook` |
 | E2E                     | `e2e/*.spec.ts`        | `npm run test:e2e`       |
 
-E2E는 모든 Rendering Mode에서 같은 spec이 돌아야 한다. `server`는 빌드 결과를 `next start`로, `static-export`는 다시 빌드한 `out/`을 정적 파일 서버로 띄운다.
+E2E는 모든 Rendering Mode에서 같은 spec이 돌아야 한다. `server`는 빌드 결과를 `next start`로, `static-export`는 다시 빌드한 `out/`을 정적 파일 서버로 띄운다. 모든 Recipe를 켠 Showcase에서도 다른 Recipe의 E2E와 함께 돌므로, 다른 Recipe가 더한 화면 요소(예: dark-mode의 머리글)가 있어도 통과하게 쓴다.
 
 레포의 하네스(`harness/`)에는 Recipe마다 조합 매트릭스 테스트를 더한다. 지원하는 Rendering Mode마다 Recipe를 넣은 Starter를 만들고 Starter의 스크립트를 실행한다. `harness/dark-mode.test.ts`처럼 `useStarter({ prefix: 'dcgen-<이름>-', renderingMode, recipes: ['<이름>'], install: true, playwright: true })`를 쓴다(`playwright`는 `test:storybook`과 `test:e2e`가 쓰는 Chromium을 받는다). 지원하지 않는 조합의 거부와 `requires`는 `recipe.json`만으로 동작하므로 Recipe마다 따로 시험하지 않아도 된다(`harness/recipes.test.ts`가 시험용 Recipe로 검증한다).
 
 ```sh
 npx vitest run harness/<이름>.test.ts   # 하네스는 Generator를 npm pack으로 묶어 설치한 dcgen으로 Starter를 만든다
 ```
+
+## Showcase
+
+Showcase(`apps/showcase/`)는 Base에 Rendering Mode `server`와 Generator에 담긴 모든 Recipe를 덧입혀 생성한 Starter다(ADR-0002). 생성 결과를 커밋해 두어 GitHub에서 CLI 없이 코드를 둘러볼 수 있고, 로컬에서는 명령 하나로 실행해 본다. Showcase는 직접 고치지 않는다. 주석을 달 수 있는 파일은 맨 위 주석이 고칠 원본(Base 파일, Recipe 파일, Recipe의 패치)을 알리고, 주석을 달 수 없는 파일(JSON 등)은 Showcase의 README 맨 위 안내가 알린다.
+
+| 명령(레포 최상위)        | 하는 일                                                                                                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run showcase`       | Generator를 빌드하고 Showcase를 다시 만들어 `apps/showcase/`를 그 결과와 같게 만든다. 바뀐 파일만 쓰고, 이제 생기지 않는 파일은 지운다                                            |
+| `npm run showcase:check` | 다시 만든 결과가 `apps/showcase/`와 다르면 다른 파일을 알리고 실패한다. CI(GitHub Actions의 `Showcase drift`)가 실행한다                                                          |
+| `npm run showcase:watch` | Generator의 Base, Recipe, Rendering Mode overlay, 소스가 바뀔 때마다 Showcase를 다시 만든다                                                                                       |
+| `npm run showcase:dev`   | Showcase를 레포 밖(운영체제의 임시 디렉터리)에 복사·설치하고 MSW 목으로 개발 서버를 띄운다. Showcase가 바뀌면 개발 서버에 옮긴다. `-- --port 3001`처럼 `next dev`의 인자를 넘긴다 |
+
+- 같은 원본에서는 늘 같은 Showcase가 나온다. 생성 결과에 시각이나 난수 같은 값을 넣지 않는다. Recipe의 파일도 마찬가지다.
+- Showcase는 Rendering Mode `server`라서, Recipe는 `server`를 지원해야 Showcase에 들어간다(지원하지 않으면 생성이 실패한다).
+- Showcase는 npm workspace가 아니고 레포 안에서 설치하지 않는다. 설치하면 Starter의 lefthook이 postinstall에서 이 레포에 git 훅과 `lefthook.yml`을 만들고, workspace로 두면 레포를 설치할 때마다 Showcase의 의존성까지 설치하게 된다. `showcase:dev`는 레포 밖에서 설치하고, Showcase가 고정한 Generator 대신 레포의 Generator를 쓴다.
+- 하네스의 `harness/showcase.test.ts`가 생성·어긋남 검사·watch·dev를, `harness/showcase-starter.test.ts`가 Showcase를 설치해 Starter의 모든 스크립트를 검증한다. 후자가 조합 매트릭스의 "모든 Recipe를 켠 조합"이다.
+
+### Recipe를 더하거나 고칠 때
+
+Recipe 티켓은 Showcase에 반영된 것으로 완료를 확인한다.
+
+1. Recipe를 고치는 동안 `npm run showcase:watch`와 `npm run showcase:dev`를 터미널 두 개에 띄워 두면, 고친 결과가 Showcase에 다시 생성되고 개발 서버에 바로 보인다.
+2. 끝나면 `npm run showcase`로 다시 만들어 Recipe의 변경과 `apps/showcase/`의 변경을 함께 커밋한다. 생성 결과만 따로 커밋해 두면 리뷰하기 쉽다.
+3. Showcase가 원본과 다르면 CI의 `showcase:check`가 실패한다. `apps/showcase/`를 직접 고쳐 맞추지 말고 원본을 고친 뒤 다시 만든다.
+4. 다른 Recipe와 부딪치는 패치나 테스트는 `harness/showcase-starter.test.ts`(모든 Recipe를 켠 Showcase)에서 드러난다.
 
 ## 예: dark-mode
 

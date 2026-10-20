@@ -66,6 +66,11 @@ export interface StarterOptions {
   /** `dcgen new --recipe`로 넣을 Recipe */
   recipes?: readonly string[]
   /**
+   * `dcgen new` 대신 Starter를 만드는 방법. 임시 디렉터리를 받아 그 안에 만든 Starter의 경로를 돌려준다(예: Showcase 생성 스크립트).
+   * 있으면 renderingMode와 recipes는 쓰지 않는다.
+   */
+  create?: (workdir: string) => string
+  /**
    * npm으로 설치까지 한다. `dcgen new --skip-install`로 만든 뒤 Generator를 하네스가 팩한 tarball로 바꾸고(linkPackedGenerator)
    * 설치한다. `dcgen new`가 직접 설치하는 경로는 new.test.ts가 하네스의 레지스트리(registry.ts)로 검증한다.
    */
@@ -116,7 +121,7 @@ export function useStarter(options: StarterOptions): Starter {
       ...(options.recipes ?? []).flatMap((recipe) => ['--recipe', recipe]),
       '--skip-install',
     ]
-    created = { workdir, dir: newStarter(workdir, args) }
+    created = { workdir, dir: options.create?.(workdir) ?? newStarter(workdir, args) }
     if (options.install === true) {
       linkPackedGenerator(starter.dir)
       starter.expectNpmSuccess(['install', '--no-audit', '--no-fund'])
