@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { describe, expect, test } from 'vitest'
 import { freePort, start, waitForServer } from './run.ts'
 import { newStarter, readTree, runPlaywrightAgainst, useStarter } from './starter.ts'
@@ -97,10 +98,12 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 dark-m
       const result = starter.npm(['run', 'test:storybook'])
 
       expect(result.status, result.failureMessage).not.toBe(0)
-      expect(result.output).toContain('color-contrast')
+      // Vitest는 색을 쓸 수 있는 환경(CI 등)에서 프로젝트 이름을 `|이름|` 대신 색 배지로 찍으므로, 색 코드를 지우고 `|`는 있어도 없어도 맞게 본다.
+      const output = stripVTControlCharacters(result.output)
+      expect(output).toContain('color-contrast')
       // 공통 컴포넌트의 스토리는 다크 모드 브라우저에서만 실패한다. 라이트 모드 브라우저는 Base의 토큰을 쓴다.
-      expect(result.output).toMatch(/FAIL\s+\|storybook \(chromium, dark\)\| src\/shared\/ui\/button\.stories\.tsx/)
-      expect(result.output).not.toMatch(/FAIL\s+\|storybook \(chromium\)\| src\/shared\/ui\//)
+      expect(output).toMatch(/FAIL\s+\|?storybook \(chromium, dark\)\|?\s+src\/shared\/ui\/button\.stories\.tsx/)
+      expect(output).not.toMatch(/FAIL\s+\|?storybook \(chromium\)\|?\s+src\/shared\/ui\//)
     } finally {
       writeFileSync(tokensPath, original)
     }
