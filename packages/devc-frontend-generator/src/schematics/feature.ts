@@ -24,8 +24,11 @@ export function featureNamed(name: string): Feature {
   return { name: folder, directory: `${FEATURES_DIR}/${folder}`, storyTitle: `Features/${pascalCase(words)}` }
 }
 
-/** kind(컴포넌트, Feature 등)의 이름을 단어로 나눈다. 파일이나 폴더 이름으로 쓸 수 없는 이름이면 SchematicError를 던진다. */
-export function nameWords(kind: string, name: string): string[] {
+/**
+ * kind의 이름을 단어로 나눈다. 파일이나 폴더 이름으로 쓸 수 없는 이름이면 SchematicError를 던진다.
+ * names.ts는 SchematicError를 가진 starter-project.ts가 가져다 쓰므로, 서로 가져오지 않도록 여기에 둔다.
+ */
+export function nameWords(kind: '컴포넌트' | 'Feature', name: string): string[] {
   if (NAME_PATTERN.test(name)) return splitWords(name)
   const folder = /[\\/]/.test(name)
     ? ' 폴더 깊이는 src/<계층>/<이름>/<파일>을 넘지 않으므로(ADR-0005) 하위 폴더는 만들지 않습니다.'

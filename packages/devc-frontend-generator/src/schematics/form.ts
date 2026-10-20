@@ -1,7 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types'
 import { type Feature, featureNamed } from './feature.js'
 import { mutationHookName } from './mutation.js'
-import { kebabCase, splitWords, upperFirst } from './names.js'
+import { camelCase, kebabCase, splitWords, upperFirst } from './names.js'
 import { hasDeclaration, queryDomainOf } from './query-domain.js'
 import {
   type ChangedFile,
@@ -9,6 +9,7 @@ import {
   type Operation,
   SchematicError,
   StarterProject,
+  type TypeImport,
 } from './starter-project.js'
 
 // 폼이 쓰는 Base의 모듈. formResolver는 Zod 스키마로 폼 값을 검증하고, 비워 둔 필수 입력을 REQUIRED_MESSAGE로 알린다.
@@ -46,9 +47,12 @@ const PROP_SAMPLES = new Map([
   ['boolean', 'true'],
 ])
 
-// 비워 둔 필수 입력을 알리는지 보는 테스트가 없을 때 남기는 안내
-const NO_VALIDATION_TEST =
-  '// 비워 두고 제출하면 검증에 실패하는 필수 입력이 없어 검증 실패 테스트는 만들지 않았다. 검증 규칙(길이, 범위, 형식 등)을 확인하려면 테스트를 더한다.'
+// 재생성 계층(orval)이 Zod로 검증하는 문자열 format. 'a'는 이 format에 맞지 않는다(검증 실패 테스트가 입력한다).
+const CHECKED_FORMATS = new Set(['email', 'uri', 'uuid', 'date', 'time', 'date-time', 'date-time-local'])
+
+// 검증에 실패하게 할 입력이 없을 때(비워 둘 필수 입력도, 어길 길이·범위·형식 규칙도 없을 때) 검증 실패 테스트와 스토리 대신 남기는 안내
+const noValidationCheck = (what: string) =>
+  `// 비워 두거나 규칙에 맞지 않게 입력해 검증에 실패하게 할 필드가 없어 ${what}는 만들지 않았다. 검증 규칙을 더하면 함께 더한다.`
 
 export interface FormSchematicOptions {
   /** 폼을 둘 Feature. src/features/<feature>/에 만든다. */
@@ -76,6 +80,7 @@ interface JsonSchema {
   example?: unknown
   examples?: unknown
   minLength?: number
+  maxLength?: number
   pattern?: string
   minimum?: number
   maximum?: number
@@ -110,7 +115,23 @@ interface FormField {
   requiredInput: boolean
   /** 생성한 테스트가 입력할 값. undefined면 비워 둔다(만들 수 없는 선택 필드). */
   sample: string | number | boolean | undefined
+  /** 검증 규칙(길이, 범위, 정수, format)에 맞지 않아 검증에 실패하는 입력. 어길 규칙이 없으면 undefined */
+  invalidInput: string | undefined
 }
+
+/** 입력 요소로 만들 수 없는 속성. unsupported는 그 이유(속성의 모양: 배열, 객체 등)다. */
+interface Unsupported {
+  unsupported: string
+}
+
+/**
+ * 생성한 테스트와 스토리가 검증 실패를 보이는 방법. 기본값 없는 필수 입력이 있으면 모두 비워 두고 제출하고(blank),
+ * 없으면 규칙에 맞지 않는 값을 필드 하나에 입력해 제출한다(invalid). 둘 다 할 수 없으면 undefined다.
+ */
+type ValidationCheck =
+  | { kind: 'blank'; fields: [FormField, ...FormField[]] }
+  | { kind: 'invalid'; field: FormField; input: string }
+  | undefined
 
 /** 폼이 props로 받아 뮤테이션에 함께 넘기는 인자(경로 파라미터) */
 interface FormProp {
@@ -129,16 +150,18 @@ interface FormModel {
   /** 제출 버튼 문구. 명세의 summary, 없으면 '제출' */
   submitLabel: string
   domainName: string
-  hookName: string
-  queriesImport: string
-  schemaName: string
-  schemaImport: string
+  /** 뮤테이션 훅(use<OperationId>Mutation) */
+  hook: TypeImport
+  /** 재생성 계층의 요청 본문 Zod 스키마(<OperationId>Body) */
+  schema: TypeImport
   fields: FormField[]
   skippedFields: string[]
+  validationCheck: ValidationCheck
   props: FormProp[]
   /** mutate에 넘길 값(TypeScript 식). 폼 값은 values다. */
   variables: string
-  mockHandler: { name: string; moduleSpecifier: string }
+  /** 재생성 계층의 MSW 핸들러(get<OperationId>MockHandler) */
+  mockHandler: TypeImport
   /** 응답 본문을 만드는 MSW 목 함수. 응답 본문이 없는 operation이면 undefined */
   responseMock: string | undefined
 }
@@ -173,37 +196,39 @@ export async function generateForm(
     )
   }
   const { props, variables, bodyType } = formArguments(operation, fetcher)
-  const pascal = upperFirst(fetcher.name)
-  const schemaName = `${pascal}Body`
-  const schemaImport =
-    fetcher.typeImports.find((typeImport) => typeImport.name === bodyType)?.moduleSpecifier ??
-    starter.generatedModuleOf(schemaName)
-  const mockHandlerName = `get${pascal}MockHandler`
-  const mockHandlerImport = starter.generatedModuleOf(mockHandlerName)
-  if (starter.generatedModuleOf(schemaName) === undefined || schemaImport === undefined || mockHandlerImport === undefined) {
+  // orval이 operation마다 만드는 이름은 fetch 함수 이름(camelCase operationId)을 PascalCase로 바꿔 쓴다.
+  const operationName = upperFirst(fetcher.name)
+  const schemaName = `${operationName}Body`
+  const schemaModule = starter.generatedModuleOf(schemaName)
+  const mockHandlerName = `get${operationName}MockHandler`
+  const mockHandlerModule = starter.generatedModuleOf(mockHandlerName)
+  if (schemaModule === undefined || mockHandlerModule === undefined) {
     throw new SchematicError(
       `재생성 계층에 ${operationId}의 요청 본문 Zod 스키마(${schemaName})나 MSW 핸들러(${mockHandlerName})가 없습니다. openapi.yaml을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
     )
   }
-  const responseMock = `get${pascal}ResponseMock`
+  const responseMock = `get${operationName}ResponseMock`
 
-  const words = splitWords(operationId)
   const form: FormModel = {
     operationId,
-    componentName: `${pascal}Form`,
-    fileName: `${kebabCase(words)}-form`,
+    componentName: `${operationName}Form`,
+    fileName: `${kebabCase(splitWords(operationId))}-form`,
     feature,
     submitLabel: operation.definition.summary?.trim() || '제출',
     domainName: domain.name,
-    hookName,
-    queriesImport: `@/${domain.queriesPath.replace(/^src\//, '').replace(/\.ts$/, '')}`,
-    schemaName,
-    schemaImport,
+    hook: { name: hookName, moduleSpecifier: starter.importPath(domain.queriesPath) },
+    // 스키마는 요청 본문 타입을 가져오는 곳(model의 index)에서 함께 가져온다.
+    schema: {
+      name: schemaName,
+      moduleSpecifier:
+        fetcher.typeImports.find((typeImport) => typeImport.name === bodyType)?.moduleSpecifier ?? schemaModule,
+    },
     fields,
     skippedFields,
+    validationCheck: validationCheckOf(fields),
     props,
     variables,
-    mockHandler: { name: mockHandlerName, moduleSpecifier: mockHandlerImport },
+    mockHandler: { name: mockHandlerName, moduleSpecifier: mockHandlerModule },
     responseMock: starter.generatedModuleOf(responseMock) === undefined ? undefined : responseMock,
   }
 
@@ -250,8 +275,8 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
     // 응답에만 담기는 속성(readOnly)은 보내지 않는다.
     if (schema.readOnly === true) continue
     const control = controlOf(name, schema)
-    if (typeof control === 'string') {
-      ;(required.has(name) ? unsupported : skippedFields).push(`${name}(${control})`)
+    if ('unsupported' in control) {
+      ;(required.has(name) ? unsupported : skippedFields).push(`${name}(${control.unsupported})`)
       continue
     }
     const requiredInput = required.has(name) && control.kind !== 'checkbox' && schema.default === undefined
@@ -265,6 +290,7 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
       control,
       requiredInput,
       sample,
+      invalidInput: invalidInputOf(schema, control),
     })
   }
   if (unsupported.length > 0) {
@@ -284,33 +310,36 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
 }
 
 /** 속성을 입력받을 공통 UI 컴포넌트. 입력 요소로 만들 수 없으면 그 이유(속성의 모양)를 돌려준다. */
-function controlOf(name: string, schema: JsonSchema): Control | string {
-  if (!FIELD_NAME.test(name)) return '필드 이름으로 쓸 수 없는 이름'
+function controlOf(name: string, schema: JsonSchema): Control | Unsupported {
+  const unsupported = (reason: string): Unsupported => ({ unsupported: reason })
+  if (!FIELD_NAME.test(name)) return unsupported('필드 이름으로 쓸 수 없는 이름')
   if (schema.oneOf !== undefined || schema.anyOf !== undefined || schema.allOf !== undefined || schema.not !== undefined) {
-    return '스키마 조합'
+    return unsupported('스키마 조합')
   }
-  if ('const' in schema) return '상수'
+  if ('const' in schema) return unsupported('상수')
   const { types, nullable } = typesOf(schema)
-  if (nullable) return 'null 허용'
-  if (types.length > 1) return '여러 타입'
+  if (nullable) return unsupported('null 허용')
+  if (types.length > 1) return unsupported('여러 타입')
   const strings = schema.enum?.every((value) => typeof value === 'string') === true
   const type = types[0] ?? (strings ? 'string' : undefined)
   switch (type) {
     case 'string':
-      if (schema.enum !== undefined) return strings ? { kind: 'select', options: schema.enum as string[] } : 'enum'
-      if (schema.format === 'binary') return '파일'
+      if (schema.enum !== undefined) {
+        return strings ? { kind: 'select', options: schema.enum as string[] } : unsupported('enum')
+      }
+      if (schema.format === 'binary') return unsupported('파일')
       return { kind: 'text', inputType: INPUT_TYPES.get(schema.format ?? '') ?? 'text' }
     case 'integer':
     case 'number':
-      return schema.enum === undefined ? { kind: 'number', integer: type === 'integer' } : 'enum'
+      return schema.enum === undefined ? { kind: 'number', integer: type === 'integer' } : unsupported('enum')
     case 'boolean':
-      return schema.enum === undefined ? { kind: 'checkbox' } : 'enum'
+      return schema.enum === undefined ? { kind: 'checkbox' } : unsupported('enum')
     case 'array':
-      return '배열'
+      return unsupported('배열')
     case 'object':
-      return '객체'
+      return unsupported('객체')
     default:
-      return schema.properties === undefined ? '타입 없음' : '객체'
+      return unsupported(schema.properties === undefined ? '타입 없음' : '객체')
   }
 }
 
@@ -344,13 +373,43 @@ function sampleOf(schema: JsonSchema, control: Control): string | number | boole
 
 /** 범위(minimum, maximum, 3.0과 3.1의 exclusiveMinimum, exclusiveMaximum) 안의 정수. 범위가 없으면 1이다. */
 function numberSample(schema: JsonSchema): number {
-  const low = typeof schema.exclusiveMinimum === 'number' ? schema.exclusiveMinimum : schema.minimum
-  const lowExclusive = typeof schema.exclusiveMinimum === 'number' || schema.exclusiveMinimum === true
-  const high = typeof schema.exclusiveMaximum === 'number' ? schema.exclusiveMaximum : schema.maximum
-  const highExclusive = typeof schema.exclusiveMaximum === 'number' || schema.exclusiveMaximum === true
-  const value = low === undefined ? 1 : lowExclusive ? Math.floor(low) + 1 : Math.ceil(low)
-  if (high === undefined || (highExclusive ? value < high : value <= high)) return value
-  return highExclusive ? Math.ceil(high) - 1 : Math.floor(high)
+  const { low, high } = rangeOf(schema)
+  const value = low === undefined ? 1 : low.exclusive ? Math.floor(low.value) + 1 : Math.ceil(low.value)
+  if (high === undefined || (high.exclusive ? value < high.value : value <= high.value)) return value
+  return high.exclusive ? Math.ceil(high.value) - 1 : Math.floor(high.value)
+}
+
+/** 숫자의 범위. 3.0의 exclusiveMinimum은 minimum을 꾸미는 불리언이고, 3.1의 exclusiveMinimum은 경계 값이다. */
+function rangeOf(schema: JsonSchema): Record<'low' | 'high', { value: number; exclusive: boolean } | undefined> {
+  const bound = (inclusive: number | undefined, exclusive: boolean | number | undefined) => {
+    if (typeof exclusive === 'number') return { value: exclusive, exclusive: true }
+    return inclusive === undefined ? undefined : { value: inclusive, exclusive: exclusive === true }
+  }
+  return { low: bound(schema.minimum, schema.exclusiveMinimum), high: bound(schema.maximum, schema.exclusiveMaximum) }
+}
+
+/** 검증 규칙(최대·최소 길이, 검증하는 format, 범위, 정수)에 맞지 않아 검증에 실패하는 입력. 어길 규칙이 없으면 undefined다. */
+function invalidInputOf(schema: JsonSchema, control: Control): string | undefined {
+  if (control.kind === 'text') {
+    if (schema.maxLength !== undefined) return 'a'.repeat(schema.maxLength + 1)
+    if ((schema.minLength ?? 0) >= 2 || CHECKED_FORMATS.has(schema.format ?? '')) return 'a'
+    return undefined
+  }
+  if (control.kind !== 'number') return undefined
+  const { low, high } = rangeOf(schema)
+  if (low !== undefined) return String(low.exclusive ? low.value : low.value - 1)
+  if (high !== undefined) return String(high.exclusive ? high.value : high.value + 1)
+  return control.integer ? '1.5' : undefined
+}
+
+/** 생성한 테스트와 스토리가 검증 실패를 보이는 방법(ValidationCheck) */
+function validationCheckOf(fields: readonly FormField[]): ValidationCheck {
+  const [first, ...rest] = fields.filter((field) => field.requiredInput)
+  if (first !== undefined) return { kind: 'blank', fields: [first, ...rest] }
+  // 명세의 description이 없는 필드를 먼저 고른다. 그런 필드는 오류 메시지만 입력 요소의 설명이 되므로 설명으로 오류를 확인할 수 있다.
+  const candidates = fields.filter((field) => field.invalidInput !== undefined)
+  const field = candidates.find((candidate) => candidate.description === undefined) ?? candidates[0]
+  return field?.invalidInput === undefined ? undefined : { kind: 'invalid', field, input: field.invalidInput }
 }
 
 /**
@@ -402,8 +461,8 @@ function componentSource(form: FormModel): string {
   ]
   const imports = [
     `import { ${usesController ? 'Controller, ' : ''}useForm } from 'react-hook-form'`,
-    `import { ${form.hookName} } from '${form.queriesImport}'`,
-    `import { ${form.schemaName} } from '${form.schemaImport}'`,
+    `import { ${form.hook.name} } from '${form.hook.moduleSpecifier}'`,
+    `import { ${form.schema.name} } from '${form.schema.moduleSpecifier}'`,
     `import { formResolver } from '${FORM_RESOLVER_IMPORT}'`,
     `import { Button } from '@/shared/ui/button'`,
     ...(uses('checkbox') ? [`import { Checkbox } from '@/shared/ui/checkbox'`] : []),
@@ -457,17 +516,17 @@ ${form.props.map(({ name, type }) => `  /** 요청 경로의 ${name} */\n  ${nam
 ${imports.join('\n')}
 
 ${[...options, ...skipped, ...propsInterface].map((block) => `${block}\n\n`).join('')}/**
- * ${form.operationId}(${form.submitLabel})의 요청 본문을 입력받아 보내는 폼. 입력 값은 재생성 계층의 요청 본문 스키마(${form.schemaName})로
- * 검증하고, 제출하면 ${form.domainName} Query Domain의 ${form.hookName}으로 보낸다. 성공하든 실패하든 알림(토스트)으로 알린다.
+ * ${form.operationId}(${form.submitLabel})의 요청 본문을 입력받아 보내는 폼. 입력 값은 재생성 계층의 요청 본문 스키마(${form.schema.name})로
+ * 검증하고, 제출하면 ${form.domainName} Query Domain의 ${form.hook.name}으로 보낸다. 성공하든 실패하든 알림(토스트)으로 알린다.
  * 레이블은 명세의 title(없으면 필드 이름)이다. 문구와 성공한 뒤의 동작(지금은 폼을 비운다)은 화면에 맞게 고친다.
  */
 export function ${form.componentName}(${parameters}) {
   const {
     ${formMethods.join(',\n    ')},
   } = useForm({
-    resolver: formResolver(${form.schemaName}),${defaultValues}
+    resolver: formResolver(${form.schema.name}),${defaultValues}
   })
-  const mutation = ${form.hookName}()
+  const mutation = ${form.hook.name}()
   const toast = useToast()
 
   const onSubmit = handleSubmit((values) => {
@@ -529,30 +588,47 @@ function fieldSource(field: FormField): string {
   }
 }
 
-/** Storybook 스토리. 폼의 모양과, 비워 둔 채 제출했을 때의 오류를 보여 주고 둘 다 접근성(axe)을 검사받는다. */
+/** Storybook 스토리. 폼의 모양과, 검증에 실패했을 때의 오류를 보여 주고 둘 다 접근성(axe)을 검사받는다. */
 function storySource(form: FormModel): string {
-  const firstRequired = form.fields.find((field) => field.requiredInput)
+  const check = form.validationCheck
   const args =
     form.props.length === 0 ? '' : `\n  args: { ${form.props.map(({ name, sample }) => `${name}: ${sample}`).join(', ')} },`
-  const validationStory =
-    firstRequired === undefined
-      ? `\n${NO_VALIDATION_TEST.replace('검증 실패 테스트', '검증 오류 스토리')}\n`
-      : `
+  const submit = `await userEvent.click(canvas.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
+  const validationStory = (() => {
+    if (check === undefined) return `\n${noValidationCheck('검증 오류 스토리')}\n`
+    if (check.kind === 'blank') {
+      return `
 // 비워 둔 채 제출해 검증 오류를 보여 준다. npm run test:storybook이 오류가 보이는 화면도 접근성(axe)을 검사한다.
 export const ValidationErrors: Story = {
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))
+    ${submit}
 
-    const control = ${controlQuery(firstRequired, 'canvas')}
+    const control = ${controlQuery(check.fields[0], 'canvas')}
     await waitFor(() => expect(control).toHaveAttribute('aria-invalid', 'true'))
     await expect(control).toHaveAccessibleDescription(expect.stringContaining(REQUIRED_MESSAGE))
   },
 }
 `
+    }
+    const description =
+      check.field.description === undefined ? '\n    await expect(control).toHaveAccessibleDescription()' : ''
+    return `
+// 검증 규칙에 맞지 않는 값을 넣고 제출해 검증 오류를 보여 준다. npm run test:storybook이 오류가 보이는 화면도 접근성(axe)을 검사한다.
+export const ValidationErrors: Story = {
+  play: async ({ canvas, userEvent }) => {
+    const control = ${controlQuery(check.field, 'canvas')}
+    await userEvent.type(control, ${typedText(check.input)})
+    ${submit}
+
+    await waitFor(() => expect(control).toHaveAttribute('aria-invalid', 'true'))${description}
+  },
+}
+`
+  })()
   return `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect${firstRequired === undefined ? '' : ', waitFor'} } from 'storybook/test'
-${firstRequired === undefined ? '' : `import { REQUIRED_MESSAGE } from '${FORM_RESOLVER_IMPORT}'\n`}import { ${form.componentName} } from './${form.fileName}'
+import { expect${check === undefined ? '' : ', waitFor'} } from 'storybook/test'
+${check?.kind === 'blank' ? `import { REQUIRED_MESSAGE } from '${FORM_RESOLVER_IMPORT}'\n` : ''}import { ${form.componentName} } from './${form.fileName}'
 
 const queryClient = new QueryClient()
 
@@ -581,19 +657,19 @@ export const Default: Story = {
 ${validationStory}`
 }
 
-/** 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 비워 둔 필수 입력을 알리고 보내지 않는지 본다. */
+/** 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 오류를 알리고 보내지 않는지 본다. */
 function testSource(form: FormModel): string {
-  const required = form.fields.filter((field) => field.requiredInput)
+  const check = form.validationCheck
   const filled = form.fields.filter((field) => field.sample !== undefined)
   const element = `<${form.componentName}${form.props.map(({ name, sample }) => ` ${name}={${sample}}`).join('')} />`
   const response = form.responseMock === undefined ? '' : `\n      return ${form.responseMock}()`
   const mockImports = [form.mockHandler.name, ...(form.responseMock === undefined ? [] : [form.responseMock])]
   const expectedBody = Object.fromEntries(filled.map((field) => [field.name, field.sample]))
   const submit = `await user.click(screen.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
-  const validationTest =
-    required.length === 0
-      ? `\n${NO_VALIDATION_TEST}\n`
-      : `
+  const validationTest = (() => {
+    if (check === undefined) return `\n${noValidationCheck('검증 실패 테스트')}\n`
+    if (check.kind === 'blank') {
+      return `
 test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
@@ -604,7 +680,7 @@ test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류�
   // 오류 메시지는 입력 요소의 설명(aria-describedby)으로 읽힌다. 명세의 description이 있는 필드는 그 설명과 함께 읽힌다.
   const requiredError = new RegExp(RegExp.escape(REQUIRED_MESSAGE))
   for (const control of [
-    ${required.map((field) => controlQuery(field, 'screen')).join(',\n    ')},
+    ${check.fields.map((field) => controlQuery(field, 'screen')).join(',\n    ')},
   ]) {
     expect(control).toHaveAttribute('aria-invalid', 'true')
     expect(control).toHaveAccessibleDescription(requiredError)
@@ -612,12 +688,32 @@ test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류�
   expect(bodies).toEqual([])
 })
 `
+    }
+    const description =
+      check.field.description === undefined
+        ? `\n  // 오류 메시지(Zod의 한국어 메시지)는 입력 요소의 설명(aria-describedby)으로 읽힌다.\n  expect(control).toHaveAccessibleDescription()`
+        : ''
+    return `
+test('검증 규칙에 맞지 않는 값은 보내지 않고 오류를 알린다', async () => {
+  const user = userEvent.setup()
+  const bodies = receivedBodies()
+  renderForm()
+
+  const control = ${controlQuery(check.field, 'screen')}
+  await user.type(control, ${typedText(check.input)})
+  ${submit}
+
+  expect(control).toHaveAttribute('aria-invalid', 'true')${description}
+  expect(bodies).toEqual([])
+})
+`
+  })()
   return `import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ${mockImports.join(', ')} } from '${form.mockHandler.moduleSpecifier}'
-${required.length === 0 ? '' : `import { REQUIRED_MESSAGE } from '${FORM_RESOLVER_IMPORT}'\n`}import { server } from '@/shared/mocks/node'
+${check?.kind === 'blank' ? `import { REQUIRED_MESSAGE } from '${FORM_RESOLVER_IMPORT}'\n` : ''}import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { ${form.componentName} } from './${form.fileName}'
 
@@ -670,10 +766,8 @@ function fillSource(field: FormField): string[] {
   const control = controlQuery(field, 'screen')
   switch (field.control.kind) {
     case 'text':
-      // user-event는 중괄호와 대괄호를 특수 키로 읽으므로 두 번 써서 글자로 입력한다.
-      return [`await user.type(${control}, ${JSON.stringify(String(field.sample).replace(/[{[]/g, '$&$&'))})`]
     case 'number':
-      return [`await user.type(${control}, ${JSON.stringify(String(field.sample))})`]
+      return [`await user.type(${control}, ${typedText(String(field.sample))})`]
     case 'select':
       return [
         `await user.click(${control})`,
@@ -690,8 +784,13 @@ function controlQuery(field: FormField, within: 'screen' | 'canvas'): string {
   return `${within}.getByRole('${role}', { name: ${JSON.stringify(field.label)} })`
 }
 
+/** user-event의 type이 그대로 입력하는 문자열 식. user-event는 중괄호와 대괄호를 특수 키로 읽으므로 두 번 써서 글자로 입력한다. */
+function typedText(text: string): string {
+  return JSON.stringify(text.replace(/[{[]/g, '$&$&'))
+}
+
 function optionsName(field: FormField): string {
-  return `${field.name.replace(/[-$]+(.)?/g, (_, next: string | undefined) => (next ?? '').toUpperCase())}Options`
+  return `${camelCase(splitWords(field.name))}Options`
 }
 
 function successTitle(form: FormModel): string {

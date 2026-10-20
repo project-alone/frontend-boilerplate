@@ -155,11 +155,17 @@ export class StarterProject {
     )
   }
 
+  /** Starter 최상위 기준 src 아래 파일(확장자는 있어도 되고 없어도 된다)의 Starter 안 import 경로(`@/...`) */
+  importPath(path: string): string {
+    const withoutExtension = path.replace(/\.tsx?$/, '')
+    return `@/${relative('src', withoutExtension).split(sep).join('/')}`
+  }
+
   /** 재생성 계층에서 name을 내보내는 모듈의 import 경로(`@/shared/api/generated/...`). 없으면 undefined다. */
   generatedModuleOf(name: string): string | undefined {
     for (const file of this.generatedFiles()) {
       const declaration = file.getVariableDeclaration(name) ?? file.getFunction(name)
-      if (declaration?.isExported() === true) return this.importPathOf(file.getFilePath())
+      if (declaration?.isExported() === true) return this.importPath(relative(this.root, file.getFilePath()))
     }
     return undefined
   }
@@ -233,13 +239,7 @@ export class StarterProject {
     if (declaration === undefined) return undefined
     const specifier = declaration.getModuleSpecifierValue()
     if (!specifier.startsWith('.')) return specifier
-    return this.importPathOf(join(dirname(file.getFilePath()), specifier))
-  }
-
-  /** src 아래 파일(확장자는 있어도 되고 없어도 된다)을 Starter 안의 import 경로(`@/...`)로 바꾼다. */
-  private importPathOf(path: string): string {
-    const withoutExtension = path.replace(/\.tsx?$/, '')
-    return `@/${relative(join(this.root, 'src'), withoutExtension).split(sep).join('/')}`
+    return this.importPath(relative(this.root, join(dirname(file.getFilePath()), specifier)))
   }
 
   /** Starter가 설치한 Prettier(Base의 devDependency) */

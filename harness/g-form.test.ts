@@ -1,10 +1,18 @@
-import { cpSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 import { addOperations } from './schematic.ts'
-import { dcgen, expectFileToPass, readTree, runVitestScript, type Starter, useStarter } from './starter.ts'
+import {
+  dcgen,
+  expectFilesToMatchSnapshots,
+  expectFileToPass,
+  readTree,
+  restoreBeforeEach,
+  runVitestScript,
+  type Starter,
+  useStarter,
+} from './starter.ts'
 
-// 생성 결과 스냅샷. Starter의 코드이므로 하네스의 타입 검사 대상에서 뺀다(tsconfig.json).
+// 생성 결과 스냅샷
 const SNAPSHOTS = './__snapshots__/g-form'
 
 // form Schematic이 읽고 쓰는 곳. 폼은 Feature(src/features/<feature>/)에 만들고, 뮤테이션 훅은 Query Domain(src/queries/<domain>/)에서 찾는다.
@@ -158,14 +166,6 @@ components:
           type: string
 `
 
-/** directory(Starter 최상위 기준) 안의 파일이 스냅샷과 같은지 본다. */
-async function expectFilesToMatchSnapshots(starter: Starter, directory: string, files: readonly string[]): Promise<void> {
-  for (const file of files) {
-    const source = readFileSync(join(starter.dir, directory, file), 'utf8')
-    await expect(source).toMatchFileSnapshot(`${SNAPSHOTS}/${file}`)
-  }
-}
-
 /** Starter 안에서 Schematic을 실행하고 성공했는지 확인한다. */
 function generate(starter: Starter, args: readonly string[]): void {
   const result = dcgen(starter, ['g', ...args])
@@ -202,23 +202,13 @@ function expectGeneratedFormsToPassStarterChecks(starter: Starter, { storybookRu
 
 describe('server Starter', () => {
   const starter = useStarter({ prefix: 'dcgen-g-form-', install: true, playwright: true })
-  const pristine = () => join(starter.workdir, 'pristine')
   const featuresTree = () => readTree(join(starter.dir, FEATURES_DIR))
 
   beforeAll(() => {
     addOperations(starter, HARNESS_OPERATIONS)
-    for (const directory of [FEATURES_DIR, QUERIES_DIR]) {
-      cpSync(join(starter.dir, directory), join(pristine(), directory), { recursive: true })
-    }
   })
-
   // 테스트마다 Feature와 Query Domain을 생성 직후 상태(Base의 샘플만 있고 뮤테이션 훅은 없는 상태)로 되돌린다.
-  beforeEach(() => {
-    for (const directory of [FEATURES_DIR, QUERIES_DIR]) {
-      rmSync(join(starter.dir, directory), { recursive: true, force: true })
-      cpSync(join(pristine(), directory), join(starter.dir, directory), { recursive: true })
-    }
-  })
+  restoreBeforeEach(starter, [FEATURES_DIR, QUERIES_DIR])
 
   test('폼과 이을 뮤테이션 훅이 없으면 먼저 mutation Schematic을 실행하라고 안내하고 아무 파일도 만들지 않는다', () => {
     const before = featuresTree()
@@ -245,7 +235,7 @@ describe('server Starter', () => {
       'register-member-form.test.tsx',
       'register-member-form.tsx',
     ])
-    await expectFilesToMatchSnapshots(starter, `${FEATURES_DIR}/members`, [
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, [
       'register-member-form.tsx',
       'register-member-form.stories.tsx',
       'register-member-form.test.tsx',
@@ -258,9 +248,20 @@ describe('server Starter', () => {
     const result = starter.npm(['run', 'g', '--', 'form', 'updateProduct', '--feature', 'product-admin'])
 
     expect(result.status, result.failureMessage).toBe(0)
-    await expectFilesToMatchSnapshots(starter, `${FEATURES_DIR}/product-admin`, [
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/product-admin`, [
       'update-product-form.tsx',
       'update-product-form.test.tsx',
+    ])
+  })
+
+  test('비워 두면 실패하는 필수 입력이 없는 폼은 길이 규칙에 맞지 않는 값으로 검증 실패를 테스트하고 스토리로 보인다', async () => {
+    generate(starter, ['mutation', 'updateMemberProfile'])
+
+    generate(starter, ['form', 'updateMemberProfile', '--feature', 'members'])
+
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, [
+      'update-member-profile-form.test.tsx',
+      'update-member-profile-form.stories.tsx',
     ])
   })
 

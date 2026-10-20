@@ -1,22 +1,22 @@
-import { cpSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { dcgen, expectFileToPass, readTree, runVitestScript, type Starter, useStarter } from './starter.ts'
+import { describe, expect, test } from 'vitest'
+import {
+  dcgen,
+  expectFilesToMatchSnapshots,
+  expectFileToPass,
+  readTree,
+  restoreBeforeEach,
+  runVitestScript,
+  type Starter,
+  useStarter,
+} from './starter.ts'
 
-// 생성 결과 스냅샷. Starter의 코드이므로 하네스의 타입 검사 대상에서 뺀다(tsconfig.json).
+// 생성 결과 스냅샷
 const SNAPSHOTS = './__snapshots__/g-component'
 
 // component Schematic이 파일을 만드는 곳. Feature는 src/features/<feature>/, 공통 UI는 src/shared/ui/다.
 const FEATURES_DIR = 'src/features'
 const SHARED_UI_DIR = 'src/shared/ui'
-
-/** directory(Starter 최상위 기준) 안의 파일이 스냅샷과 같은지 본다. */
-async function expectFilesToMatchSnapshots(starter: Starter, directory: string, files: readonly string[]): Promise<void> {
-  for (const file of files) {
-    const source = readFileSync(join(starter.dir, directory, file), 'utf8')
-    await expect(source).toMatchFileSnapshot(`${SNAPSHOTS}/${file}`)
-  }
-}
 
 // Starter의 검사를 통과하는지 볼 때 만드는 컴포넌트: 새 Feature, 이미 있는 Feature(Base의 product-list), 공통 UI.
 // stem은 만들어지는 세 파일의 확장자를 뺀 경로다.
@@ -45,21 +45,8 @@ function expectGeneratedComponentsToPassStarterChecks(starter: Starter, { storyb
 
 describe('server Starter', () => {
   const starter = useStarter({ prefix: 'dcgen-g-component-', install: true, playwright: true })
-  const pristine = () => join(starter.workdir, 'pristine')
-
-  beforeAll(() => {
-    for (const directory of [FEATURES_DIR, SHARED_UI_DIR]) {
-      cpSync(join(starter.dir, directory), join(pristine(), directory), { recursive: true })
-    }
-  })
-
   // 테스트마다 Feature와 공통 UI를 생성 직후 상태로 되돌린다.
-  beforeEach(() => {
-    for (const directory of [FEATURES_DIR, SHARED_UI_DIR]) {
-      rmSync(join(starter.dir, directory), { recursive: true, force: true })
-      cpSync(join(pristine(), directory), join(starter.dir, directory), { recursive: true })
-    }
-  })
+  restoreBeforeEach(starter, [FEATURES_DIR, SHARED_UI_DIR])
 
   test('dcgen g component --feature는 Feature 폴더에 kebab-case 파일 이름으로 컴포넌트, 스토리, 테스트를 만든다', async () => {
     const result = dcgen(starter, ['g', 'component', 'order-summary', '--feature', 'orders'])
@@ -71,7 +58,7 @@ describe('server Starter', () => {
       'order-summary.test.tsx',
       'order-summary.tsx',
     ])
-    await expectFilesToMatchSnapshots(starter, 'src/features/orders', [
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, 'src/features/orders', [
       'order-summary.tsx',
       'order-summary.stories.tsx',
       'order-summary.test.tsx',
@@ -86,7 +73,7 @@ describe('server Starter', () => {
     expect(result.status, result.failureMessage).toBe(0)
     const created = Object.keys(readTree(join(starter.dir, SHARED_UI_DIR))).filter((file) => !before.includes(file))
     expect(created.sort()).toEqual(['status-badge.stories.tsx', 'status-badge.test.tsx', 'status-badge.tsx'])
-    await expectFilesToMatchSnapshots(starter, SHARED_UI_DIR, created)
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, SHARED_UI_DIR, created)
   })
 
   test('같은 이름의 파일이 하나라도 있으면 덮어쓰지 않고 겹치는 파일을 알린 뒤 아무 파일도 만들지 않고 실패한다', () => {

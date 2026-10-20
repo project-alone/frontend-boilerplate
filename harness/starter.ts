@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
-import { afterAll, beforeAll, expect, inject } from 'vitest'
+import { afterAll, beforeAll, beforeEach, expect, inject } from 'vitest'
 import { run, type RunResult } from './run.ts'
 
 export type RenderingMode = 'server' | 'static-export'
@@ -157,6 +157,41 @@ export default defineConfig({
     return run('npx', ['playwright', 'test', '--config', config, ...specs], starterDir)
   } finally {
     rmSync(join(starterDir, config))
+  }
+}
+
+/**
+ * 테스트마다 Starter의 directories(Starter 최상위 기준)를 처음 상태로 되돌린다. 처음 상태는 이 함수가 등록하는 beforeAll에서
+ * 복사해 두므로, 그보다 먼저 등록한 beforeAll(예: 명세에 operation 더하기)의 결과까지 담긴다.
+ */
+export function restoreBeforeEach(starter: Starter, directories: readonly string[]): void {
+  const pristine = () => join(starter.workdir, 'pristine')
+  beforeAll(() => {
+    for (const directory of directories) {
+      cpSync(join(starter.dir, directory), join(pristine(), directory), { recursive: true })
+    }
+  })
+  beforeEach(() => {
+    for (const directory of directories) {
+      rmSync(join(starter.dir, directory), { recursive: true, force: true })
+      cpSync(join(pristine(), directory), join(starter.dir, directory), { recursive: true })
+    }
+  })
+}
+
+/**
+ * Schematic이 directory(Starter 최상위 기준)에 만든 files가 snapshots(테스트 파일 기준) 아래 같은 이름의 스냅샷과 같은지 본다.
+ * 스냅샷은 Starter의 코드이므로 하네스의 타입 검사 대상에서 뺀다(tsconfig.json).
+ */
+export async function expectFilesToMatchSnapshots(
+  starter: Starter,
+  snapshots: string,
+  directory: string,
+  files: readonly string[],
+): Promise<void> {
+  for (const file of files) {
+    const source = readFileSync(join(starter.dir, directory, file), 'utf8')
+    await expect(source).toMatchFileSnapshot(`${snapshots}/${file}`)
   }
 }
 
