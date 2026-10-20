@@ -1,6 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): base/src/shared/api/bff-proxy.ts
 
+import { backendFetch } from './backend-fetch'
 import { BFF_PROXY_PATH, backendBaseUrl } from './base-url'
 
 // 백엔드로 넘기지 않는 요청 헤더. 연결 단위(hop-by-hop) 헤더와, 백엔드 주소로 다시 정해지는 host다.
@@ -21,7 +22,8 @@ const RESPONSE_HEADERS_TO_DROP = ['content-encoding', 'content-length', 'transfe
 
 /**
  * BFF 프록시(ADR-0006). 브라우저가 `/api/proxy/<경로>`로 보낸 요청을 `API_BASE_URL/<경로>`로 그대로 전달하고,
- * 백엔드의 응답(상태, 헤더, 본문)을 그대로 돌려준다. 토큰 첨부와 refresh는 auth Recipe가 여기에 더한다.
+ * 백엔드의 응답(상태, 헤더, 본문)을 그대로 돌려준다. 전달하는 요청은 서버의 다른 요청처럼 Recipe가 더한 처리기를 거친다
+ * (backend-fetch.ts). 예를 들어 auth Recipe의 처리기가 쿠키의 토큰을 붙이고, 401이면 refresh한 뒤 다시 보낸다.
  */
 export async function forwardToBackend(request: Request): Promise<Response> {
   const { pathname, search } = new URL(request.url)
@@ -29,7 +31,7 @@ export async function forwardToBackend(request: Request): Promise<Response> {
   for (const name of REQUEST_HEADERS_TO_DROP) headers.delete(name)
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
 
-  const response = await fetch(`${backendBaseUrl()}${pathname.slice(BFF_PROXY_PATH.length)}${search}`, {
+  const response = await backendFetch(`${backendBaseUrl()}${pathname.slice(BFF_PROXY_PATH.length)}${search}`, {
     method: request.method,
     headers,
     body: hasBody ? await request.arrayBuffer() : null,

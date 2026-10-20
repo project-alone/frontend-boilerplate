@@ -1,5 +1,5 @@
 # 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/chart/openapi.yaml, recipes/table/openapi.yaml
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml
 
 # API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
 # 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
@@ -12,10 +12,8 @@ servers:
 tags:
   - name: products
     description: 상품
-  - name: stats
-    description: 대시보드 통계
-  - name: members
-    description: 회원
+  - name: auth
+    description: 인증
 paths:
   /products:
     get:
@@ -67,155 +65,93 @@ paths:
                 id: 3
                 name: 울 니트
                 price: 59000
-  # chart Recipe가 더한 operation. 샘플 차트(src/features/stats-charts)가 시계열 차트와 비교 차트로 그린다.
-  /stats/daily-visits:
-    get:
-      operationId: listDailyVisits
-      summary: 최근 14일의 일별 방문 수
-      tags: [stats]
+  /auth/login:
+    post:
+      operationId: login
+      summary: 로그인
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: 날짜 오름차순의 일별 방문 수
+          description: 발급한 토큰
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DailyVisits'
-              # MSW 목이 늘 같은 값을 돌려주도록 example을 적는다.
+                $ref: '#/components/schemas/TokenPair'
               example:
-                - date: '2026-10-01'
-                  visits: 1320
-                - date: '2026-10-02'
-                  visits: 1410
-                - date: '2026-10-03'
-                  visits: 980
-                - date: '2026-10-04'
-                  visits: 910
-                - date: '2026-10-05'
-                  visits: 1250
-                - date: '2026-10-06'
-                  visits: 1380
-                - date: '2026-10-07'
-                  visits: 1460
-                - date: '2026-10-08'
-                  visits: 1520
-                - date: '2026-10-09'
-                  visits: 1590
-                - date: '2026-10-10'
-                  visits: 1040
-                - date: '2026-10-11'
-                  visits: 960
-                - date: '2026-10-12'
-                  visits: 1430
-                - date: '2026-10-13'
-                  visits: 1610
-                - date: '2026-10-14'
-                  visits: 1680
-  /stats/channel-sales:
-    get:
-      operationId: listChannelSales
-      summary: 판매 채널별 이번 달과 지난달 매출
-      tags: [stats]
+                accessToken: sample-access-token
+                refreshToken: sample-refresh-token
+                expiresIn: 3600
+        '401':
+          description: 이메일이나 비밀번호가 맞지 않음
+  /auth/refresh:
+    post:
+      operationId: refreshTokens
+      summary: 토큰 재발급
+      description: refreshToken으로 새 토큰을 발급한다. 쓴 refreshToken은 더 쓸 수 없다(rotation).
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
       responses:
         '200':
-          description: 판매 채널별 매출
+          description: 새로 발급한 토큰
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChannelSales'
+                $ref: '#/components/schemas/TokenPair'
               example:
-                - channel: 온라인 스토어
-                  currentMonth: 48200000
-                  previousMonth: 41500000
-                - channel: 모바일 앱
-                  currentMonth: 36900000
-                  previousMonth: 38100000
-                - channel: 오프라인 매장
-                  currentMonth: 22400000
-                  previousMonth: 25800000
-                - channel: 제휴 마켓
-                  currentMonth: 12700000
-                  previousMonth: 9300000
-  /members:
+                accessToken: sample-refreshed-access-token
+                refreshToken: sample-refreshed-refresh-token
+                expiresIn: 3600
+        '401':
+          description: refreshToken이 만료되었거나 이미 쓰였음
+  /auth/me:
     get:
-      operationId: listMembers
-      summary: 회원 목록
-      description: 검색어와 역할로 거르고 정렬한 회원 목록의 한 페이지를 돌려준다.
-      tags: [members]
-      parameters:
-        - name: q
-          in: query
-          description: 이름이나 이메일에 들어 있는 검색어. 대소문자를 가리지 않는다.
-          required: false
-          schema:
-            type: string
-        - name: role
-          in: query
-          description: 이 역할의 회원만 돌려준다.
-          required: false
-          schema:
-            $ref: '#/components/schemas/MemberRole'
-        - name: sort
-          in: query
-          description: 정렬할 항목. 없으면 가입한 순서(id 오름차순)다.
-          required: false
-          schema:
-            type: string
-            enum: [name, email, joinedAt]
-        - name: order
-          in: query
-          description: 정렬 방향. sort가 있을 때만 쓴다.
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: asc
-        - name: page
-          in: query
-          description: 1부터 세는 페이지 번호
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: pageSize
-          in: query
-          description: 한 페이지의 회원 수
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 10
+      operationId: getMe
+      summary: 로그인한 사용자
+      tags: [auth]
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: 회원 목록의 한 페이지
+          description: accessToken의 사용자
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberPage'
-              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 table Recipe의 핸들러(src/shared/mocks/members.ts)가
-              # 파라미터대로 정렬·필터한 결과를 대신 돌려준다.
+                $ref: '#/components/schemas/User'
               example:
-                items:
-                  - id: 1
-                    name: 김하늘
-                    email: haneul.kim@example.com
-                    role: admin
-                    joinedAt: '2024-01-08'
-                  - id: 2
-                    name: 이도윤
-                    email: doyun.lee@example.com
-                    role: editor
-                    joinedAt: '2024-02-14'
-                total: 2
-                page: 1
-                pageSize: 10
-        '400':
-          description: 파라미터가 잘못되었다.
+                id: 1
+                email: user@example.com
+                name: 김사용
+                roles: [user]
+        '401':
+          description: accessToken이 없거나 만료됨
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: 로그아웃
+      description: refreshToken을 더 쓸 수 없게 한다.
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: 로그아웃함
 components:
   schemas:
     Product:
@@ -239,64 +175,62 @@ components:
         price:
           type: integer
           minimum: 0
-    DailyVisits:
+    LoginRequest:
       type: object
-      required: [date, visits]
+      required: [email, password]
       properties:
-        date:
+        email:
           type: string
-          format: date
-          description: 방문 날짜(YYYY-MM-DD)
-        visits:
-          type: integer
-          minimum: 0
-          description: 그날의 방문 수
-    ChannelSales:
+          format: email
+          title: 이메일
+        password:
+          type: string
+          minLength: 1
+          title: 비밀번호
+    RefreshRequest:
       type: object
-      required: [channel, currentMonth, previousMonth]
+      required: [refreshToken]
       properties:
-        channel:
+        refreshToken:
           type: string
-          description: 판매 채널 이름
-        currentMonth:
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
           type: integer
           minimum: 0
-          description: 이번 달 매출(원)
-        previousMonth:
-          type: integer
-          minimum: 0
-          description: 지난달 매출(원)
-    MemberRole:
+          description: accessToken이 만료되기까지 남은 초
+    Role:
       type: string
-      enum: [admin, editor, viewer]
-    Member:
+      enum: [admin, user]
+      description: 사용자의 역할. 보호된 라우트의 접근 규칙(src/shared/auth/access-rules.ts)이 쓴다.
+    User:
       type: object
-      required: [id, name, email, role, joinedAt]
+      required: [id, email, name, roles]
       properties:
         id:
           type: integer
-        name:
-          type: string
         email:
           type: string
-        role:
-          $ref: '#/components/schemas/MemberRole'
-        joinedAt:
+          format: email
+        name:
           type: string
-          format: date
-          description: 가입일(YYYY-MM-DD)
-    MemberPage:
-      type: object
-      required: [items, total, page, pageSize]
-      properties:
-        items:
+        roles:
           type: array
           items:
-            $ref: '#/components/schemas/Member'
-        total:
-          type: integer
-          description: 거른 뒤의 전체 회원 수
-        page:
-          type: integer
-        pageSize:
-          type: integer
+            $ref: '#/components/schemas/Role'
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
