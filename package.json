@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "changeset": "changeset",
-    "release:version": "changeset version && npm install --package-lock-only --ignore-scripts --no-audit --no-fund",
+    "release:version": "changeset version && npm install --package-lock-only --ignore-scripts --no-audit --no-fund && npm run showcase",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
     "test": "vitest run",

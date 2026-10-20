@@ -2,7 +2,7 @@
 
 npm에 배포하는 패키지는 Generator(`packages/devc-frontend-generator`, npm 이름 `devc-frontend-generator`) 하나다. 버전과 CHANGELOG는 [changesets](https://changesets.dev)로 관리하고, `master`에 머지되면 GitHub Actions(`.github/workflows/release.yml`)가 공개 npm 레지스트리에 provenance와 함께 배포한다. 배포 인증은 npm trusted publishing(OIDC)이 맡으므로 저장소에 npm 토큰을 두지 않는다([ADR-0009](adr/0009-npm-trusted-publishing.md)).
 
-루트 패키지와 그 밖의 워크스페이스 패키지(예: Showcase 앱)는 배포하지 않는다. changesets는 `"private": true`가 아닌 워크스페이스 패키지를 모두 배포하므로, 워크스페이스에 패키지를 더할 때는 `package.json`에 `"private": true`를 적는다.
+루트 패키지와 Showcase(`apps/showcase`)는 배포하지 않는다. changesets는 `"private": true`가 아닌 워크스페이스 패키지를 모두 배포하므로, 워크스페이스에 패키지를 더할 때는 `package.json`에 `"private": true`를 적는다. Showcase는 워크스페이스가 아니어서 changesets가 보지 않고, Starter처럼 `"private": true`이기도 하다.
 
 ## changeset 더하기
 
@@ -31,7 +31,7 @@ npm run changeset -- --patch devc-frontend-generator --message "<요약>"       
 
 `release.yml`은 `master`에 push될 때마다 돌고, changesets가 상태를 보고 할 일을 고른다(`select-mode`).
 
-1. **Version PR**: `.changeset/`에 changeset이 쌓여 있으면 `npm run release:version`(`changeset version`과 `package-lock.json` 맞추기)으로 Generator의 `package.json` 버전과 `CHANGELOG.md`를 올리고 changeset 파일을 지운 커밋을 만들어, `changeset-release/master` 브랜치의 PR(`chore: release devc-frontend-generator`)을 열거나 갱신한다. 그 뒤에 머지된 changeset도 같은 PR에 더해진다.
+1. **Version PR**: `.changeset/`에 changeset이 쌓여 있으면 `npm run release:version`(`changeset version`, `package-lock.json` 맞추기, Showcase 다시 만들기)으로 Generator의 `package.json` 버전과 `CHANGELOG.md`를 올리고 changeset 파일을 지운 커밋을 만들어, `changeset-release/master` 브랜치의 PR(`chore: release devc-frontend-generator`)을 열거나 갱신한다. 그 뒤에 머지된 changeset도 같은 PR에 더해진다. Showcase(`apps/showcase/package.json`)도 Starter처럼 Generator를 정확한 버전으로 고정하므로, Version PR이 Showcase를 함께 다시 만들지 않으면 CI의 `showcase:check`(배포 전 `verify` 포함)가 실패한다([Recipe 작성하기](recipes.md#showcase)).
 2. **배포**: Version PR을 머지하면 changeset이 없고 Generator의 버전이 npm에 아직 없으므로 배포한다.
    - `verify`: CI 워크플로(`ci.yml`)를 그대로 불러 타입 검사와 하네스를 다시 통과해야 다음으로 넘어간다.
    - `pack`: 빌드한 뒤 `changeset pack`으로 tarball을 만든다.

@@ -43,7 +43,8 @@ function createReleaseRepo(generatorVersion: string): { root: string; generator:
   return { root, generator }
 }
 
-// changesets는 "private": true가 아닌 워크스페이스 패키지를 모두 npm에 배포한다. Showcase 같은 앱이 실수로 배포되지 않게 지킨다.
+// changesets는 "private": true가 아닌 워크스페이스 패키지를 모두 npm에 배포한다. 다른 패키지가 실수로 배포되지 않게 지킨다.
+// Showcase(apps/showcase)는 워크스페이스가 아니어서 changesets가 보지 않지만, 워크스페이스에 들어가더라도 배포되지 않게 private인지 함께 본다.
 test('npm에 배포되는 패키지는 Generator 하나뿐이다', () => {
   const root = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as { private?: boolean }
   expect(root.private).toBe(true)
@@ -52,6 +53,11 @@ test('npm에 배포되는 패키지는 Generator 하나뿐이다', () => {
     execFileSync('npm', ['query', '.workspace', '--json'], { cwd: REPO_ROOT, encoding: 'utf8' }),
   ) as { name: string; private?: boolean }[]
   expect(workspaces.filter((pkg) => pkg.private !== true).map((pkg) => pkg.name)).toEqual([GENERATOR_PACKAGE])
+
+  const showcase = JSON.parse(readFileSync(join(REPO_ROOT, 'apps', 'showcase', 'package.json'), 'utf8')) as {
+    private?: boolean
+  }
+  expect(showcase.private).toBe(true)
 })
 
 // 릴리스 흐름(docs/release.md)을 레포의 changesets 설정으로 레포 밖에서 따라 한다. 기여자가 changeset을 더하고,
