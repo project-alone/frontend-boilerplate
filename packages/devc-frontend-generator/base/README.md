@@ -149,7 +149,13 @@ API_BASE_URL=https://<백엔드 주소>
 
 `npm run g -- <schematic> ...`(`npx dcgen g <schematic> ...`과 같습니다)은 이 Starter를 만든 Generator(`devc-frontend-generator`)로 코드를 만듭니다. Generator는 `package.json`의 devDependencies에 정확한 버전으로 고정되어 있어 팀원 모두가 같은 결과를 얻습니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다.
 
-- 명세는 Starter 최상위(`package.json`이 있는 디렉터리)의 `openapi.yaml`을 읽습니다. 만든 코드는 재생성 계층의 fetch 함수를 부르므로, 명세를 고쳤다면 먼저 `npm run api:gen`을 실행합니다.
+| Schematic   | 만드는 것                                                   | 넣는 곳                                                           |
+| ----------- | ----------------------------------------------------------- | ----------------------------------------------------------------- |
+| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions) | Query Domain(`src/queries/<domain>/`)                             |
+| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)      | Query Domain(`src/queries/<domain>/`)                             |
+| `component` | 컴포넌트, Storybook 스토리, 테스트                          | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+
+- `query`와 `mutation`은 Starter 최상위(`package.json`이 있는 디렉터리)의 `openapi.yaml`을 읽습니다. 만든 코드는 재생성 계층의 fetch 함수를 부르므로, 명세를 고쳤다면 먼저 `npm run api:gen`을 실행합니다.
 - 만든 파일은 Starter의 Prettier로 포맷하므로 바로 `lint`, `format:check`, `typecheck`를 통과합니다.
 - 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고, 겹치는 이름을 알린 뒤 실패합니다. 명세에 없는 operationId도 실패합니다.
 

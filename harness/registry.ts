@@ -2,6 +2,21 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
+
+/**
+ * packageDir의 패키지를 npm pack으로 destination에 묶고 tarball 경로를 돌려준다.
+ * 라이프사이클 스크립트(prepack의 빌드)는 실행하지 않으므로 빌드가 필요하면 먼저 한다.
+ */
+export function packPackage(packageDir: string, destination: string): string {
+  const packed = execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', destination], {
+    cwd: packageDir,
+    encoding: 'utf8',
+  })
+  const [packedFile] = JSON.parse(packed) as { filename: string }[]
+  if (packedFile === undefined) throw new Error(`npm pack 결과를 읽을 수 없습니다: ${packed}`)
+  return join(destination, packedFile.filename)
+}
 
 /** 하네스가 띄운 npm 레지스트리 */
 export interface PackedGeneratorRegistry {

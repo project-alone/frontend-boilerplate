@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법과, Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법과, Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -130,6 +130,7 @@ Showcase(`apps/showcase/`)는 Base에 Rendering Mode `server`와 Generator에 �
 - 같은 원본에서는 늘 같은 Showcase가 나온다. 생성 결과에 시각이나 난수 같은 값을 넣지 않는다. Recipe의 파일도 마찬가지다.
 - Showcase는 Rendering Mode `server`라서, Recipe는 `server`를 지원해야 Showcase에 들어간다(지원하지 않으면 생성이 실패한다).
 - Showcase는 npm workspace가 아니고 레포 안에서 설치하지 않는다. 설치하면 Starter의 lefthook이 postinstall에서 이 레포에 git 훅과 `lefthook.yml`을 만들고, workspace로 두면 레포를 설치할 때마다 Showcase의 의존성까지 설치하게 된다. `showcase:dev`는 레포 밖에서 설치하고, Showcase가 고정한 Generator 대신 레포의 Generator를 쓴다.
+- Showcase의 `package.json`은 다른 Starter처럼 Generator를 정확한 버전으로 고정한다. 그래서 Generator 버전을 올리는 Version PR(`npm run release:version`)도 Showcase를 다시 만든다([릴리스와 배포](release.md)).
 - 하네스의 `harness/showcase.test.ts`가 생성·어긋남 검사·watch·dev를, `harness/showcase-starter.test.ts`가 Showcase를 설치해 Starter의 모든 스크립트를 검증한다. 후자가 조합 매트릭스의 "모든 Recipe를 켠 조합"이다.
 
 ### Recipe를 더하거나 고칠 때
@@ -141,6 +142,10 @@ Recipe 티켓은 Showcase에 반영된 것으로 완료를 확인한다.
 3. Showcase가 원본과 다르면 CI의 `showcase:check`가 실패한다. `apps/showcase/`를 직접 고쳐 맞추지 말고 원본을 고친 뒤 다시 만든다.
 4. 다른 Recipe와 부딪치는 패치나 테스트는 `harness/showcase-starter.test.ts`(모든 Recipe를 켠 Showcase)에서 드러난다.
 
+## 릴리스
+
+Recipe를 더하거나 고친 PR에는 changeset(`npm run changeset`)을 함께 커밋한다. 다음 Generator 버전과 CHANGELOG에 실린다([릴리스와 배포](release.md)).
+
 ## 예: dark-mode
 
 | 선언하는 것    | `recipes/dark-mode/`                                                                                                   |
@@ -151,3 +156,16 @@ Recipe 티켓은 Showcase에 반영된 것으로 완료를 확인한다.
 | 자기 테스트    | `src/shared/theme/theme.test.ts`, `theme-switcher.stories.tsx`, `e2e/dark-mode.spec.ts`                                |
 | 필요한 Recipe  | 없음                                                                                                                   |
 | Rendering Mode | `server`, `static-export`                                                                                              |
+
+## 예: route-rendering
+
+`server` 안에서 라우트마다 고르는 Rendering Mode(SSR, SSG, ISR, 스트리밍, CSR)를 `/rendering` 아래 데모 페이지로 나란히 보여 주는 Recipe다. 요청을 받는 Next.js 서버가 있어야 하므로 `server`만 지원하고, `renderingModesReason`으로 `static-export`에서 고를 수 없는 이유를 알린다. Showcase(Rendering Mode `server`)에는 들어간다.
+
+| 선언하는 것    | `recipes/route-rendering/`                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/rendering/`(목록과 `ssr`, `ssg`, `isr`, `streaming`, `csr` 데모 라우트), `src/features/rendering-demo/` |
+| 설정 패치      | 없음                                                                                                             |
+| npm 의존성     | 없음                                                                                                             |
+| 자기 테스트    | `src/features/rendering-demo/browser-product-list.test.tsx`, `e2e/route-rendering.spec.ts`                       |
+| 필요한 Recipe  | 없음                                                                                                             |
+| Rendering Mode | `server`                                                                                                         |
