@@ -1,0 +1,29 @@
+/*
+ * 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+ * 원본(packages/devc-frontend-generator/): base/src/shared/ui/styles.css, recipes/dark-mode/src/shared/ui/styles.css.patch
+ */
+
+/*
+ * 공통 UI의 스타일 진입점. 앱(src/app/layout.tsx)과 Storybook(.storybook/preview.tsx)이 불러온다.
+ * Tailwind는 src 아래 파일에서 쓰인 클래스만 CSS로 만든다.
+ */
+@import 'tailwindcss' source('../..');
+@import './tokens.css';
+@import './tokens-dark.css';
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-size: var(--text-md);
+    line-height: var(--text-md--line-height);
+  }
+}
+
+/* 키보드로 포커스한 요소를 드러낸다. 공통 컴포넌트는 포커스를 받는 요소에 이 유틸리티를 붙인다. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

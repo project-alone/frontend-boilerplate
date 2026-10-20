@@ -48,9 +48,9 @@ export function start(
   }
 }
 
-// 띄운 서버가 응답할 때까지 기다렸다가 첫 응답을 돌려준다. 2분 안에 연결되지 않으면 서버 출력과 함께 실패한다.
-export async function waitForServer(url: string, server: BackgroundProcess): Promise<Response> {
-  const deadline = Date.now() + 120_000
+// 띄운 서버가 응답할 때까지 기다렸다가 첫 응답을 돌려준다. timeoutMs(기본 2분) 안에 연결되지 않으면 서버 출력과 함께 실패한다.
+export async function waitForServer(url: string, server: BackgroundProcess, timeoutMs = 120_000): Promise<Response> {
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {
       return await fetch(url)

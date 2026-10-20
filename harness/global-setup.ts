@@ -32,6 +32,7 @@ export default function setup(project: TestProject) {
 
   project.provide('dcgenBin', join(root, 'node_modules', '.bin', 'dcgen'))
   project.provide('dcgenTarball', tarball)
+  project.provide('generatorDir', join(root, 'node_modules', 'devc-frontend-generator'))
 
   // 설치한 Generator를 복사해 시험용 Recipe를 recipes/<이름>/에 더한다. 기여자가 Recipe를 더하는 방식 그대로다.
   // 같은 node_modules 안에 두어 Generator의 의존성을 그대로 찾게 한다.
@@ -50,6 +51,8 @@ declare module 'vitest' {
     dcgenBin: string
     /** npm pack으로 만든 Generator tarball. Starter가 npm 레지스트리 대신 이 파일로 Generator를 설치한다(starter.ts, registry.ts). */
     dcgenTarball: string
+    /** npm pack tarball로 설치한 Generator 패키지의 디렉터리. Showcase 스크립트(scripts/showcase.ts)의 --generator로 넘긴다. */
+    generatorDir: string
     /** 시험용 Recipe(harness/fixtures/recipes)를 더한 Generator의 dcgen */
     dcgenWithFixturesBin: string
   }

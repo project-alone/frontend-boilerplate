@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { applyOverlay } from './overlay.js'
 
-// Starter 단위 Rendering Mode. 라우트마다 고르는 Rendering Mode(SSR, SSG, ISR, 스트리밍)는 server 안의 선택이다.
+// Starter 단위 Rendering Mode. 라우트마다 고르는 Rendering Mode(SSR, SSG, ISR, 스트리밍, CSR)는 server 안의 선택이다.
 export const RENDERING_MODES = ['server', 'static-export'] as const
 
 export type RenderingMode = (typeof RENDERING_MODES)[number]
@@ -10,7 +10,7 @@ export type RenderingMode = (typeof RENDERING_MODES)[number]
 export const DEFAULT_RENDERING_MODE: RenderingMode = 'server'
 
 export const RENDERING_MODE_DESCRIPTIONS: Record<RenderingMode, string> = {
-  server: '서버에서 실행한다. 라우트마다 SSR, SSG, ISR, 스트리밍을 고른다',
+  server: '서버에서 실행한다. 라우트마다 SSR, SSG, ISR, 스트리밍, CSR을 고른다',
   'static-export': '빌드할 때 모든 페이지를 정적 파일로 내보내 서버 없이 배포한다',
 }
 

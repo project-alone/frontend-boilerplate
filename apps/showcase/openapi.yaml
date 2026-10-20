@@ -1,0 +1,88 @@
+# 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml
+
+# API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
+# 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
+openapi: 3.1.0
+info:
+  title: Sample API
+  version: 0.1.0
+servers:
+  - url: https://api.example.com
+tags:
+  - name: products
+    description: 상품
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      summary: 상품 목록
+      tags: [products]
+      parameters:
+        - name: q
+          in: query
+          description: 상품 이름 검색어
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 상품 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+              # MSW 목이 돌려주는 값. example이 없으면 faker가 실행할 때마다 다른 값을 만든다.
+              example:
+                - id: 1
+                  name: 기본 티셔츠
+                  price: 19000
+                - id: 2
+                  name: 데님 재킷
+                  price: 89000
+    post:
+      operationId: createProduct
+      summary: 상품 등록
+      tags: [products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewProduct'
+      responses:
+        '201':
+          description: 등록된 상품
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+              example:
+                id: 3
+                name: 울 니트
+                price: 59000
+components:
+  schemas:
+    Product:
+      type: object
+      required: [id, name, price]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: integer
+          description: 원 단위 가격
+    NewProduct:
+      type: object
+      required: [name, price]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        price:
+          type: integer
+          minimum: 0

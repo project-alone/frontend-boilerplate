@@ -8,7 +8,11 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
-    "test": "vitest run"
+    "test": "vitest run",
+    "showcase": "node scripts/showcase.ts generate",
+    "showcase:check": "node scripts/showcase.ts check",
+    "showcase:watch": "node scripts/showcase.ts watch",
+    "showcase:dev": "node scripts/showcase.ts dev"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

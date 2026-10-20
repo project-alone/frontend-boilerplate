@@ -1,0 +1,20 @@
+# 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+# 원본(packages/devc-frontend-generator/): base/lefthook.yml
+
+# Git 훅 설정. git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치한다.
+# 저장소를 나중에 만들었다면 `npx lefthook install`로 설치한다.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: lint
+      glob: '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}'
+      run: npx eslint --max-warnings=0 --no-warn-ignored {staged_files}
+    - name: format
+      run: npx prettier --check --ignore-unknown {staged_files}
+    - name: typecheck
+      run: npm run typecheck
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: npx commitlint --edit {1}

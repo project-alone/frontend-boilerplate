@@ -29,3 +29,18 @@ jobs:
         run: npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
       - run: npm run typecheck
       - run: npm test
+
+  showcase:
+    name: Showcase drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Showcase(apps/showcase)는 Base와 Recipe로 생성해 커밋한다(ADR-0002). 다시 만든 결과가 커밋된 Showcase와 다르면
+      # 다른 파일을 알리고 실패한다. 커밋된 Showcase가 설치·빌드·테스트를 통과하는지는 harness 잡이 본다
+      # (harness/showcase.test.ts가 같은 결과인지, harness/showcase-starter.test.ts가 Starter의 모든 스크립트를).
+      - run: npm run showcase:check

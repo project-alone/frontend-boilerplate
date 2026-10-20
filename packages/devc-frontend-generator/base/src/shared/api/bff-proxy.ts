@@ -34,7 +34,9 @@ export async function forwardToBackend(request: Request): Promise<Response> {
     cache: 'no-store',
   })
 
-  const responseHeaders = new Headers(response.headers)
+  // 헤더를 하나씩 꺼내 복사한다. Next.js 서버 안에서 MSW가 돌려준 응답의 헤더는 new Headers(response.headers)로
+  // 넘기면 하나도 복사되지 않는다(content-type이 빠져 브라우저의 apiFetch가 JSON으로 읽지 못한다).
+  const responseHeaders = new Headers([...response.headers])
   for (const name of RESPONSE_HEADERS_TO_DROP) responseHeaders.delete(name)
   return new Response(response.body, {
     status: response.status,

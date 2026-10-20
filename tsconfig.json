@@ -4,7 +4,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["harness", "vitest.config.ts"],
+  "include": ["harness", "scripts", "vitest.config.ts"],
   // Schematic 생성 결과 스냅샷(harness/__snapshots__)은 Starter의 코드(@/ 경로 등)이므로 하네스와 함께 검사하지 않는다.
   "exclude": ["harness/__snapshots__"]
 }
