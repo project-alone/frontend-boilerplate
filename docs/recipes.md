@@ -209,7 +209,7 @@ components:
 
 - 조각의 경로, 컴포넌트(`components.schemas` 등), tag는 Base와 앞선 조각 뒤에 덧붙는다. 주석과 표기는 그대로 남는다.
 - 같은 경로, 같은 컴포넌트 이름, 같은 tag, 같은 operationId가 Base나 다른 Recipe에 이미 있으면 무엇을 만들기 전에 겹친 것을 모두 알리며 실패한다. Base의 operation을 고칠 수는 없으므로 새 경로를 더한다. Base의 tag(예: `products`)에 operation을 더하는 것은 된다.
-- 병합한 명세는 Starter의 `openapi.yaml`이 되고, Generator가 이 명세로 재생성 계층(`src/shared/api/generated`)을 다시 만든다(`npm run api:gen`과 같은 결과. Generator는 Base와 같은 버전의 orval을 담고 있다). `npm run g -- query`·`mutation`도 이 `openapi.yaml`을 읽는다.
+- 병합한 명세는 Starter의 `openapi.yaml`이 되고, Generator가 이 명세로 재생성 계층(`src/shared/api/generated`)을 다시 만든다(`npm run api:gen`과 같은 결과. Generator는 Base와 같은 버전의 orval을 담고 있다. [의존성 버전 올리기](release.md#의존성-버전-올리기)). `npm run g -- query`·`mutation`도 이 `openapi.yaml`을 읽는다.
 - MSW 목이 늘 같은 값을 돌려주도록 응답에 `example`을 적는다.
 
 ### 환경 변수

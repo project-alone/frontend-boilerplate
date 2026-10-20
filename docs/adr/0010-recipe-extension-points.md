@@ -16,6 +16,6 @@
 
 - Base도 같은 형식으로 자기 조각(QueryProvider, ToastProvider, MSW·백엔드 주소를 다루는 서버 instrumentation)을 선언하므로 Base의 조립 파일은 `base/`에 없고 Generator가 만든다. Base의 조각을 바꾸려면 `base/extensions.json`과 그 모듈을 고친다.
 - 조립 파일은 모든 overlay를 덧입힌 뒤에 쓰므로 overlay의 패치로 고칠 수 없다. 조립 파일의 모양(머리글의 클래스, proxy의 matcher 등)은 Generator 코드(`src/extensions.ts`)가 정한다.
-- Generator는 명세를 병합하고 재생성 계층을 다시 만들려고 Base가 고정한 orval, Prettier와 같은 버전을 의존성으로 고정한다. Base의 버전을 올리면 Generator의 버전도 함께 올린다. Starter에서는 같은 버전이 하나로 설치되므로 설치 크기는 늘지 않는다.
+- Generator는 명세를 병합하고 재생성 계층을 다시 만들려고 Base가 고정한 orval, Prettier와 같은 버전을 의존성으로 고정한다. Starter의 `orval.config.ts`를 읽는 jiti도 같다. Base의 버전을 올리면 Generator의 버전도 함께 올리고, 어긋나면 하네스(`harness/tool-versions.test.ts`)가 실패한다([의존성 버전 올리기](../release.md#의존성-버전-올리기)). Starter에서는 같은 버전이 하나로 설치되므로 설치 크기는 늘지 않는다.
 - proxy는 요청을 받는 서버가 있는 `server` Starter에만 만든다. `static-export`를 지원하는 Recipe의 proxy 처리기는 그 Rendering Mode에서 쓰이지 않으므로, 처리기 없이도 동작해야 한다.
 - ADR-0007의 패치는 확장 지점이 없는 Base 파일(`.storybook/preview.tsx`, `vitest.config.ts`, 스타일 등)에 그대로 쓴다. 둘 이상의 Recipe가 같은 자리를 고치게 되면 그때 확장 지점을 더한다.
