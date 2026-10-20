@@ -38,7 +38,16 @@ const maxFolderDepth: Rule.RuleModule = {
 }
 
 export default defineConfig(
-  globalIgnores(['.next/', 'out/', 'coverage/', 'next-env.d.ts']),
+  // 빌드·테스트 도구가 만드는 파일. ESLint는 .gitignore를 읽지 않으므로 여기에 따로 적는다.
+  globalIgnores([
+    '.next/',
+    'out/',
+    'coverage/',
+    'next-env.d.ts',
+    'test-results/',
+    'playwright-report/',
+    'storybook-static/',
+  ]),
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,

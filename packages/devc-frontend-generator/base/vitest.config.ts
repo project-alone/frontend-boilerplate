@@ -1,7 +1,41 @@
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
+import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
-    include: ['src/**/*.test.{ts,tsx}'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['src/**/*.test.{ts,tsx}'],
+          environment: 'jsdom',
+          setupFiles: ['./vitest.setup.ts'],
+        },
+      },
+      {
+        // 스토리 하나하나를 브라우저(Chromium)에서 테스트로 실행하고, 실행할 때마다 axe 접근성 검사를 한다.
+        extends: true,
+        plugins: [storybookTest({ configDir: '.storybook' })],
+        optimizeDeps: {
+          // Storybook 런타임이 쓰는 react를 미리 묶어 둔다. 실행 도중에 묶으면 Vite가 테스트를 다시 불러오면서
+          // 캐시가 없는 첫 실행(CI 등)이 실패한다.
+          include: ['react'],
+        },
+        test: {
+          name: 'storybook',
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+    ],
   },
 })

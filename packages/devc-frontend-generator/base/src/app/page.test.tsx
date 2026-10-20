@@ -1,7 +1,9 @@
-import { renderToStaticMarkup } from 'react-dom/server'
+import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
 import HomePage from './page'
 
 test('홈 페이지는 제목을 보여 준다', () => {
-  expect(renderToStaticMarkup(<HomePage />)).toContain('<h1>Starter</h1>')
+  render(<HomePage />)
+
+  expect(screen.getByRole('heading', { level: 1, name: 'Starter' })).toBeInTheDocument()
 })
