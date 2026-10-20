@@ -35,7 +35,7 @@ npm run g                   # Schematic으로 코드 생성(아래 "코드 생�
 | 파일                            | 내용                                                                                               |
 | ------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `src/app/app-shell.tsx`         | 루트 레이아웃(`src/app/layout.tsx`)이 모든 페이지를 감싸는 Provider(위에 적힌 것이 바깥)와 머리글  |
-| `next.config.plugins.ts`        | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것부터 씌움     |
+| `next.config.plugins.ts`        | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것이 바깥       |
 | `src/instrumentation.ts`        | 서버가 뜰 때 실행할 코드(API 목킹이나 백엔드 주소 확인 등)와 서버가 요청을 처리하다 난 오류의 처리 |
 | `src/instrumentation-client.ts` | 브라우저에서 앱 코드보다 먼저 실행할 코드와 페이지 이동 알림. 넣은 코드가 있을 때만 있음           |
 | `src/proxy.ts`                  | 페이지 요청이 라우트에 닿기 전에 차례로 실행할 처리기(Next.js Proxy). 넣은 처리기가 있을 때만 있음 |

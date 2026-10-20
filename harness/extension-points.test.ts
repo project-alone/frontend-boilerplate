@@ -158,6 +158,16 @@ describe('Provider, 머리글, proxy, next.config, instrumentation의 선언(ext
     expect(result.output).toContain('src/shared/missing/missing-provider.tsx')
     expect(readdirSync(workdir)).toEqual([])
   })
+
+  test('조각이 조립 파일이 쓰는 이름을 내보내면 무엇을 만들기 전에 실패한다', () => {
+    const result = dcgenNew(['--recipe', 'reserved-name-fixture'])
+
+    expect(result.status).not.toBe(0)
+    expect(result.output).toContain('Recipe reserved-name-fixture')
+    expect(result.output).toContain('AppShell')
+    expect(result.output).toContain('src/app/app-shell.tsx')
+    expect(readdirSync(workdir)).toEqual([])
+  })
 })
 
 // 하네스 매트릭스: 같은 확장 지점을 모두 쓰는 시험용 Recipe 둘을 함께 켠 Starter를 Rendering Mode마다 설치해, Starter의 스크립트와
@@ -230,6 +240,14 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 시험
       expect(stopped.status).toBe(204)
       expect(stopped.headers.get('x-fixture-proxy-stopped-by')).toBe('b')
       expect(stopped.headers.get('x-fixture-proxy')).toBeNull()
+    })
+
+    test('proxy 처리기가 next(request)로 고쳐 넘긴 요청을 뒤의 처리기가 받는다', async () => {
+      // b가 요청에 x-fixture-from-b 헤더를 더해 넘기고, a가 그 헤더를 보고 직접 응답한다.
+      const response = await fetch(`${origin}/fixture-proxy-request`)
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('x-fixture-seen')).toBe('b')
     })
   })
 })

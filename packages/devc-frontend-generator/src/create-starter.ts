@@ -2,11 +2,11 @@ import { cp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { regenerateApiLayer } from './api-layer.js'
-import { EXTENSIONS_MANIFEST, readExtensions, writeExtensionFiles } from './extensions.js'
+import { checkExtensions, EXTENSIONS_MANIFEST, readExtensions, writeExtensionFiles } from './extensions.js'
 import { formatForStarter } from './format.js'
 import { generatorPackage } from './generator-package.js'
 import { mergeOpenApiFragments, OPENAPI_SPEC, type SpecFragment } from './openapi-fragments.js'
-import { applyOverlay, isNotFound, type Overlay, OverlayError } from './overlay.js'
+import { applyOverlay, isNotFound, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
 import { mergePackageJson, updatePackageJson } from './package-json.js'
 import { type Recipe, recipeOverlay } from './recipes.js'
 import { type RenderingMode, renderingModeOverlay } from './rendering-mode.js'
@@ -52,6 +52,7 @@ export async function createStarter(target: string, { renderingMode, recipes }: 
     (overlay) => overlay !== undefined,
   )
   const pieces = (await Promise.all([BASE, ...overlays].map(readExtensions))).flat()
+  checkExtensions(pieces)
   const fragments = await readSpecFragments(overlays)
   // 쓰기 전에 병합해 보아 겹치는 명세 조각을 먼저 알린다.
   mergeOpenApiFragments(await readFile(join(BASE_DIR, OPENAPI_SPEC), 'utf8'), fragments)
@@ -85,10 +86,7 @@ export async function createStarter(target: string, { renderingMode, recipes }: 
 async function readSpecFragments(overlays: readonly Overlay[]): Promise<SpecFragment[]> {
   const fragments: SpecFragment[] = []
   for (const { label, dir } of overlays) {
-    const text = await readFile(join(dir, OPENAPI_SPEC), 'utf8').catch((error: unknown) => {
-      if (isNotFound(error)) return undefined
-      throw error
-    })
+    const text = await readOptionalFile(join(dir, OPENAPI_SPEC))
     if (text !== undefined) fragments.push({ label, text })
   }
   return fragments
@@ -97,7 +95,9 @@ async function readSpecFragments(overlays: readonly Overlay[]): Promise<SpecFrag
 /** Starter의 명세에 명세 조각을 병합해 쓰고, 병합한 명세로 재생성 API 계층을 다시 만든다(`npm run api:gen`과 같다). */
 async function writeMergedSpec(target: string, fragments: readonly SpecFragment[]): Promise<void> {
   const spec = join(target, OPENAPI_SPEC)
-  const merged = mergeOpenApiFragments(await readFile(spec, 'utf8'), fragments)
+  const base = await readOptionalFile(spec)
+  if (base === undefined) throw new OverlayError(`명세 조각을 병합할 ${OPENAPI_SPEC}가 Starter에 없습니다.`)
+  const merged = mergeOpenApiFragments(base, fragments)
   await writeFile(spec, await formatForStarter(spec, merged))
   await regenerateApiLayer(target).catch((error: unknown) => {
     const sources = fragments.map(({ label }) => label).join(', ')

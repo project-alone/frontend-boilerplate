@@ -90,7 +90,7 @@ function definedNames(contents: unknown, label: string): { names: string[]; inva
   const paths = contents.get('paths', true)
   if (paths !== undefined && !isMap(paths)) invalid.push('paths는 객체여야 합니다')
   for (const { key, value } of isMap(paths) ? paths.items : []) {
-    names.push(`paths.${keyOf(key)}`)
+    names.push(`paths.${templatedPath(keyOf(key))}`)
     for (const { key: method, value: operation } of isMap(value) ? value.items : []) {
       if (!HTTP_METHODS.includes(keyOf(method)) || !isMap(operation)) continue
       const operationId = operation.get('operationId')
@@ -116,6 +116,11 @@ function definedNames(contents: unknown, label: string): { names: string[]; inva
     else invalid.push('tags의 항목에는 name이 있어야 합니다')
   }
   return { names, invalid }
+}
+
+// `/betas/{betaId}`와 `/betas/{id}`는 OpenAPI에서 같은 경로이므로 경로 변수의 이름을 지우고 비교한다.
+function templatedPath(path: string): string {
+  return path.replace(/\{[^}]*\}/g, '{}')
 }
 
 function keyOf(key: unknown): string {

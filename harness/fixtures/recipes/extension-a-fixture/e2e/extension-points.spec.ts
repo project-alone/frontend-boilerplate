@@ -13,10 +13,11 @@ test('Provider는 order가 작은 것이 바깥을 감싸고, 머리글 항목�
   await expect(page.locator('header [data-fixture-header-item]')).toHaveText(['fixture-b', 'fixture-a'])
 })
 
-test('next.config 래퍼는 order 순으로 씌워진다', async ({ page }) => {
+test('next.config 래퍼는 Provider처럼 order가 작은 것이 바깥을 감싼다', async ({ page }) => {
   await page.goto('/extension-fixture')
 
-  await expect(page.getByTestId('next-config')).toHaveText('ba')
+  // 안쪽의 a가 먼저 씌워지고 바깥의 b가 그 결과를 감싼다.
+  await expect(page.getByTestId('next-config')).toHaveText('ab')
 })
 
 test('instrumentation-client 조각은 order 순으로 먼저 실행되고, 페이지를 옮길 때도 알림을 받는다', async ({ page }) => {

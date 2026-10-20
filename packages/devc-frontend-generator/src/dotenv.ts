@@ -43,6 +43,7 @@ export function mergeDotenv(base: string, overlay: string): string {
 
 function parseParagraphs(text: string): Item[][] {
   return text
+    .replace(/\r\n/g, '\n')
     .split(/\n[ \t]*\n/)
     .map((paragraph) => paragraph.split('\n').filter((line) => line.trim() !== ''))
     .filter((lines) => lines.length > 0)

@@ -79,7 +79,8 @@ test('static-export Starter의 스토리도 axe 접근성 검사를 모두 통�
   starter.expectNpmSuccess(['run', 'test:storybook'])
 })
 
-// Base의 src/instrumentation.ts를 static-export Starter에도 그대로 두는 이유다. 빌드에는 영향이 없고 개발 서버에서만 쓰인다.
+// Base의 서버 instrumentation(src/instrumentation.ts가 부르는 api-instrumentation.ts)을 static-export Starter에도 두는 이유다.
+// 빌드에는 영향이 없고 개발 서버에서만 쓰인다.
 test('개발 서버에서는 서버 컴포넌트가 보내는 API 요청을 MSW가 받는다', async () => {
   writeMswProbePage(starter)
   const port = await freePort()

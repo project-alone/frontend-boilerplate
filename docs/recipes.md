@@ -129,11 +129,11 @@ overlay 최상위에 두고, 확장 지점마다 조각의 배열을 적는다. 
 }
 ```
 
-| 항목     | 뜻                                                                                                                                                   |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `path`   | Starter 최상위 기준의 `.ts`·`.tsx` 모듈. 보통 그 Recipe가 더한 파일이다. 모든 overlay를 덧입힌 뒤의 Starter에 없으면 생성이 실패한다.                |
-| `export` | 그 모듈이 내보내는 이름. 조립 파일이 이 이름으로 import한다. 한 조립 파일에서 다른 조각과 이름이 겹치면 생성이 실패하므로 Recipe 이름을 담아 짓는다. |
-| `order`  | 같은 지점의 조각 사이의 순서(정수). 작은 것이 먼저(Provider는 바깥)다. 같으면 덧입힌 순서(Base → Rendering Mode → Recipe)를 따른다.                  |
+| 항목     | 뜻                                                                                                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`   | Starter 최상위 기준의 `.ts`·`.tsx` 모듈. 보통 그 Recipe가 더한 파일이다. 모든 overlay를 덧입힌 뒤의 Starter에 없으면 생성이 실패한다.                                          |
+| `export` | 그 모듈이 내보내는 이름. 조립 파일이 이 이름으로 import한다. 한 조립 파일에서 다른 조각과 이름이 겹치면 생성이 실패하므로 Recipe 이름을 담아 짓는다.                           |
+| `order`  | 같은 지점의 조각 사이의 순서(정수). 작은 것이 먼저이고, 감싸는 지점(Provider, proxy, next.config)에서는 바깥이다. 같으면 덧입힌 순서(Base → Rendering Mode → Recipe)를 따른다. |
 
 - 조립 파일은 Generator가 모든 overlay를 덧입힌 뒤 매번 새로 쓴다. 패치하거나 대신할 수 없다. 조립 파일의 틀(머리글의 모양, proxy의 matcher 등)은 Generator 코드(`src/extensions.ts`)가 정한다.
 - 조각의 모양은 조립 파일의 타입이 정하므로 Starter의 `typecheck`가 검사한다. 모듈은 ADR-0005의 계층과 폴더 깊이를 지킨다. `src/app/app-shell.tsx`는 `app` 계층이라 `features`와 `shared`의 컴포넌트를 모두 쓸 수 있다.
@@ -153,17 +153,21 @@ overlay 최상위에 두고, 확장 지점마다 조각의 배열을 적는다. 
 Next.js 16은 middleware를 proxy(`src/proxy.ts`, Node.js 런타임)로 바꿨다. 요청 처리기는 다음 모양이고, `order`가 작은 처리기부터 이어진다.
 
 ```ts
-;(request: NextRequest, next: () => Promise<NextResponse>) => NextResponse | Promise<NextResponse>
+type ProxyHandler = (
+  request: NextRequest,
+  next: (request?: NextRequest) => Promise<NextResponse>,
+) => NextResponse | Promise<NextResponse>
 ```
 
 - 응답을 직접 돌려주면 요청이 거기서 끝난다(예: 로그인 페이지로 redirect). 뒤의 처리기와 라우트는 실행되지 않는다.
 - `next()`를 부르면 다음 처리기에 넘기고, 받은 응답을 고쳐(헤더, 쿠키) 돌려줄 수 있다. 마지막 `next()`는 `NextResponse.next()`다.
+- 헤더나 쿠키를 고친 요청(예: refresh한 토큰 쿠키)을 뒤로 넘기려면 `next(new NextRequest(request, { headers }))`처럼 고친 요청을 넘긴다. 뒤의 처리기는 그 요청을 받고, 라우트(서버 컴포넌트, Route Handler)도 그 헤더로 실행된다(`NextResponse.next({ request: { headers } })`).
 - proxy는 페이지 요청에만 실행된다(`/api`, `/_next`, 확장자가 있는 경로는 빼는 matcher). 처리기는 `request.nextUrl.pathname`으로 자기가 다룰 경로를 고르고 나머지는 `next()`로 넘긴다. 예: 인증 보호(로그인하지 않았으면 redirect)를 앞에, locale 라우팅을 뒤에 둔다.
 - `static-export` Starter에는 요청을 받는 서버가 없어 `src/proxy.ts`를 만들지 않는다. `static-export`도 지원하는 Recipe는 처리기 없이도 동작해야 한다.
 
 #### next.config(`nextConfig`)
 
-`(config: NextConfig) => NextConfig` 래퍼다. `next.config.ts`가 Base의 설정을 `next.config.plugins.ts`의 `withPlugins`에 넘기고, 래퍼는 `order`가 작은 것부터 씌워진다(큰 것이 바깥). 예: next-intl의 플러그인은 안쪽에, 가장 바깥이어야 하는 Sentry의 `withSentryConfig`는 큰 `order`로 둔다. 래퍼 모듈은 Next.js가 설정을 읽을 때 Node.js에서 바로 실행되므로 브라우저 코드를 import하지 않는다. Rendering Mode `static-export`의 `output: 'export'`는 `next.config.ts`의 패치다.
+`(config: NextConfig) => NextConfig` 래퍼다. `next.config.ts`가 Base의 설정을 `next.config.plugins.ts`의 `withPlugins`에 넘기고, Provider처럼 `order`가 작은 래퍼가 바깥을 감싼다(큰 것부터 씌운다). 예: 가장 바깥이어야 하는 Sentry의 `withSentryConfig`는 작은 `order`로, next-intl의 플러그인은 그보다 큰 `order`로 둔다. 래퍼 모듈은 Next.js가 설정을 읽을 때 Node.js에서 바로 실행되므로 브라우저 코드를 import하지 않는다. Rendering Mode `static-export`의 `output: 'export'`는 Base 설정의 값 자체를 바꾸는 것이라 래퍼 대신 `next.config.ts`의 패치다. Recipe는 이 패치보다 뒤에 덧입혀지고 `next.config.ts`를 패치하지 않으므로 부딪치지 않는다.
 
 #### instrumentation(`instrumentation`)
 

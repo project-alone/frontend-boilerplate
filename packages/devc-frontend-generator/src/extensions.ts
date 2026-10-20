@@ -1,7 +1,7 @@
-import { access, readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { join, posix } from 'node:path'
 import { formatForStarter } from './format.js'
-import { isNotFound, type Overlay, OverlayError } from './overlay.js'
+import { exists, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
 import type { RenderingMode } from './rendering-mode.js'
 
 // 확장 지점: 여러 Recipe가 같은 Base 파일(루트 레이아웃, proxy, next.config, instrumentation)에 끼어들어야 하는 곳.
@@ -39,10 +39,7 @@ const PIECE_KEYS = ['path', 'export', 'order']
 
 /** overlay 최상위의 extensions.json을 읽어 조각을 돌려준다. 없으면 빈 배열이다. 선언이 잘못되었으면 OverlayError를 던진다. */
 export async function readExtensions({ dir, label }: Overlay): Promise<ExtensionPiece[]> {
-  const text = await readFile(join(dir, EXTENSIONS_MANIFEST), 'utf8').catch((error: unknown) => {
-    if (isNotFound(error)) return undefined
-    throw error
-  })
+  const text = await readOptionalFile(join(dir, EXTENSIONS_MANIFEST))
   if (text === undefined) return []
   const fail = (problem: string) => new OverlayError(`${label}: ${EXTENSIONS_MANIFEST} ${problem}`)
 
@@ -81,14 +78,62 @@ export async function readExtensions({ dir, label }: Overlay): Promise<Extension
 }
 
 /**
- * 조각을 모아 확장 지점의 조립 파일을 Starter에 쓴다. pieces는 덧입힌 순서(Base, Rendering Mode, Recipe)대로이고, 지점마다
- * order가 작은 순으로, order가 같으면 덧입힌 순서대로 놓는다. 선언한 모듈 파일이 Starter에 없거나, 한 조립 파일에서 같은
- * 이름을 두 번 import하게 되면 OverlayError를 던진다.
+ * 확장 지점을 모아 만드는 조립 파일(Starter 최상위 기준 경로)과 그 파일에 모이는 지점, 그 파일이 스스로 쓰는 이름.
+ * 조각이 같은 이름을 내보내면 조립 파일에서 이름이 겹치므로 받지 않는다.
  *
- * - src/app/app-shell.tsx(providers, header): 루트 레이아웃이 쓰므로 늘 만든다.
- * - next.config.plugins.ts(nextConfig): next.config.ts가 쓰므로 늘 만든다.
- * - src/instrumentation.ts(instrumentation), src/instrumentation-client.ts(instrumentationClient): 조각이 있을 때만 만든다.
- * - src/proxy.ts(proxy): 조각이 있고 요청을 받는 서버가 있는(server) Starter에만 만든다. static-export에는 proxy가 없다.
+ * - src/app/app-shell.tsx: 루트 레이아웃이 쓰므로 늘 만든다.
+ * - next.config.plugins.ts: next.config.ts가 쓰므로 늘 만든다.
+ * - src/instrumentation.ts, src/instrumentation-client.ts: 조각이 있을 때만 만든다.
+ * - src/proxy.ts: 조각이 있고 요청을 받는 서버가 있는(server) Starter에만 만든다. static-export에는 proxy가 없다.
+ */
+export const ASSEMBLED_FILES: readonly { path: string; points: readonly ExtensionPoint[]; reserved: readonly string[] }[] =
+  [
+    { path: 'src/app/app-shell.tsx', points: ['providers', 'header'], reserved: ['AppShell', 'ReactNode'] },
+    { path: 'next.config.plugins.ts', points: ['nextConfig'], reserved: ['NextConfig', 'plugins', 'withPlugins'] },
+    {
+      path: 'src/instrumentation.ts',
+      points: ['instrumentation'],
+      reserved: ['Instrumentation', 'InstrumentationHook', 'hooks', 'register', 'onRequestError'],
+    },
+    {
+      path: 'src/instrumentation-client.ts',
+      points: ['instrumentationClient'],
+      reserved: ['RouterTransitionType', 'ClientInstrumentationHook', 'hooks', 'onRouterTransitionStart'],
+    },
+    {
+      path: 'src/proxy.ts',
+      points: ['proxy'],
+      reserved: ['NextRequest', 'NextResponse', 'ProxyHandler', 'handlers', 'proxy', 'config'],
+    },
+  ]
+
+/**
+ * 조각을 Starter에 쓰기 전에 검사한다. 한 조립 파일에서 두 조각이 같은 이름을 내보내거나(같은 모듈의 같은 값을 다른
+ * 지점에 쓰는 것은 된다), 조립 파일이 스스로 쓰는 이름을 내보내면 OverlayError를 던진다.
+ */
+export function checkExtensions(pieces: readonly ExtensionPiece[]): void {
+  for (const file of ASSEMBLED_FILES) {
+    const seen = new Map<string, ExtensionPiece>()
+    for (const piece of pieces.filter(({ point }) => file.points.includes(point))) {
+      const where = `${piece.label}: ${EXTENSIONS_MANIFEST}의 ${piece.point}에 적힌 이름 ${piece.export}`
+      if (file.reserved.includes(piece.export)) {
+        throw new OverlayError(`${where}는 ${file.path}가 쓰는 이름이라 쓸 수 없습니다. 내보내는 이름을 바꾸세요.`)
+      }
+      const previous = seen.get(piece.export)
+      if (previous !== undefined && (previous.path !== piece.path || previous.point === piece.point)) {
+        throw new OverlayError(
+          `${where}가 ${previous.label}의 조각과 겹쳐 ${file.path}에서 함께 쓸 수 없습니다. 내보내는 이름을 바꾸세요.`,
+        )
+      }
+      seen.set(piece.export, piece)
+    }
+  }
+}
+
+/**
+ * 조각을 모아 확장 지점의 조립 파일(ASSEMBLED_FILES)을 Starter에 쓴다. pieces는 checkExtensions로 검사한 것으로, 덧입힌
+ * 순서(Base, Rendering Mode, Recipe)대로다. 지점마다 order가 작은 순으로, order가 같으면 덧입힌 순서대로 놓는다.
+ * 선언한 모듈 파일이 Starter에 없거나, overlay가 조립 파일을 직접 담았으면 OverlayError를 던진다.
  */
 export async function writeExtensionFiles(
   target: string,
@@ -96,14 +141,17 @@ export async function writeExtensionFiles(
   renderingMode: RenderingMode,
 ): Promise<void> {
   for (const piece of pieces) {
-    await access(join(target, piece.path)).catch((error: unknown) => {
-      if (isNotFound(error)) {
-        throw new OverlayError(
-          `${piece.label}: ${EXTENSIONS_MANIFEST}의 ${piece.point}에 적힌 ${piece.path}가 Starter에 없습니다.`,
-        )
-      }
-      throw error
-    })
+    if (!(await exists(join(target, piece.path)))) {
+      throw new OverlayError(`${piece.label}: ${EXTENSIONS_MANIFEST}의 ${piece.point}에 적힌 ${piece.path}가 Starter에 없습니다.`)
+    }
+  }
+  for (const { path } of ASSEMBLED_FILES) {
+    if (await exists(join(target, path))) {
+      throw new OverlayError(
+        `${path}는 Generator가 확장 지점의 조각으로 조립하는 파일이라 overlay가 담거나 패치할 수 없습니다. ` +
+          `${EXTENSIONS_MANIFEST}에 조각을 선언하세요(docs/recipes.md의 "확장 지점").`,
+      )
+    }
   }
   const at = (point: ExtensionPoint) =>
     pieces
@@ -164,37 +212,37 @@ function appShell(providers: readonly ExtensionPiece[], header: readonly Extensi
   }
 }
 
-function nextConfigPlugins(plugins: readonly ExtensionPiece[]): GeneratedFile {
+function nextConfigPlugins(pieces: readonly ExtensionPiece[]): GeneratedFile {
   const path = 'next.config.plugins.ts'
   return {
     path,
     content: [
       "import type { NextConfig } from 'next'",
-      ...imports(path, plugins),
+      ...imports(path, pieces),
       '',
       GENERATED_NOTICE,
-      '// next.config.ts의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인)를 위에 적힌 것부터 차례로 씌운다.',
-      '// 뒤의 래퍼가 앞의 래퍼를 바깥에서 감싼다.',
+      '// next.config.ts의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). Provider처럼 위에 적힌 래퍼가 바깥을 감싼다.',
+      '// 그래서 아래의 래퍼부터 차례로 씌운다.',
       'const plugins: readonly ((config: NextConfig) => NextConfig)[] = [',
-      ...plugins.map((piece) => `${piece.export},`),
+      ...pieces.map((piece) => `${piece.export},`),
       ']',
       '',
       '/** next.config.ts가 설정을 내보내기 전에 래퍼를 씌운다. */',
       'export function withPlugins(config: NextConfig): NextConfig {',
-      '  return plugins.reduce((wrapped, plugin) => plugin(wrapped), config)',
+      '  return plugins.reduceRight((wrapped, plugin) => plugin(wrapped), config)',
       '}',
     ].join('\n'),
   }
 }
 
-function instrumentation(hooks: readonly ExtensionPiece[]): GeneratedFile | undefined {
-  if (hooks.length === 0) return undefined
+function instrumentation(pieces: readonly ExtensionPiece[]): GeneratedFile | undefined {
+  if (pieces.length === 0) return undefined
   const path = 'src/instrumentation.ts'
   return {
     path,
     content: [
       "import type { Instrumentation } from 'next'",
-      ...imports(path, hooks),
+      ...imports(path, pieces),
       '',
       GENERATED_NOTICE,
       '// Next.js 서버가 뜰 때(register)와 서버가 요청을 처리하다 오류가 났을 때(onRequestError) 조각을 위에서부터 차례로 실행한다.',
@@ -204,7 +252,7 @@ function instrumentation(hooks: readonly ExtensionPiece[]): GeneratedFile | unde
       '  onRequestError?: Instrumentation.onRequestError',
       '}',
       '',
-      `const hooks: readonly InstrumentationHook[] = [${hooks.map((piece) => piece.export).join(', ')}]`,
+      `const hooks: readonly InstrumentationHook[] = [${pieces.map((piece) => piece.export).join(', ')}]`,
       '',
       'export async function register() {',
       '  for (const hook of hooks) await hook.register?.()',
@@ -217,14 +265,14 @@ function instrumentation(hooks: readonly ExtensionPiece[]): GeneratedFile | unde
   }
 }
 
-function instrumentationClient(hooks: readonly ExtensionPiece[]): GeneratedFile | undefined {
-  if (hooks.length === 0) return undefined
+function instrumentationClient(pieces: readonly ExtensionPiece[]): GeneratedFile | undefined {
+  if (pieces.length === 0) return undefined
   const path = 'src/instrumentation-client.ts'
   return {
     path,
     content: [
       "import type { RouterTransitionType } from 'next'",
-      ...imports(path, hooks),
+      ...imports(path, pieces),
       '',
       GENERATED_NOTICE,
       '// 브라우저에서 앱 코드보다 먼저 한 번(register), App Router가 다른 페이지로 옮겨 가기 시작할 때마다(onRouterTransitionStart)',
@@ -234,7 +282,7 @@ function instrumentationClient(hooks: readonly ExtensionPiece[]): GeneratedFile 
       '  onRouterTransitionStart?: (url: string, navigationType: RouterTransitionType) => void',
       '}',
       '',
-      `const hooks: readonly ClientInstrumentationHook[] = [${hooks.map((piece) => piece.export).join(', ')}]`,
+      `const hooks: readonly ClientInstrumentationHook[] = [${pieces.map((piece) => piece.export).join(', ')}]`,
       '',
       'for (const hook of hooks) hook.register?.()',
       '',
@@ -245,28 +293,36 @@ function instrumentationClient(hooks: readonly ExtensionPiece[]): GeneratedFile 
   }
 }
 
-function proxy(handlers: readonly ExtensionPiece[]): GeneratedFile | undefined {
-  if (handlers.length === 0) return undefined
+function proxy(pieces: readonly ExtensionPiece[]): GeneratedFile | undefined {
+  if (pieces.length === 0) return undefined
   const path = 'src/proxy.ts'
   return {
     path,
     content: [
       "import { type NextRequest, NextResponse } from 'next/server'",
-      ...imports(path, handlers),
+      ...imports(path, pieces),
       '',
       GENERATED_NOTICE,
       '// 페이지 요청이 라우트에 닿기 전에 처리기를 위에서부터 차례로 실행한다(Next.js Proxy). 처리기는 응답을 직접 돌려주어',
       '// 요청을 끝내거나(뒤의 처리기와 라우트는 실행되지 않는다), next()로 다음 처리기에 넘긴 뒤 받은 응답을 고쳐 돌려준다.',
-      'type ProxyHandler = (request: NextRequest, next: () => Promise<NextResponse>) => NextResponse | Promise<NextResponse>',
+      '// next(request)로 헤더·쿠키를 고친 요청을 넘기면 뒤의 처리기와 라우트가 그 요청을 받는다.',
+      'type ProxyHandler = (',
+      '  request: NextRequest,',
+      '  next: (request?: NextRequest) => Promise<NextResponse>,',
+      ') => NextResponse | Promise<NextResponse>',
       '',
-      `const handlers: readonly ProxyHandler[] = [${handlers.map((piece) => piece.export).join(', ')}]`,
+      `const handlers: readonly ProxyHandler[] = [${pieces.map((piece) => piece.export).join(', ')}]`,
       '',
       'export function proxy(request: NextRequest): Promise<NextResponse> {',
-      '  const run = (index: number): Promise<NextResponse> => {',
+      '  const run = (index: number, current: NextRequest): Promise<NextResponse> => {',
       '    const handler = handlers[index]',
-      '    return Promise.resolve(handler === undefined ? NextResponse.next() : handler(request, () => run(index + 1)))',
+      '    if (handler !== undefined) return Promise.resolve(handler(current, (next = current) => run(index + 1, next)))',
+      '    // 처리기가 고친 요청의 헤더(쿠키 포함)를 라우트에 넘긴다.',
+      '    return Promise.resolve(',
+      '      current === request ? NextResponse.next() : NextResponse.next({ request: { headers: current.headers } }),',
+      '    )',
       '  }',
-      '  return run(0)',
+      '  return run(0, request)',
       '}',
       '',
       'export const config = {',
@@ -279,20 +335,9 @@ function proxy(handlers: readonly ExtensionPiece[]): GeneratedFile | undefined {
 
 /**
  * 조립 파일(file)에서 조각의 모듈을 가져오는 import 문. src 아래의 모듈은 `@/` 경로로, 그 밖은 상대 경로로 가져온다.
- * 같은 모듈의 이름은 한 문장으로 묶고, 모듈 경로 순으로 늘어놓는다.
+ * 같은 모듈의 이름은 한 문장으로 묶고, 모듈 경로 순으로 늘어놓는다. 이름이 겹치지 않는 것은 checkExtensions가 확인했다.
  */
 function imports(file: string, pieces: readonly ExtensionPiece[]): string[] {
-  const seen = new Map<string, ExtensionPiece>()
-  for (const piece of pieces) {
-    const previous = seen.get(piece.export)
-    if (previous !== undefined && (previous.path !== piece.path || previous.point === piece.point)) {
-      throw new OverlayError(
-        `${piece.label}: ${EXTENSIONS_MANIFEST}의 ${piece.point}에 적힌 이름 ${piece.export}가 ${previous.label}의 조각과 겹쳐 ` +
-          `${file}에서 함께 쓸 수 없습니다. 내보내는 이름을 바꾸세요.`,
-      )
-    }
-    seen.set(piece.export, piece)
-  }
   const byModule = new Map<string, Set<string>>()
   for (const piece of pieces) {
     const specifier = moduleSpecifier(file, piece.path)

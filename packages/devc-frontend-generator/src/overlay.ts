@@ -1,4 +1,4 @@
-import { cp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
+import { access, cp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { applyPatch } from 'diff'
 import { isDotenvFile, mergeDotenv } from './dotenv.js'
@@ -45,7 +45,7 @@ export class OverlayError extends Error {
 export async function applyOverlay(
   target: string,
   { dir: overlay, label }: Overlay,
-  skip: readonly string[] = [],
+  skip: readonly string[],
 ): Promise<void> {
   const entries = await readdir(overlay, { recursive: true, withFileTypes: true })
   const paths = entries
@@ -69,11 +69,7 @@ export async function applyOverlay(
       await patchFile(target, path.slice(0, -PATCH_SUFFIX.length), await readFile(source, 'utf8'), label)
     } else if (isDotenvFile(path)) {
       const file = join(target, path)
-      const existing = await readFile(file, 'utf8').catch((error: unknown) => {
-        if (isNotFound(error)) return ''
-        throw error
-      })
-      await writeFile(file, mergeDotenv(existing, await readFile(source, 'utf8')))
+      await writeFile(file, mergeDotenv((await readOptionalFile(file)) ?? '', await readFile(source, 'utf8')))
     } else {
       await cp(source, join(target, path))
     }
@@ -130,4 +126,24 @@ async function removeEmptyDirectories(target: string, directory: string): Promis
 
 export function isNotFound(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
+/** 파일의 내용. 파일이 없으면 undefined다. */
+export async function readOptionalFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (error) {
+    if (isNotFound(error)) return undefined
+    throw error
+  }
+}
+
+export async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch (error) {
+    if (isNotFound(error)) return false
+    throw error
+  }
 }
