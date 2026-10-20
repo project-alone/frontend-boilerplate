@@ -1,6 +1,12 @@
 import type { OpenAPIV3 } from 'openapi-types'
-import { type ObjectLiteralExpression, type SourceFile, SyntaxKind } from 'ts-morph'
-import { type QueryDomain, queryDomainOf } from './query-domain.js'
+import {
+  hasDeclaration,
+  openQueryDomain,
+  queryDomainOf,
+  queryOptionsName,
+  queryOptionsParameters,
+  rejectConflicts,
+} from './query-domain.js'
 import {
   addNamedImport,
   type ChangedFile,
@@ -51,18 +57,11 @@ export async function generateQuery(
     ? infiniteQuery(keysName, fetcher, pageParameter(operation, options.pageParam))
     : regularQuery(keysName, fetcher)
 
-  const keysModule = starter.module(domain.keysPath, newKeysModule(domain))
-  const queriesModule = starter.module(domain.queriesPath, newQueriesModule(domain))
-  const keys = keysObject(keysModule, domain)
-  const conflicts = [
-    keys.getProperty(query.keyName) && `${domain.keysPath}: ${keysName}.${query.keyName}`,
+  const { keysModule, keys, queriesModule } = openQueryDomain(starter, domain)
+  rejectConflicts([
+    keys.getProperty(query.keyName) !== undefined && `${domain.keysPath}: ${keysName}.${query.keyName}`,
     hasDeclaration(queriesModule, query.optionsName) && `${domain.queriesPath}: ${query.optionsName}`,
-  ].filter((conflict) => typeof conflict === 'string')
-  if (conflicts.length > 0) {
-    throw new SchematicError(
-      `같은 이름의 코드가 이미 있어 덮어쓰지 않았습니다. 파일은 바꾸지 않았습니다.\n${conflicts.map((conflict) => `  ${conflict}`).join('\n')}`,
-    )
-  }
+  ])
 
   // 키와 queryOptions는 fetch 함수와 같은 인자를 받으므로 인자 타입을 두 모듈 모두 가져온다.
   for (const typeImport of fetcher.typeImports) addNamedImport(keysModule, { ...typeImport, typeOnly: true })
@@ -80,12 +79,13 @@ export async function generateQuery(
 function regularQuery(keysName: string, fetcher: GeneratedFunction): Query {
   const { name, parameters } = fetcher
   const args = parameters.map((parameter) => parameter.name)
+  const optionsName = queryOptionsName(fetcher, 'query')
   return {
     keyName: name,
     keyInitializer: `(${keyParameters(parameters)}) => [...${keysName}.all, ${[`'${name}'`, ...args].join(', ')}] as const`,
     optionsFactory: 'queryOptions',
-    optionsName: `${name}QueryOptions`,
-    optionsDeclaration: `export function ${name}QueryOptions(${optionsParameters(parameters)}) {
+    optionsName,
+    optionsDeclaration: `export function ${optionsName}(${queryOptionsParameters(parameters)}) {
   return queryOptions({
     queryKey: ${keysName}.${name}(${args.join(', ')}),
     queryFn: ({ signal }) => ${name}(${[...args, '{ signal }'].join(', ')}),
@@ -111,12 +111,13 @@ function infiniteQuery(keysName: string, fetcher: GeneratedFunction, page: PageP
   const args = parameters.map((parameter) => parameter.name)
   const fetchArgs = args.map((arg) => (arg === QUERY_PARAMS_ARGUMENT ? `{ ...${arg}, ${page.name}: pageParam }` : arg))
   const keyName = `${name}Infinite`
+  const optionsName = queryOptionsName(fetcher, 'infinite')
   return {
     keyName,
     keyInitializer: `(${keyParameters(parameters)}) => [...${keysName}.all, ${[`'${name}'`, `'infinite'`, ...args].join(', ')}] as const`,
     optionsFactory: 'infiniteQueryOptions',
-    optionsName: `${name}InfiniteQueryOptions`,
-    optionsDeclaration: `export function ${name}InfiniteQueryOptions(${optionsParameters(parameters)}) {
+    optionsName,
+    optionsDeclaration: `export function ${optionsName}(${queryOptionsParameters(parameters)}) {
   return infiniteQueryOptions({
     queryKey: ${keysName}.${keyName}(${args.join(', ')}),
     queryFn: ({ pageParam, signal }) => ${name}(${[...fetchArgs, '{ signal }'].join(', ')}),
@@ -162,37 +163,4 @@ function successSchema(operation: Operation): OpenAPIV3.SchemaObject | undefined
 // 키는 인자를 모두 받는다. 인자가 빠지면 서로 다른 요청이 같은 키를 쓰게 된다.
 function keyParameters(parameters: GeneratedFunction['parameters']): string {
   return parameters.map(({ name, type }) => `${name}: ${type}`).join(', ')
-}
-
-// fetch 함수에서 생략할 수 있는 인자(쿼리 파라미터 객체)는 빈 객체를 기본값으로 둬, 생략해도 키가 늘 같다.
-function optionsParameters(parameters: GeneratedFunction['parameters']): string {
-  return parameters.map(({ name, type, optional }) => `${name}: ${type}${optional ? ' = {}' : ''}`).join(', ')
-}
-
-/** 쿼리 키 모듈이 없을 때 새로 만드는 모듈의 처음 내용 */
-function newKeysModule({ name, tag, keysName }: QueryDomain): string {
-  return `// ${name} Query Domain(OpenAPI tag \`${tag}\`)의 쿼리 키. 위 단계의 키로 아래 단계를 한꺼번에 무효화할 수 있게
-// ['${name}'] → ['${name}', <operationId>] → ['${name}', <operationId>, ...인자]처럼 계층으로 만든다.
-export const ${keysName} = {
-  all: ['${name}'] as const,
-}
-`
-}
-
-/** 쿼리 모듈이 없을 때 새로 만드는 모듈의 처음 내용 */
-function newQueriesModule({ name }: QueryDomain): string {
-  return `// ${name} Query Domain의 queryOptions. 서버 컴포넌트의 prefetch와 클라이언트 컴포넌트의 쿼리 훅(useSuspenseQuery 등)이 같은 옵션을 쓴다.
-`
-}
-
-function keysObject(file: SourceFile, { keysName, keysPath }: QueryDomain): ObjectLiteralExpression {
-  const keys = file.getVariableDeclaration(keysName)?.getInitializerIfKind(SyntaxKind.ObjectLiteralExpression)
-  if (keys === undefined) {
-    throw new SchematicError(`${keysPath}에 ${keysName} 쿼리 키 객체가 없어 쿼리 키를 끼워 넣을 수 없습니다.`)
-  }
-  return keys
-}
-
-function hasDeclaration(file: SourceFile, name: string): boolean {
-  return file.getFunction(name) !== undefined || file.getVariableDeclaration(name) !== undefined
 }
