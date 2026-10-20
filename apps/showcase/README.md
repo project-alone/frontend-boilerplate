@@ -153,17 +153,36 @@ API_MOCKING=disabled
 API_BASE_URL=https://<백엔드 주소>
 ```
 
+## 폼(React Hook Form과 Zod)
+
+폼은 [React Hook Form](https://react-hook-form.com)으로 만들고, 검증은 재생성 계층의 Zod 스키마(`src/shared/api/generated/model`의 `<OperationId>Body` 등)가 맡습니다. 검증 규칙을 명세에서 손으로 옮기지 않으므로 명세가 바뀌면 `npm run api:gen`만으로 폼의 검증도 바뀝니다. `npm run g -- form`이 이 방식대로 폼을 만듭니다(아래 "코드 생성(Schematic)").
+
+```tsx
+const {
+  register,
+  handleSubmit,
+  formState: { errors },
+} = useForm({ resolver: formResolver(CreateProductBody) })
+```
+
+- `src/shared/form/form-resolver.ts`의 `formResolver(schema)`를 `useForm`의 `resolver`로 넘깁니다. 제출 핸들러(`handleSubmit`)는 검증을 통과한 값을 받습니다.
+- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 값을 넣지 않은 것으로 보고 검증 전에 뺍니다. 비워 둔 선택 필드는 요청에 담기지 않고, 비워 둔 필수 필드는 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다. 그 밖의 오류는 Zod의 한국어 메시지입니다.
+- 숫자 입력은 `register(name, { valueAsNumber: true })`로 숫자로 바꿉니다.
+- 입력 요소는 공통 UI를 씁니다. `Field`에 `invalid`를, `FieldError`에 `match`와 오류 메시지를 넘기면 입력 요소에 `aria-invalid`가 붙고 오류 메시지가 입력 요소의 설명(`aria-describedby`)으로 읽힙니다. `Select`, `Checkbox`처럼 값을 직접 다루는 컴포넌트는 React Hook Form의 `Controller`로 잇습니다.
+- 폼 테스트는 `@testing-library/user-event`로 사람처럼 입력하고, 요청은 MSW가 받습니다.
+
 ## 코드 생성(Schematic)
 
 `npm run g -- <schematic> ...`(`npx dcgen g <schematic> ...`과 같습니다)은 이 Starter를 만든 Generator(`devc-frontend-generator`)로 코드를 만듭니다. Generator는 `package.json`의 devDependencies에 정확한 버전으로 고정되어 있어 팀원 모두가 같은 결과를 얻습니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다.
 
-| Schematic   | 만드는 것                                                   | 넣는 곳                                                           |
-| ----------- | ----------------------------------------------------------- | ----------------------------------------------------------------- |
-| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions) | Query Domain(`src/queries/<domain>/`)                             |
-| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)      | Query Domain(`src/queries/<domain>/`)                             |
-| `component` | 컴포넌트, Storybook 스토리, 테스트                          | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+| Schematic   | 만드는 것                                                                | 넣는 곳                                                           |
+| ----------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)              | Query Domain(`src/queries/<domain>/`)                             |
+| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                   | Query Domain(`src/queries/<domain>/`)                             |
+| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트 | Feature(`src/features/<feature>/`)                                |
+| `component` | 컴포넌트, Storybook 스토리, 테스트                                       | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
 
-- `query`와 `mutation`은 Starter 최상위(`package.json`이 있는 디렉터리)의 `openapi.yaml`을 읽습니다. 만든 코드는 재생성 계층의 fetch 함수를 부르므로, 명세를 고쳤다면 먼저 `npm run api:gen`을 실행합니다.
+- `query`, `mutation`, `form`은 Starter 최상위(`package.json`이 있는 디렉터리)의 `openapi.yaml`을 읽습니다. 만든 코드는 재생성 계층의 fetch 함수와 Zod 스키마를 쓰므로, 명세를 고쳤다면 먼저 `npm run api:gen`을 실행합니다.
 - 만든 파일은 Starter의 Prettier로 포맷하므로 바로 `lint`, `format:check`, `typecheck`를 통과합니다.
 - 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고, 겹치는 이름을 알린 뒤 실패합니다. 명세에 없는 operationId도 실패합니다.
 
@@ -195,6 +214,32 @@ npm run g -- mutation <operationId> --optimistic <queryOperationId>  # 낙관적
   - 요청을 보내기 전에 그 쿼리의 진행 중인 요청을 취소하고 캐시를 `apply<OperationId>`가 돌려준 값으로 고칩니다. 실패하면 고치기 전의 값으로 되돌리고, 성공하든 실패하든 끝나면 Query Domain의 쿼리를 모두 무효화해 서버의 값으로 맞춥니다.
   - 고치는 캐시는 훅에 넘긴 인자의 쿼리 하나입니다. 같은 쿼리를 고치는 뮤테이션이 겹쳐 실행되다 하나가 실패하면, 되돌린 값에서 다른 뮤테이션의 낙관적 값이 빠질 수 있습니다. 끝나면 다시 가져오므로 결국 서버의 값으로 맞춰집니다.
   - 응답 전에 보일 값은 비즈니스 판단이므로 `apply<OperationId>`를 직접 채웁니다. 만든 직후에는 캐시를 그대로 둡니다. 예를 들어 장바구니에 상품을 담는 뮤테이션이라면 `(current, cartItem) => ({ ...current, items: [...current.items, cartItem] })`처럼 고칩니다.
+
+### form
+
+```sh
+npm run g -- mutation <operationId>                    # 폼이 요청을 보낼 뮤테이션 훅(먼저 만든다)
+npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<feature>/)에 폼, 스토리, 테스트
+```
+
+- JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`), 스토리(`.stories.tsx`), 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
+- 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `formResolver`로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
+- 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
+
+  | 명세의 속성                              | 입력 요소                                                                                |
+  | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | `string`                                 | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                  |
+  | `string`의 `enum`                        | `Select`(선택지의 레이블은 enum 값)                                                      |
+  | `integer`, `number`                      | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                  |
+  | `boolean`                                | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                           |
+  | 그 밖(배열, 객체, null 허용, `oneOf` 등) | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다 |
+
+- 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
+- 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.
+- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
+- 검증 실패는 비워 둔 필수 입력으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
+- 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
+- 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 
 ### component
 

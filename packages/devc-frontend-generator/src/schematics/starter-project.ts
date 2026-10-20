@@ -21,6 +21,9 @@ const REQUEST_OPTIONS_ARGUMENT = 'options'
 
 const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const
 
+// 확장자 없는 import('./order-summary')가 풀릴 수 있는 모듈 파일의 확장자. 이 가운데 하나라도 있으면 같은 이름의 코드다.
+const MODULE_EXTENSIONS = ['.tsx', '.ts', '.d.ts', '.jsx', '.js']
+
 /** Schematic이 사용자에게 알리고 멈추는 문제(없는 operationId, 이미 있는 코드 등). 이 오류로 멈추면 파일은 바뀌지 않는다. */
 export class SchematicError extends Error {
   override readonly name = 'SchematicError'
@@ -70,8 +73,8 @@ interface Prettier {
  * 1. `open`: 현재 디렉터리에서 위로 올라가며 package.json이 있는 Starter 최상위를 찾는다.
  * 2. `findOperation`: Starter 최상위의 openapi.yaml에서 operationId로 operation을 찾는다.
  * 3. `generatedFunction`: 생성 코드가 부를 재생성 계층의 fetch 함수를 찾는다(Query Domain은 query-domain.ts).
- * 4. `module`: 코드를 넣을 모듈을 연다(없으면 새로 만든다). 이 단계까지는 디스크를 바꾸지 않으므로,
- *    같은 이름의 코드가 이미 있으면 SchematicError를 던져 아무 파일도 바꾸지 않고 멈춘다.
+ * 4. `module`: 코드를 넣을 모듈을 연다(없으면 새로 만든다). 새 파일만 만드는 Schematic은 `newModules`를 쓴다.
+ *    이 단계까지는 디스크를 바꾸지 않으므로, 같은 이름의 코드가 이미 있으면 SchematicError를 던져 아무 파일도 바꾸지 않고 멈춘다.
  * 5. `save`: 바뀐 모듈을 모두 Starter의 Prettier로 포맷한 뒤에 쓴다.
  */
 export class StarterProject {
@@ -152,6 +155,43 @@ export class StarterProject {
     )
   }
 
+  /** Starter 최상위 기준 src 아래 파일(확장자는 있어도 되고 없어도 된다)의 Starter 안 import 경로(`@/...`) */
+  importPath(path: string): string {
+    const withoutExtension = path.replace(/\.tsx?$/, '')
+    return `@/${relative('src', withoutExtension).split(sep).join('/')}`
+  }
+
+  /** 재생성 계층에서 name을 내보내는 모듈의 import 경로(`@/shared/api/generated/...`). 없으면 undefined다. */
+  generatedModuleOf(name: string): string | undefined {
+    for (const file of this.generatedFiles()) {
+      const declaration = file.getVariableDeclaration(name) ?? file.getFunction(name)
+      if (declaration?.isExported() === true) return this.importPath(relative(this.root, file.getFilePath()))
+    }
+    return undefined
+  }
+
+  /** Starter 최상위 기준 path의 모듈을 읽기만 한다. 없으면 undefined이고, 이렇게 연 모듈은 save가 쓰지 않는다. */
+  existingModule(path: string): SourceFile | undefined {
+    return this.project.addSourceFileAtPathIfExists(join(this.root, path))
+  }
+
+  /**
+   * 새 모듈 여러 개를 함께 만든다. stem은 Starter 최상위 기준의 확장자를 뺀 경로이고, 모듈은 `<stem>.tsx`가 된다.
+   * 같은 import 경로로 풀리는 파일(확장자만 다른 파일 포함)이 하나라도 있으면 손으로 쓴 코드일 수 있으므로
+   * 있는 파일을 모두 알리는 SchematicError를 던지고 아무 모듈도 만들지 않는다.
+   */
+  newModules(files: readonly { stem: string; source: string }[]): void {
+    const existing = files.flatMap(({ stem }) =>
+      MODULE_EXTENSIONS.map((extension) => `${stem}${extension}`).filter((path) => existsSync(join(this.root, path))),
+    )
+    if (existing.length > 0) {
+      throw new SchematicError(
+        `같은 이름의 파일이 이미 있어 덮어쓰지 않았습니다. 파일은 만들지 않았습니다.\n${existing.map((path) => `  ${path}`).join('\n')}`,
+      )
+    }
+    for (const { stem, source } of files) this.module(`${stem}.tsx`, source)
+  }
+
   /** Starter 최상위 기준 path의 모듈을 연다. 없으면 initialSource로 새로 만든다. save 전에는 디스크를 바꾸지 않는다. */
   module(path: string, initialSource: string): SourceFile {
     const absolute = join(this.root, path)
@@ -199,8 +239,7 @@ export class StarterProject {
     if (declaration === undefined) return undefined
     const specifier = declaration.getModuleSpecifierValue()
     if (!specifier.startsWith('.')) return specifier
-    const target = join(dirname(file.getFilePath()), specifier)
-    return `@/${relative(join(this.root, 'src'), target).split(sep).join('/')}`
+    return this.importPath(relative(this.root, join(dirname(file.getFilePath()), specifier)))
   }
 
   /** Starter가 설치한 Prettier(Base의 devDependency) */

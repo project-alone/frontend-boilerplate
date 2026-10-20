@@ -1,21 +1,12 @@
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { camelCase, kebabCase, pascalCase, splitWords } from './names.js'
+import { type Feature, featureNamed, nameWords } from './feature.js'
+import { camelCase, kebabCase, pascalCase } from './names.js'
 import { type ChangedFile, SchematicError, StarterProject } from './starter-project.js'
 
-const FEATURES_DIR = 'src/features'
 const SHARED_UI_DIR = 'src/shared/ui'
-
-// 컴포넌트와 Feature의 이름. 영문자로 시작해 영문자·숫자를 하이픈으로 잇는 kebab-case, 또는 PascalCase·camelCase다.
-// 폴더 깊이(src/<계층>/<이름>/<파일>, ADR-0005)를 넘지 않도록 경로 구분자는 받지 않는다.
-const NAME_PATTERN = /^[A-Za-z][A-Za-z\d]*(?:-[A-Za-z\d]+)*$/
 
 // 생성하는 파일이 가져오거나 선언하는 이름. 컴포넌트나 그 Props 타입의 이름이 이와 같으면 생성한 코드가 컴파일되지 않는다.
 const STORY_NAMES = ['Meta', 'StoryObj', 'Story', 'Default']
 const SHARED_UI_NAMES = [...STORY_NAMES, 'Muted', 'VariantProps', 'ComponentProps', 'WithClassName']
-
-// 확장자 없는 import('./order-summary')가 풀릴 수 있는 모듈 파일의 확장자. 이 가운데 하나라도 있으면 같은 이름의 코드다.
-const MODULE_EXTENSIONS = ['.tsx', '.ts', '.d.ts', '.jsx', '.js']
 
 export interface ComponentSchematicOptions {
   /** 컴포넌트를 둘 Feature. src/features/<feature>/에 만든다. */
@@ -72,22 +63,12 @@ export async function generateComponent(
   const starter = StarterProject.open(cwd)
   // 세 파일의 확장자를 뺀 경로(Starter 최상위 기준)
   const stem = `${directory}/${names.fileName}`
-  const files = [
+  // 세 파일은 함께 만든다. 하나라도 이미 있으면 아무 파일도 만들지 않는다.
+  starter.newModules([
     { stem, source: sources.component },
     { stem: `${stem}.stories`, source: sources.story },
     { stem: `${stem}.test`, source: sources.test },
-  ]
-  // 세 파일은 함께 만든다. 같은 import 경로로 풀리는 모듈이 하나라도 있으면 손으로 쓴 코드일 수 있으므로 아무 파일도 만들지 않는다.
-  const existing = files.flatMap((file) =>
-    MODULE_EXTENSIONS.map((extension) => `${file.stem}${extension}`).filter((path) => existsSync(join(starter.root, path))),
-  )
-  if (existing.length > 0) {
-    throw new SchematicError(
-      `같은 이름의 파일이 이미 있어 덮어쓰지 않았습니다. 파일은 만들지 않았습니다.\n${existing.map((path) => `  ${path}`).join('\n')}`,
-    )
-  }
-
-  for (const file of files) starter.module(`${file.stem}.tsx`, file.source)
+  ])
   return starter.save()
 }
 
@@ -96,29 +77,17 @@ function placement({ feature, shared }: ComponentSchematicOptions, names: Compon
   if (feature !== undefined && shared) {
     throw new SchematicError('--feature와 --shared는 함께 쓸 수 없습니다. 컴포넌트를 둘 곳을 하나만 고르세요.')
   }
-  if (feature !== undefined) return featurePlacement(nameWords('Feature', feature), names)
+  if (feature !== undefined) return featurePlacement(featureNamed(feature), names)
   if (shared) return sharedPlacement(names)
   throw new SchematicError(
     '컴포넌트를 둘 곳을 고르세요: --feature <feature>(src/features/<feature>/) 또는 --shared(src/shared/ui/).',
   )
 }
 
-/** kind의 이름을 단어로 나눈다. 파일이나 폴더 이름으로 쓸 수 없는 이름이면 SchematicError를 던진다. */
-function nameWords(kind: '컴포넌트' | 'Feature', name: string): string[] {
-  if (NAME_PATTERN.test(name)) return splitWords(name)
-  const folder = /[\\/]/.test(name)
-    ? ' 폴더 깊이는 src/<계층>/<이름>/<파일>을 넘지 않으므로(ADR-0005) 하위 폴더는 만들지 않습니다.'
-    : ''
-  throw new SchematicError(
-    `쓸 수 없는 ${kind} 이름입니다: '${name}'. 영문자로 시작하고 영문자, 숫자, 하이픈(-)만 씁니다(예: order-summary, OrderSummary).${folder}`,
-  )
-}
-
-function featurePlacement(featureWords: readonly string[], names: ComponentNames): Placement {
-  const feature = kebabCase(featureWords)
+function featurePlacement(feature: Feature, names: ComponentNames): Placement {
   return {
-    directory: `${FEATURES_DIR}/${feature}`,
-    sources: featureSources(names, feature, `Features/${pascalCase(featureWords)}/${names.name}`),
+    directory: feature.directory,
+    sources: featureSources(names, feature.name, `${feature.storyTitle}/${names.name}`),
     reservedNames: STORY_NAMES,
   }
 }

@@ -1,5 +1,6 @@
 import type { Command } from 'commander'
 import { generateComponent } from './schematics/component.js'
+import { generateForm } from './schematics/form.js'
 import { generateMutation } from './schematics/mutation.js'
 import { generateQuery } from './schematics/query.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
@@ -43,6 +44,24 @@ export function registerGenerateCommand(program: Command): void {
           ? ''
           : `\n응답 전에 보일 값은 ${mutation.optimisticUpdateName}에서 만듭니다. 지금은 캐시를 그대로 두므로 직접 채우세요.`
       report(`${operationId}의 뮤테이션 훅(${mutation.hookName})을 만들었습니다.${optimistic}`, mutation.changed)
+    })
+
+  generate
+    .command('form')
+    .description(
+      'OpenAPI operation의 JSON 요청 본문을 입력받는 폼과 Storybook 스토리, 테스트를 Feature(src/features/<feature>)에 만든다. 폼은 요청 본문의 Zod 스키마로 검증하고 뮤테이션 훅으로 보낸다',
+    )
+    .argument('<operationId>', 'Starter 최상위 openapi.yaml의 operationId. 뮤테이션 훅(npm run g -- mutation)이 먼저 있어야 한다')
+    .option('--feature <feature>', '폼을 둘 Feature. src/features/<feature>/에 만든다')
+    .action(async (operationId: string, options: { feature?: string }, command: Command) => {
+      const form = await runSchematic(command, () =>
+        generateForm(process.cwd(), operationId, { feature: options.feature }),
+      )
+      const skipped =
+        form.skippedFields.length === 0
+          ? ''
+          : `\n입력 요소로 만들지 않은 선택 필드: ${form.skippedFields.join(', ')}. 보내야 하면 폼에 직접 더하세요.`
+      report(`${operationId}의 폼(${form.componentName})과 스토리, 테스트를 만들었습니다.${skipped}`, form.changed)
     })
 
   generate
