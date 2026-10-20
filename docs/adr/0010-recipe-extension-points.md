@@ -1,8 +1,8 @@
 # 여러 Recipe가 함께 끼어드는 Base 파일은 패치 대신 확장 지점에 조각을 더해 조립한다
 
-모든 Recipe를 켜는 Showcase에서는 여러 Recipe가 Base의 같은 파일, 같은 자리를 고친다. 루트 레이아웃의 Provider, Next.js proxy, `next.config`, instrumentation, OpenAPI 명세, 환경 변수 파일이 그렇다. ADR-0007의 줄 단위 패치로는 이 자리에서 Recipe끼리 맥락 줄이 어긋나 함께 켤 수 없으므로, 이런 자리는 확장 지점으로 만들어 각 Recipe가 자기 조각만 더하고 Generator가 모든 overlay를 덧입힌 뒤 한꺼번에 조립한다. 확장 지점은 남은 Recipe(#16~#27) 가운데 둘 이상이 쓸 자리만 둔다.
+모든 Recipe를 켜는 Showcase에서는 여러 Recipe가 Base의 같은 파일, 같은 자리를 고친다. 루트 레이아웃의 Provider, Next.js proxy, `next.config`, instrumentation, 서버가 백엔드로 보내는 요청(`apiFetch`, BFF 프록시), OpenAPI 명세, 환경 변수 파일이 그렇다. ADR-0007의 줄 단위 패치로는 이 자리에서 Recipe끼리 맥락 줄이 어긋나 함께 켤 수 없으므로, 이런 자리는 확장 지점으로 만들어 각 Recipe가 자기 조각만 더하고 Generator가 모든 overlay를 덧입힌 뒤 한꺼번에 조립한다. 확장 지점은 남은 Recipe(#16~#27) 가운데 둘 이상이 쓸 자리만 둔다.
 
-- **TypeScript 조립 파일**(Provider와 머리글, proxy 처리기, `next.config` 래퍼, 서버·브라우저 instrumentation): overlay 최상위의 `extensions.json`에 지점마다 `{ path, export, order }`(Starter의 모듈, 내보내는 이름, 순서)를 적는다. Generator는 Base(`base/extensions.json`), Rendering Mode, Recipe의 선언을 `order` 순으로 모아 지점마다 조립 파일 하나(`src/app/app-shell.tsx`, `src/proxy.ts`, `next.config.plugins.ts`, `src/instrumentation.ts`, `src/instrumentation-client.ts`)를 쓴다. 조립 파일은 조각을 이름으로 import해 쓰므로 조각의 모양은 Starter의 타입 검사가 확인한다.
+- **TypeScript 조립 파일**(Provider와 머리글, proxy 처리기, `next.config` 래퍼, 서버·브라우저 instrumentation, 백엔드 요청 처리기): overlay 최상위의 `extensions.json`에 지점마다 `{ path, export, order }`(Starter의 모듈, 내보내는 이름, 순서)를 적는다. Generator는 Base(`base/extensions.json`), Rendering Mode, Recipe의 선언을 `order` 순으로 모아 지점마다 조립 파일 하나(`src/app/app-shell.tsx`, `src/proxy.ts`, `next.config.plugins.ts`, `src/instrumentation.ts`, `src/instrumentation-client.ts`, `src/shared/api/backend-fetch.ts`)를 쓴다. 조립 파일은 조각을 이름으로 import해 쓰므로 조각의 모양은 Starter의 타입 검사가 확인한다.
 - **구조적 병합**: overlay의 `openapi.yaml`은 Base 명세를 대신하지 않고 명세 조각으로서 `paths`, `components`, `tags`가 병합된다. 경로, 컴포넌트 이름, tag, operationId가 겹치면 무엇을 쓰기 전에 실패한다. 병합한 명세로 재생성 API 계층(ADR-0003)도 다시 만든다. dotenv 파일(`.env`, `.env.<이름>`)은 변수 단위로 병합하고, 같은 파일의 같은 변수에 다른 값을 적으면 무엇을 쓰기 전에 실패한다.
 
 ## Considered Options
@@ -19,3 +19,4 @@
 - Generator는 명세를 병합하고 재생성 계층을 다시 만들려고 Base가 고정한 orval, Prettier와 같은 버전을 의존성으로 고정한다. Starter의 `orval.config.ts`를 읽는 jiti도 같다. Base의 버전을 올리면 Generator의 버전도 함께 올리고, 어긋나면 하네스(`harness/tool-versions.test.ts`)가 실패한다([의존성 버전 올리기](../release.md#의존성-버전-올리기)). Starter에서는 같은 버전이 하나로 설치되므로 설치 크기는 늘지 않는다.
 - proxy는 요청을 받는 서버가 있는 `server` Starter에만 만든다. `static-export`를 지원하는 Recipe의 proxy 처리기는 그 Rendering Mode에서 쓰이지 않으므로, 처리기 없이도 동작해야 한다.
 - ADR-0007의 패치는 확장 지점이 없는 Base 파일(`.storybook/preview.tsx`, `vitest.config.ts`, 스타일 등)에 그대로 쓴다. 둘 이상의 Recipe가 같은 자리를 고치게 되면 그때 확장 지점을 더한다.
+- 백엔드 요청 처리기(`backendFetch`)는 auth Recipe(#16)를 만들며 더했다. 서버의 `apiFetch`와 BFF 프록시가 백엔드로 보내는 요청에 auth는 토큰을 붙이고 401이면 refresh해 다시 보내며, 다른 Recipe도 같은 요청에 헤더(예: locale)를 더한다. auth가 Base의 `api-fetch.ts`와 `bff-proxy.ts`를 대신하면 같은 파일을 고치는 Recipe와 함께 켤 수 없다. 처리기는 `fetch`와 같은 인자를 받는 모양이라 Next.js의 fetch 옵션(`next.revalidate` 등)도 그대로 지나간다. 조립 파일은 Base의 `apiFetch`와 BFF 프록시가 쓰므로 처리기가 없어도 늘 만들고, `apiFetch`는 서버에서만 불러와 처리기가 브라우저 번들에 들어가지 않는다.

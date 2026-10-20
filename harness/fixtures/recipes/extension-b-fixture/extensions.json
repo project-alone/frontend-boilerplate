@@ -20,5 +20,12 @@
       "export": "fixtureBClientInstrumentation",
       "order": 100
     }
+  ],
+  "backendFetch": [
+    {
+      "path": "src/shared/extension-b-fixture/fixture-b-backend-fetch.ts",
+      "export": "fixtureBBackendFetch",
+      "order": 100
+    }
   ]
 }

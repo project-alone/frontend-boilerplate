@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, test } from 'vitest'
 import { parse } from 'yaml'
 import { type BackgroundProcess, freePort, run, start, waitForServer } from './run.ts'
-import { readTree, useStarter } from './starter.ts'
+import { expectFileToPass, readTree, runVitestScript, useStarter } from './starter.ts'
 
 // Recipe 조합 확장 지점(docs/recipes.md의 "확장 지점"). 같은 지점을 쓰는 시험용 Recipe 둘(extension-a-fixture,
 // extension-b-fixture)을 함께 켠 Starter로, 두 Recipe의 조각이 텍스트 패치 없이 함께 조립되는지 본다.
@@ -161,6 +161,16 @@ describe('Provider, 머리글, proxy, next.config, instrumentation의 선언(ext
     expect(readdirSync(result.starter)).not.toContain('extensions.json')
   })
 
+  test.each(['server', 'static-export'])(
+    'Rendering Mode %s: 서버가 백엔드로 보내는 요청이 거치는 조립 파일(backendFetch)은 조각이 없어도 Base의 apiFetch가 쓰므로 늘 만든다',
+    (renderingMode) => {
+      const result = dcgenNew(['--rendering-mode', renderingMode])
+      expect(result.status, result.output).toBe(0)
+
+      expect(existsSync(join(result.starter, 'src/shared/api/backend-fetch.ts'))).toBe(true)
+    },
+  )
+
   test('고른 순서와 상관없이 같은 Starter를 만든다', () => {
     const forward = dcgenNew(FIXTURES, 'forward')
     const backward = dcgenNew(['--recipe', 'extension-b-fixture', '--recipe', 'extension-a-fixture'], 'backward')
@@ -208,10 +218,12 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 시험
     playwright: true,
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트를 통과하고, 병합된 명세로 api:gen을 다시 실행해도 재생성 계층이 바뀌지 않는다', () => {
-    for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check'], ['test']]) {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(서버의 요청이 backendFetch 처리기를 order 순으로 거침)를 통과하고, 병합된 명세로 api:gen을 다시 실행해도 재생성 계층이 바뀌지 않는다', () => {
+    for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
+    const report = runVitestScript(starter, ['test'])
+    expectFileToPass(report, 'backend-fetch.server.test.ts', 1)
 
     const generated = join(starter.dir, 'src/shared/api/generated')
     const before = readTree(generated)

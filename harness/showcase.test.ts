@@ -137,7 +137,10 @@ test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패�
   expect(head(readShowcase('.storybook/preview.tsx'))).toContain(
     'base/.storybook/preview.tsx, recipes/dark-mode/.storybook/preview.tsx.patch',
   )
-  expect(head(readShowcase('src/app/app-shell.tsx'))).toContain('base/extensions.json, recipes/dark-mode/extensions.json')
+  expect(head(readShowcase('src/app/app-shell.tsx'))).toContain(
+    'base/extensions.json, recipes/auth/extensions.json, recipes/dark-mode/extensions.json',
+  )
+  expect(head(readShowcase('src/shared/api/backend-fetch.ts'))).toContain('원본(packages/devc-frontend-generator/): recipes/auth/extensions.json')
   expect(head(readShowcase('src/instrumentation.ts'))).toContain('원본(packages/devc-frontend-generator/): base/extensions.json')
   expect(head(readShowcase('src/features/theme-switcher/theme-switcher.tsx'))).toContain(
     'recipes/dark-mode/src/features/theme-switcher/theme-switcher.tsx',
