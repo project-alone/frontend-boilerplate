@@ -42,7 +42,11 @@
     "@clack/prompts": "1.8.1",
     "commander": "^15.0.0",
     "diff": "9.0.0",
-    "ts-morph": "28.0.0"
+    "jiti": "2.7.0",
+    "orval": "8.43.0",
+    "prettier": "3.9.10",
+    "ts-morph": "28.0.0",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

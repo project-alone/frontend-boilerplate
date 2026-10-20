@@ -1,0 +1,24 @@
+{
+  "providers": [
+    { "path": "src/shared/extension-b-fixture/fixture-b-provider.tsx", "export": "FixtureBProvider", "order": 50 }
+  ],
+  "header": [
+    { "path": "src/shared/extension-b-fixture/fixture-b-provider.tsx", "export": "FixtureBHeaderItem", "order": 100 }
+  ],
+  "proxy": [{ "path": "src/shared/extension-b-fixture/fixture-b-proxy.ts", "export": "fixtureBProxy", "order": 100 }],
+  "nextConfig": [{ "path": "src/shared/extension-b-fixture/next-config.ts", "export": "withFixtureB", "order": 100 }],
+  "instrumentation": [
+    {
+      "path": "src/shared/extension-b-fixture/fixture-b-instrumentation.ts",
+      "export": "fixtureBInstrumentation",
+      "order": 50
+    }
+  ],
+  "instrumentationClient": [
+    {
+      "path": "src/shared/extension-b-fixture/fixture-b-instrumentation-client.ts",
+      "export": "fixtureBClientInstrumentation",
+      "order": 100
+    }
+  ]
+}

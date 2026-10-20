@@ -1,0 +1,11 @@
+--- a/next.config.ts
++++ b/next.config.ts
+@@ -4,5 +4,5 @@
+ const nextConfig: NextConfig = {
+-  // 특정 배포 방식에 묶이지 않도록, 필요한 파일만 모아 Node로 바로 띄우는 서버(.next/standalone)를 함께 만든다.
+-  // `next start`로도 실행된다(README의 실행과 배포 참고).
+-  output: 'standalone',
++  // Rendering Mode static-export: `npm run build`가 모든 페이지를 빌드할 때 렌더링해 out/에 정적 파일로만 내보낸다.
++  // 요청을 받는 Next.js 서버가 없으므로 요청 시점에 서버가 필요한 기능은 쓸 수 없다(README.md의 "실행과 배포").
++  output: 'export',
+ }

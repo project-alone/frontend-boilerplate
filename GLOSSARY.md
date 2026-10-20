@@ -14,6 +14,10 @@ _Avoid_: core, skeleton, 템플릿
 하나의 기능 패턴(예: 폼 검증, 무한 스크롤)을 담은, Base에 독립적으로 넣고 뺄 수 있는 단위.
 _Avoid_: 케이스, 예제, 모듈, 플러그인
 
+**확장 지점**:
+여러 Recipe가 Base의 같은 자리(앱 Provider와 머리글, proxy, `next.config`, instrumentation, OpenAPI 명세, 환경 변수)에 끼어들 때, Base 파일을 고치지 않고 자기 조각만 더하는 곳. Generator가 Base와 Recipe의 조각을 모아 조립한다.
+_Avoid_: 훅, 슬롯, 플러그인 포인트
+
 **Rendering Mode**:
 페이지를 렌더링하고 배포하는 방식. Starter 전체에는 `server`(서버에서 실행)와 `static-export`(정적 파일만으로 배포) 중 하나를 적용하고, `server` 안에서는 라우트마다 SSR, SSG, ISR, 스트리밍, CSR(페이지 뼈대만 서버가 보내고 데이터는 브라우저가 가져옴) 중에서 고른다.
 _Avoid_: 케이스, 렌더링 전략

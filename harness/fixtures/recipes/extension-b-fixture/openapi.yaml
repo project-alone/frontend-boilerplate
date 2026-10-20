@@ -1,0 +1,58 @@
+paths:
+  /betas/{betaId}:
+    get:
+      operationId: getBeta
+      summary: 시험용 항목
+      tags: [betas]
+      parameters:
+        - name: betaId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 시험용 항목
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Beta'
+              example:
+                id: 7
+                label: 베타
+  # Base의 tag(products)에 operation을 더한다.
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      summary: 상품 하나
+      tags: [products]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 상품
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+              example:
+                id: 1
+                name: 기본 티셔츠
+                price: 19000
+components:
+  schemas:
+    Beta:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+tags:
+  - name: betas
+    description: 시험용 리소스 b

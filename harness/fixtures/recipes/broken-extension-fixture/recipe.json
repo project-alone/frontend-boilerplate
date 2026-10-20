@@ -1,0 +1,4 @@
+{
+  "description": "시험용: Starter에 없는 모듈을 확장 지점에 선언한 Recipe",
+  "renderingModes": ["server", "static-export"]
+}

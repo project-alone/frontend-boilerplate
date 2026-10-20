@@ -1,0 +1,32 @@
+tags:
+  - name: alphas
+    description: 시험용 리소스 a
+paths:
+  # extension-a-fixture가 더한 operation
+  /alphas:
+    get:
+      operationId: listAlphas
+      summary: 시험용 목록
+      tags: [alphas]
+      responses:
+        '200':
+          description: 시험용 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alpha'
+              example:
+                - id: 1
+                  name: 알파
+components:
+  schemas:
+    Alpha:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string

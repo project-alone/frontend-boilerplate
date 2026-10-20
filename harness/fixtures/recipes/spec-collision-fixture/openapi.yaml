@@ -1,0 +1,27 @@
+tags:
+  - name: products
+paths:
+  /products:
+    delete:
+      operationId: clearProducts
+      responses:
+        '204':
+          description: 비움
+  /alphas:
+    post:
+      operationId: createAlpha
+      responses:
+        '204':
+          description: 만듦
+  /catalog:
+    get:
+      operationId: listProducts
+      responses:
+        '204':
+          description: 없음
+components:
+  schemas:
+    Product:
+      type: object
+    Alpha:
+      type: object
