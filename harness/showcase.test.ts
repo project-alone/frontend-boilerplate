@@ -194,7 +194,9 @@ test('showcase:watch는 Generator의 Base나 Recipe가 바뀌면 Showcase를 다
   const watch = start('npm', ['run', 'showcase:watch', '--', '--generator', generator, '--out', out], REPO_ROOT)
 
   try {
-    await waitUntil(() => existsSync(join(out, 'README.md')), watch, '처음 Showcase를 만들지 않았습니다.')
+    // 처음 만든 뒤 지켜보기 시작했다고 알릴 때까지 기다린다. 그 전에 고친 파일은 다시 만드는 계기가 되지 않는다.
+    await waitUntil(() => watch.output().includes('파일이 바뀌면'), watch, '지켜보기 시작했다고 알리지 않았습니다.')
+    expect(existsSync(join(out, 'README.md')), watch.output()).toBe(true)
 
     writeFileSync(
       join(generator, 'recipes/dark-mode/src/shared/theme/watch-probe.ts'),
