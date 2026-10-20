@@ -255,6 +255,8 @@ describe('개발 서버', () => {
 
       const proxied = await fetch(`http://localhost:${String(port)}/api/proxy/products`)
       expect(proxied.status, devServer.output()).toBe(200)
+      // 브라우저의 apiFetch는 content-type을 보고 JSON으로 읽으므로, MSW가 돌려준 응답의 헤더도 그대로 넘어와야 한다.
+      expect(proxied.headers.get('content-type')).toContain('application/json')
       const products = (await proxied.json()) as { name: string }[]
       expect(products.map(({ name }) => name)).toEqual(SAMPLE_PRODUCT_NAMES)
     } finally {
