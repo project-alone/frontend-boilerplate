@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -338,3 +338,27 @@ Recharts로 대시보드용 시계열 차트(일별 방문 수)와 비교 차트
 | 자기 테스트    | `src/features/stats-charts/stats-charts.test.tsx`, `src/shared/chart/chart-contrast.test.ts`, `daily-visits-chart.stories.tsx`, `channel-sales-chart.stories.tsx`, `e2e/chart.spec.ts` |
 | 필요한 Recipe  | 없음                                                                                                                                                                                   |
 | Rendering Mode | `server`, `static-export`                                                                                                                                                              |
+
+## 예: i18n
+
+next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recipe다. 번역한 페이지는 `src/app/[locale]/` 아래에 두어 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), Base의 홈은 이 아래로 옮긴다. 머리글의 locale 전환 UI, `ko.json`의 타입으로 검사하는 메시지 키, 홈(`/`)에서 locale을 고르는 proxy 처리기를 더한다.
+
+다른 Recipe는 i18n을 모르고 `src/app/<경로>`에 라우트를 더하므로, i18n이 그 라우트를 옮기거나 바꾸지 않고 함께 켜지는 라우팅을 골랐다.
+
+- **next-intl의 기본 구성(모든 페이지를 `app/[locale]/` 아래로)을 쓰지 않는다.** 그 구성은 `[locale]` 레이아웃을 루트 레이아웃으로 두고 `next/root-params`로 locale을 읽는다. Recipe가 그렇게 하면 Base와 다른 Recipe의 페이지를 모두 `[locale]` 아래로 옮겨야 해서 Showcase처럼 함께 켤 수 없다.
+- **proxy의 rewrite와 헤더·쿠키로 locale을 넘기지 않는다.** proxy가 `/en/<경로>`를 `/<경로>`로 rewrite하고 locale을 요청 헤더나 쿠키로 넘기는 방식, 그리고 next-intl의 "i18n 라우팅 없이" 쿠키로 locale을 정하는 방식은 라우트를 옮기지 않지만, 서버 컴포넌트가 요청마다 헤더·쿠키를 읽어야 한다. 앱 전체를 감싸는 Provider에서 읽으면 모든 페이지가 요청마다 렌더링되어, route-rendering의 SSG 라우트(`dynamic = 'error'`)는 빌드가 실패하고 ISR은 의미를 잃으며, 랜딩 Archetype(SSG)과 `static-export`에서도 쓸 수 없다.
+- **번역한 페이지만 `[locale]` 세그먼트 아래에 둔다.** `src/app/[locale]/`은 Base의 루트 레이아웃 아래 중첩 세그먼트이고, 정적 세그먼트가 동적 세그먼트보다 먼저 맞춰지므로 `/products`, `/rendering` 같은 다른 라우트와 부딪치지 않는다. 그 밖의 페이지는 번역하지 않은 페이지로 주소와 화면이 그대로다. locale은 주소의 `[locale]` params에서만 읽는다(서버 컴포넌트는 `getTranslations({ locale, namespace })`, 클라이언트 컴포넌트는 `useParams()`로 locale을 정하는 앱 전체의 `I18nProvider`). 요청마다 달라지는 값을 읽지 않으므로 번역한 페이지는 locale마다 빌드할 때 렌더링하고, 다른 Recipe 라우트의 Rendering Mode도 그대로다(`harness/i18n-combinations.test.ts`가 route-rendering과 함께 켜 확인한다).
+- **proxy 처리기는 홈(`/`)과 locale이 붙은 주소만 다룬다.** 홈은 저장한 locale(`NEXT_LOCALE` 쿠키), 브라우저 언어, 기본 locale 순으로 고른 locale의 홈으로 보내고, locale이 붙은 주소에서는 그 locale을 저장한다. 나머지 요청은 손대지 않고 넘긴다. proxy가 없는 `static-export`에서는 Recipe의 `src/app/page.tsx`가 홈(`/`)에 기본 locale의 홈을 보여 주므로, Recipe는 두 Rendering Mode를 모두 지원한다.
+
+그 대가로 다음을 받아들인다. 루트 레이아웃은 locale을 모르므로 `<html lang="ko">`로 그리고, `[locale]` 레이아웃이 내용을 `<div lang>`으로 감싸며 `I18nProvider`가 브라우저에서 `<html lang>`을 바꾼다. 루트 레이아웃에서 메시지를 넘기므로 모든 locale의 카탈로그가 브라우저 번들에 들어간다. 서버 컴포넌트는 next-intl에 locale을 직접 넘겨야 하고, 넘기지 않으면 기본 locale로 조용히 그리는 대신 오류가 난다(`src/shared/i18n/request.ts`). 다른 Recipe의 페이지는 번역하지 않은 채 기본 locale로 보이고, 거기서 다른 locale을 고르면 그 locale의 홈으로 간다. Starter가 모든 페이지를 `[locale]` 아래로 옮기면 next-intl의 기본 구성으로 바꿀 수 있다(Starter README의 "다국어(i18n)").
+
+| 선언하는 것    | `recipes/i18n/`                                                                                                                                                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/shared/i18n/`(라우팅, 메시지 카탈로그 `ko.json`·`en.json`, next-intl 설정, Provider, proxy 처리기, navigation), `src/app/[locale]/`(레이아웃, 홈, 다국어 예시 `/[locale]/i18n`), `src/features/locale-switcher/`, `src/features/i18n-example/`, Base의 홈을 대신하는 `src/app/page.tsx` |
+| 확장 지점      | `extensions.json`: Provider `I18nProvider`(order 50), 머리글 `LocaleSwitcher`(order 200), proxy `i18nProxy`(order 200), next.config `withI18n`(order 200, next-intl 플러그인)                                                                                                                |
+| 설정 패치      | `vitest.config.ts.patch`(next-intl의 proxy를 Vitest가 변환해 불러오게 한다)                                                                                                                                                                                                                  |
+| 지우는 경로    | Base 홈의 `src/app/page.test.tsx`, `page.stories.tsx`(`remove.txt`. 홈은 `[locale]` 아래로 옮겼다)                                                                                                                                                                                           |
+| npm 의존성     | `next-intl`                                                                                                                                                                                                                                                                                  |
+| 자기 테스트    | `src/shared/i18n/messages.test.tsx`, `request.test.ts`, `i18n-proxy.test.ts`, `src/features/i18n-example/cart-counter.test.tsx`, `locale-switcher.stories.tsx`, `e2e/i18n.spec.ts`                                                                                                           |
+| 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                                         |
+| Rendering Mode | `server`, `static-export`(proxy가 없어 홈 `/`는 기본 locale의 홈)                                                                                                                                                                                                                            |

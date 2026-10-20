@@ -1,0 +1,5 @@
+{
+  "description": "next-intl로 한국어(기본)와 영어를 지원하는 다국어 구성. locale이 붙은 주소(/ko, /en), locale 전환 UI, 타입으로 검사하는 메시지 키",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}

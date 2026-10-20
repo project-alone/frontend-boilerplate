@@ -228,6 +228,14 @@ export function readTree(directory: string): Record<string, string> {
   )
 }
 
+/**
+ * `next build`가 보여 주는 라우트 표에서 route의 줄. 라우트마다 미리 렌더링했는지(○ Static, ● generateStaticParams로 만든
+ * SSG) 요청마다 렌더링하는지(ƒ Dynamic) 보여 준다. 없으면 빈 문자열이다.
+ */
+export function buildRouteLine(buildOutput: string, route: string): string {
+  return buildOutput.split('\n').find((line) => line.trimEnd().endsWith(` ${route}`) || line.includes(` ${route} `)) ?? ''
+}
+
 /** Base의 샘플 명세(openapi.yaml)에 적힌 listProducts의 example. MSW가 이 값을 돌려준다. */
 export const SAMPLE_PRODUCTS = [
   { id: 1, name: '기본 티셔츠', price: 19000 },
