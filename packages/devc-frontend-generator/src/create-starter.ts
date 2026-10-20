@@ -1,7 +1,8 @@
 import { cp, readdir, rename } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { updatePackageJson } from './package-json.js'
+import { generatorPackage } from './generator-package.js'
+import { mergePackageJson, updatePackageJson } from './package-json.js'
 import { applyRenderingMode, type RenderingMode } from './rendering-mode.js'
 
 const BASE_DIR = fileURLToPath(new URL('../base', import.meta.url))
@@ -23,7 +24,13 @@ export async function createStarter(name: string, cwd: string, renderingMode: Re
   await cp(BASE_DIR, target, { recursive: true })
   await rename(join(target, PACKED_GITIGNORE), join(target, '.gitignore'))
   await applyRenderingMode(target, renderingMode)
-  await updatePackageJson(target, (packageJson) => ({ ...packageJson, name: basename(target) }))
+  // Starter는 자신을 만든 Generator를 정확한 버전으로 고정해, 팀원 모두가 같은 Schematic 결과를 얻는다(`npm run g`).
+  await updatePackageJson(target, (packageJson) =>
+    mergePackageJson(packageJson, {
+      name: basename(target),
+      devDependencies: { [generatorPackage.name]: generatorPackage.version },
+    }),
+  )
 
   return target
 }

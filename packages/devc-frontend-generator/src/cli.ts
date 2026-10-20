@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { relative } from 'node:path'
 import { Command, Option } from 'commander'
 import { createStarter, TargetNotEmptyError } from './create-starter.js'
+import { registerGenerateCommand } from './generate-command.js'
 import { DEFAULT_RENDERING_MODE, RENDERING_MODES, type RenderingMode } from './rendering-mode.js'
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
@@ -28,5 +29,7 @@ program
     const path = relative(process.cwd(), target)
     console.log(`Starter를 만들었습니다: ${target}\n\n  cd ${path}\n  npm install\n  npm run dev\n`)
   })
+
+registerGenerateCommand(program)
 
 await program.parseAsync()

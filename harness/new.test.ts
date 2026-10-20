@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, inject, test } from 'vitest'
 import { run } from './run.ts'
-import { newStarter, readTree } from './starter.ts'
+import { GENERATOR_PACKAGE, linkPackedGenerator, newStarter, readTree } from './starter.ts'
 
 let workdir: string
 
@@ -21,6 +21,18 @@ test('new로 만든 Starter는 Starter 이름을 패키지 이름으로 쓴다',
 
   const pkg = JSON.parse(readFileSync(join(workdir, 'my-app', 'package.json'), 'utf8')) as { name: string }
   expect(pkg.name).toBe('my-app')
+})
+
+test('new로 만든 Starter는 Starter를 만든 Generator를 정확한 버전으로 devDependencies에 고정한다', () => {
+  const version = run(inject('dcgenBin'), ['--version'], workdir)
+  expect(version.status, version.output).toBe(0)
+
+  const starter = newStarter(workdir)
+
+  const pkg = JSON.parse(readFileSync(join(starter, 'package.json'), 'utf8')) as {
+    devDependencies: Record<string, string>
+  }
+  expect(pkg.devDependencies[GENERATOR_PACKAGE]).toBe(version.output.trim())
 })
 
 test('new는 이미 내용이 있는 디렉터리에 Starter를 만들지 않는다', () => {
@@ -65,6 +77,7 @@ test.each(['server', 'static-export'])(
   'new --rendering-mode %s로 만든 Starter는 npm으로 설치되고 타입 검사, 테스트, 빌드, 린트, 포맷 검사를 모두 통과한다',
   (renderingMode) => {
     const starter = newStarter(workdir, ['--rendering-mode', renderingMode])
+    linkPackedGenerator(starter)
 
     // 빌드가 설정 파일(예: tsconfig.json)을 고쳐 써서 린트·포맷 검사를 깨뜨리지 않는지 보려고 둘을 빌드 뒤에 둔다.
     const steps = [
