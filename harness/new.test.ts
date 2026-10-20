@@ -35,15 +35,18 @@ test('new는 이미 내용이 있는 디렉터리에 Starter를 만들지 않는
   expect(readFileSync(join(existing, 'notes.txt'), 'utf8')).toBe('지우면 안 되는 파일')
 })
 
-test('new로 만든 Starter는 npm으로 설치되고 타입 검사, 테스트, 빌드를 모두 통과한다', () => {
+test('new로 만든 Starter는 npm으로 설치되고 타입 검사, 테스트, 빌드, 린트, 포맷 검사를 모두 통과한다', () => {
   expect(run(inject('dcgenBin'), ['new', 'my-app'], workdir).status).toBe(0)
   const starter = join(workdir, 'my-app')
 
+  // 빌드가 설정 파일(예: tsconfig.json)을 고쳐 써서 린트·포맷 검사를 깨뜨리지 않는지 보려고 둘을 빌드 뒤에 둔다.
   const steps = [
     ['install', '--no-audit', '--no-fund'],
     ['run', 'typecheck'],
     ['test'],
     ['run', 'build'],
+    ['run', 'lint'],
+    ['run', 'format:check'],
   ]
   for (const step of steps) {
     const result = run('npm', step, starter)
