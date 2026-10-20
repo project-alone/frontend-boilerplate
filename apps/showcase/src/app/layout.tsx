@@ -1,12 +1,9 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/src/app/layout.tsx, recipes/dark-mode/src/app/layout.tsx.patch
+// 원본(packages/devc-frontend-generator/): base/src/app/layout.tsx
 
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import { ThemeSwitcher } from '@/features/theme-switcher/theme-switcher'
-import { QueryProvider } from '@/shared/query-client/query-provider'
-import { ThemeScript } from '@/shared/theme/theme-script'
-import { ToastProvider } from '@/shared/ui/toast'
+import { AppShell } from './app-shell'
 import '@/shared/ui/styles.css'
 
 export const metadata: Metadata = {
@@ -15,20 +12,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    // ThemeScript가 첫 화면 전에 <html>에 data-theme을 붙이므로 그 속성의 hydration 불일치 경고를 끈다.
+    // 첫 화면을 그리기 전에 <html>의 속성을 바꾸는 스크립트(예: dark-mode Recipe의 테마)나 브라우저 확장이 있어도
+    // <html> 자신의 속성에 대한 hydration 불일치 경고는 내지 않는다. 하위 요소의 불일치는 그대로 알린다.
     <html lang="ko" suppressHydrationWarning>
-      <head>
-        <ThemeScript />
-      </head>
       <body>
-        <QueryProvider>
-          <ToastProvider>
-            <header className="flex justify-end p-4">
-              <ThemeSwitcher />
-            </header>
-            {children}
-          </ToastProvider>
-        </QueryProvider>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )

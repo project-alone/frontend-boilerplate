@@ -1,23 +1,23 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/src/instrumentation.ts
+// 원본(packages/devc-frontend-generator/): base/extensions.json
 
-import { backendBaseUrl } from '@/shared/api/base-url'
+import type { Instrumentation } from 'next'
+import { apiInstrumentation } from '@/shared/api/api-instrumentation'
 
-// Next.js 서버가 뜰 때 한 번 실행된다.
-// API_MOCKING=enabled이면 서버 컴포넌트와 Route Handler가 보내는 요청을 MSW가 받는다.
-// 개발 서버는 .env.development에서, E2E 대상 서버는 playwright.config.ts에서 이 값을 켠다.
-// 실제로 배포하는 서버에서는 켜지 않는다(msw는 devDependency다).
+// Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
+// Next.js 서버가 뜰 때(register)와 서버가 요청을 처리하다 오류가 났을 때(onRequestError) 조각을 위에서부터 차례로 실행한다.
+interface InstrumentationHook {
+  /** 서버 런타임(nodejs, edge)마다 한 번 실행된다. Node.js 전용 코드는 process.env.NEXT_RUNTIME을 확인한 뒤 동적 import로 불러온다. */
+  register?: () => void | Promise<void>
+  onRequestError?: Instrumentation.onRequestError
+}
+
+const hooks: readonly InstrumentationHook[] = [apiInstrumentation]
+
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return
+  for (const hook of hooks) await hook.register?.()
+}
 
-  if (process.env.API_MOCKING === 'enabled') {
-    const { server } = await import('@/shared/mocks/node')
-    // 핸들러가 없는 요청은 실제 네트워크로 보낸다.
-    server.listen({ onUnhandledFrame: 'bypass' })
-    return
-  }
-
-  // MSW를 끈 서버는 API_BASE_URL의 백엔드를 부른다. 주소가 없으면 backendBaseUrl()이 여기서 실패해, 서버가
-  // 요청을 처리하지 않고 무엇을 넣어야 하는지 알린다.
-  backendBaseUrl()
+export const onRequestError: Instrumentation.onRequestError = async (...args) => {
+  for (const hook of hooks) await hook.onRequestError?.(...args)
 }
