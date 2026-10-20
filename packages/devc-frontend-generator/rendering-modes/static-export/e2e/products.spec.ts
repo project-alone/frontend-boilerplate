@@ -25,8 +25,9 @@ test('서버 없이 브라우저가 백엔드에서 직접 가져온 상품 목�
   for (const name of PRODUCT_NAMES) expect(html).not.toContain(name)
 
   // 브라우저가 BFF 프록시 없이 백엔드 주소로 바로 요청해 받은 목록을 그린다.
+  // 개발 서버는 라우트를 처음 컴파일할 때 페이지를 다시 불러올 수 있어 요청 횟수는 보지 않는다.
   for (const name of PRODUCT_NAMES) await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible()
-  expect(backendRequests).toEqual([`${MOCK_API_BASE_URL}/products`])
+  expect(new Set(backendRequests)).toEqual(new Set([`${MOCK_API_BASE_URL}/products`]))
   expect(errors).toEqual([])
 })
 
