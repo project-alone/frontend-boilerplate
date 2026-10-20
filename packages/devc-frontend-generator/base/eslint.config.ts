@@ -4,7 +4,7 @@ import nextPlugin from '@next/eslint-plugin-next'
 import type { Rule } from 'eslint'
 import prettier from 'eslint-config-prettier/flat'
 import boundaries from 'eslint-plugin-boundaries'
-import jsxA11y from 'eslint-plugin-jsx-a11y'
+import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import tseslint from 'typescript-eslint'
@@ -50,8 +50,9 @@ export default defineConfig(
       },
     },
   },
-  // eslint-plugin-jsx-a11y가 아직 ESLint 10을 지원하지 않아 ESLint는 9를 쓴다. 지원이 나오면 함께 올린다.
-  jsxA11y.flatConfigs.strict,
+  // eslint-plugin-jsx-a11y는 ESLint 10을 지원하지 않아, 같은 규칙을 이어 관리하는 포크(eslint-plugin-jsx-a11y-x)를 쓴다.
+  // 규칙 이름의 접두사는 jsx-a11y-x/이다.
+  jsxA11y.configs.strict,
   // React Compiler를 쓰지 않으므로 recommended의 Compiler용 규칙은 빼고 훅 규칙 두 가지만 켠다.
   {
     ...reactHooks.configs.flat.recommended,

@@ -102,7 +102,7 @@ test.each([
   },
   {
     violation: '키보드로 쓸 수 없는 클릭 요소',
-    rule: 'jsx-a11y/click-events-have-key-events',
+    rule: 'jsx-a11y-x/click-events-have-key-events',
     file: 'src/shared/sample/sample.tsx',
     source: `export function Choice({ onSelect }: { onSelect: () => void }) {
   return <div onClick={onSelect}>선택</div>
