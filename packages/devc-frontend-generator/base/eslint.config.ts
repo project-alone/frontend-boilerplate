@@ -47,6 +47,8 @@ export default defineConfig(
     'test-results/',
     'playwright-report/',
     'storybook-static/',
+    // 재생성 API 계층(npm run api:gen의 결과). 손으로 고치지 않으므로 린트하지 않는다(ADR-0003).
+    'src/shared/api/generated/',
   ]),
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,

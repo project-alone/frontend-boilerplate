@@ -8,6 +8,10 @@ declare namespace NodeJS {
     readonly NEXT_RUNTIME?: 'nodejs' | 'edge'
     /** enabled이면 Next.js 서버가 보내는 API 요청을 MSW가 받는다(src/instrumentation.ts). */
     readonly API_MOCKING?: 'enabled' | 'disabled'
+    /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/base-url.ts) */
+    readonly API_BASE_URL?: string
+    /** 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 서버가 없는 static-export에서 쓴다(src/shared/api/base-url.ts). */
+    readonly NEXT_PUBLIC_API_BASE_URL?: string
     /** E2E 대상 서버의 포트(playwright.config.ts). 없으면 3100을 쓴다. */
     readonly E2E_PORT?: string
     /** CI 서비스가 넣는다. 있으면 E2E에서 test.only를 막고 서버를 매번 새로 띄운다. */

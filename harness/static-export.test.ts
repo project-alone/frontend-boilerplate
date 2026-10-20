@@ -54,9 +54,15 @@ test('개발 서버에서는 서버 컴포넌트가 보내는 API 요청을 MSW�
   writeFileSync(
     join(probeDir, 'page.tsx'),
     `export default async function HarnessMswPage() {
-  const response = await fetch('https://api.example.com/greeting')
-  const { message } = (await response.json()) as { message: string }
-  return <p>{message}</p>
+  const response = await fetch('https://api.example.com/products')
+  const products = (await response.json()) as { id: number; name: string }[]
+  return (
+    <ul>
+      {products.map((product) => (
+        <li key={product.id}>{product.name}</li>
+      ))}
+    </ul>
+  )
 }
 `,
   )
@@ -67,7 +73,8 @@ test('개발 서버에서는 서버 컴포넌트가 보내는 API 요청을 MSW�
     const response = await waitForServer(`http://localhost:${port}/harness-msw`, devServer)
 
     expect(response.status, devServer.output()).toBe(200)
-    expect(await response.text()).toContain('MSW가 보낸 인사입니다')
+    // 샘플 명세(openapi.yaml)의 listProducts example
+    expect(await response.text()).toContain('기본 티셔츠')
   } finally {
     await devServer.stop()
     rmSync(probeDir, { recursive: true, force: true })

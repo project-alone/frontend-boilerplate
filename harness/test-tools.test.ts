@@ -4,10 +4,15 @@ import { dirname, join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest'
 import { freePort, run, start, waitForServer } from './run.ts'
 
-// Base의 MSW 예시 핸들러(src/shared/mocks/handlers.ts)가 받는 요청과 돌려주는 응답
+// Base의 샘플 명세(openapi.yaml)에서 생성한 MSW 핸들러가 받는 요청과 돌려주는 응답(명세의 example)
 const EXAMPLE_API = {
-  url: 'https://api.example.com/greeting',
-  body: { message: 'MSW가 보낸 인사입니다' },
+  url: 'https://api.example.com/products',
+  body: [
+    { id: 1, name: '기본 티셔츠', price: 19000 },
+    { id: 2, name: '데님 재킷', price: 89000 },
+  ],
+  /** 응답을 화면에 그렸을 때 보이는 글자 */
+  text: '기본 티셔츠',
 }
 
 // Starter 하나를 만들어 설치해 두고, 테스트마다 다시 설치하지 않도록 모든 테스트가 함께 쓴다.
@@ -40,8 +45,14 @@ function writeMswProbePage() {
     `src/app${MSW_PROBE_ROUTE}/page.tsx`,
     `export default async function HarnessMswPage() {
   const response = await fetch('${EXAMPLE_API.url}', { cache: 'no-store' })
-  const { message } = (await response.json()) as { message: string }
-  return <p>{message}</p>
+  const products = (await response.json()) as { id: number; name: string }[]
+  return (
+    <ul>
+      {products.map((product) => (
+        <li key={product.id}>{product.name}</li>
+      ))}
+    </ul>
+  )
 }
 `,
   )
@@ -95,7 +106,7 @@ test('인사말을 보여 준다', () => {
 import { expect, test } from 'vitest'
 import { server } from '@/shared/mocks/node'
 
-test('Base의 예시 핸들러가 응답한다', async () => {
+test('샘플 명세에서 생성한 핸들러가 응답한다', async () => {
   const response = await fetch('${EXAMPLE_API.url}')
 
   expect(await response.json()).toEqual(${JSON.stringify(EXAMPLE_API.body)})
@@ -182,7 +193,7 @@ describe('Playwright', () => {
 test('서버 컴포넌트가 받은 MSW 응답을 보여 준다', async ({ page }) => {
   await page.goto('${MSW_PROBE_ROUTE}')
 
-  await expect(page.getByText('${EXAMPLE_API.body.message}')).toBeVisible()
+  await expect(page.getByText('${EXAMPLE_API.text}')).toBeVisible()
 })
 `,
     )
@@ -201,7 +212,7 @@ describe('개발 서버', () => {
       const response = await waitForServer(`http://localhost:${port}${MSW_PROBE_ROUTE}`, devServer)
 
       expect(response.status, devServer.output()).toBe(200)
-      expect(await response.text()).toContain(EXAMPLE_API.body.message)
+      expect(await response.text()).toContain(EXAMPLE_API.text)
     } finally {
       await devServer.stop()
     }
