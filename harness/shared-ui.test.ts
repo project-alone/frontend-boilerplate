@@ -1,9 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { setTimeout } from 'node:timers/promises'
-import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest'
-import { type BackgroundProcess, freePort, run, start } from './run.ts'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { freePort, start, waitForServer } from './run.ts'
+import { runPlaywrightAgainst, useStarter } from './starter.ts'
 
 // Base가 갖춘 공통 UI 컴포넌트. 컴포넌트마다 src/shared/ui/<이름>.stories.tsx 스토리가 있다.
 const COMPONENTS = ['button', 'field', 'input', 'select', 'checkbox', 'dialog', 'toast']
@@ -22,38 +21,7 @@ const DESIGNER_TOKENS = [
 const DESIGNER_STYLE = { color: 'rgb(10, 20, 30)', fontSize: '19px', fontFamily: 'serif', spacing: 3, radius: '7px' }
 
 // Starter 하나를 만들어 설치해 두고, 테스트마다 다시 설치하지 않도록 모든 테스트가 함께 쓴다.
-let workdir: string
-let starter: string
-
-function npm(args: readonly string[], env?: NodeJS.ProcessEnv) {
-  const result = run('npm', args, starter, env)
-  return { ...result, failureMessage: `npm ${args.join(' ')}\n${result.output}` }
-}
-
-function expectNpmSuccess(args: readonly string[], env?: NodeJS.ProcessEnv) {
-  const result = npm(args, env)
-  expect(result.status, result.failureMessage).toBe(0)
-  return result
-}
-
-// 개발자가 Starter에 파일을 추가하는 상황을 흉내 낸다.
-function writeStarterFile(path: string, content: string) {
-  const file = join(starter, path)
-  mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, content)
-}
-
-async function waitForServer(url: string, server: BackgroundProcess) {
-  const deadline = Date.now() + 120_000
-  while (Date.now() < deadline) {
-    try {
-      return await fetch(url)
-    } catch {
-      await setTimeout(500)
-    }
-  }
-  throw new Error(`${url}에 연결하지 못했습니다.\n${server.output()}`)
-}
+const starter = useStarter({ prefix: 'dcgen-shared-ui-', install: true, playwright: true })
 
 // 공통 컴포넌트를 모두 쓰는 페이지. 화면 코드가 서버 컴포넌트에서 공통 컴포넌트를 가져다 쓰는 상황을 흉내 낸다.
 // 마지막 문단은 Tailwind 기본 팔레트의 유틸리티를 쓴다. 기본 팔레트를 지웠으므로 아무 스타일도 생기지 않아야 한다.
@@ -193,26 +161,20 @@ const OFF_TOKEN_STYLES_SOURCE = `function offTokenStyles(root: Element): string[
 }`
 
 beforeAll(() => {
-  workdir = mkdtempSync(join(tmpdir(), 'dcgen-shared-ui-'))
-  const created = run(inject('dcgenBin'), ['new', 'my-app'], workdir)
-  expect(created.status, created.output).toBe(0)
-  starter = join(workdir, 'my-app')
-
-  expectNpmSuccess(['install', '--no-audit', '--no-fund'])
-  // Storybook 테스트와 E2E가 쓰는 Chromium. 이미 받아 두었으면 건너뛴다.
-  expectNpmSuccess(['run', 'playwright:install'])
-
-  for (const [path, content] of Object.entries(UI_PAGE)) writeStarterFile(path, content)
-})
-
-afterAll(() => {
-  rmSync(workdir, { recursive: true, force: true })
+  for (const [path, content] of Object.entries(UI_PAGE)) starter.writeFile(path, content)
 })
 
 describe('공통 UI 컴포넌트', () => {
   test('컴포넌트마다 스토리가 있고, 모든 스토리가 접근성(axe)·상호작용 검사를 통과한다', () => {
-    const report = join(workdir, 'storybook-report.json')
-    expectNpmSuccess(['run', 'test:storybook', '--', '--reporter=default', '--reporter=json', `--outputFile.json=${report}`])
+    const report = join(starter.workdir, 'storybook-report.json')
+    starter.expectNpmSuccess([
+      'run',
+      'test:storybook',
+      '--',
+      '--reporter=default',
+      '--reporter=json',
+      `--outputFile.json=${report}`,
+    ])
 
     const { testResults } = JSON.parse(readFileSync(report, 'utf8')) as {
       testResults: { name: string; status: string; assertionResults: unknown[] }[]
@@ -226,14 +188,14 @@ describe('공통 UI 컴포넌트', () => {
 
   describe('공통 컴포넌트를 쓰는 페이지', () => {
     test('타입 검사, 린트, 빌드를 통과한다', () => {
-      expectNpmSuccess(['run', 'typecheck'])
-      expectNpmSuccess(['run', 'lint'])
-      expectNpmSuccess(['run', 'build'])
+      starter.expectNpmSuccess(['run', 'typecheck'])
+      starter.expectNpmSuccess(['run', 'lint'])
+      starter.expectNpmSuccess(['run', 'build'])
     })
 
     test('빌드된 페이지는 팝업을 연 상태까지 WCAG 2.2 AA 위반이 없다', async () => {
       const spec = 'e2e/harness-ui.spec.ts'
-      writeStarterFile(
+      starter.writeFile(
         spec,
         `import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
@@ -250,7 +212,7 @@ test('공통 컴포넌트를 쓴 페이지', async ({ page }) => {
 `,
       )
 
-      expectNpmSuccess(['run', 'test:e2e', '--', spec], { E2E_PORT: String(await freePort()) })
+      starter.expectNpmSuccess(['run', 'test:e2e', '--', spec], { E2E_PORT: String(await freePort()) })
     })
   })
 })
@@ -273,7 +235,7 @@ test('공통 컴포넌트는 디자이너의 토큰 값만 쓴다', async ({ pag
 `
 
   beforeAll(() => {
-    const tokensPath = join(starter, TOKENS_FILE)
+    const tokensPath = join(starter.dir, TOKENS_FILE)
     originalTokens = readFileSync(tokensPath, 'utf8')
     let tokens = originalTokens
     for (const { namespace, pattern, value } of DESIGNER_TOKENS) {
@@ -281,52 +243,39 @@ test('공통 컴포넌트는 디자이너의 토큰 값만 쓴다', async ({ pag
       tokens = tokens.replace(pattern, `$1: ${value};`)
     }
     writeFileSync(tokensPath, tokens)
-    writeStarterFile(TOKENS_SPEC, TOKENS_SPEC_SOURCE)
+    starter.writeFile(TOKENS_SPEC, TOKENS_SPEC_SOURCE)
   })
 
   afterAll(() => {
-    writeFileSync(join(starter, TOKENS_FILE), originalTokens)
+    writeFileSync(join(starter.dir, TOKENS_FILE), originalTokens)
   })
 
   test('빌드된 앱의 공통 컴포넌트가 바뀐 토큰 값을 따른다', async () => {
-    expectNpmSuccess(['run', 'build'])
+    starter.expectNpmSuccess(['run', 'build'])
 
-    expectNpmSuccess(['run', 'test:e2e', '--', TOKENS_SPEC], { E2E_PORT: String(await freePort()) })
+    starter.expectNpmSuccess(['run', 'test:e2e', '--', TOKENS_SPEC], { E2E_PORT: String(await freePort()) })
   })
 
   test('개발 서버의 공통 컴포넌트가 바뀐 토큰 값을 따른다', async () => {
     const port = await freePort()
     const baseURL = `http://localhost:${port}`
-    // 빌드 결과 대신 이미 떠 있는 개발 서버를 검사하도록 Playwright 설정을 따로 둔다.
-    const config = 'playwright.harness-dev.config.ts'
-    writeStarterFile(
-      config,
-      `import { defineConfig, devices } from '@playwright/test'
-
-export default defineConfig({
-  testDir: 'e2e',
-  use: { baseURL: '${baseURL}' },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-})
-`,
-    )
-    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter)
+    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter.dir)
 
     try {
       const response = await waitForServer(`${baseURL}${UI_ROUTE}`, devServer)
       expect(response.status, devServer.output()).toBe(200)
 
-      const result = run('npx', ['playwright', 'test', '--config', config, TOKENS_SPEC], starter)
+      // 빌드 결과 대신 이미 떠 있는 개발 서버를 검사한다.
+      const result = runPlaywrightAgainst(starter.dir, baseURL, [TOKENS_SPEC])
       expect(result.status, `${result.output}\n${devServer.output()}`).toBe(0)
     } finally {
       await devServer.stop()
-      rmSync(join(starter, config))
     }
   })
 
   test('Storybook의 공통 컴포넌트가 바뀐 토큰 값을 따른다', () => {
     const story = `src/app${UI_ROUTE}/page.stories.tsx`
-    writeStarterFile(
+    starter.writeFile(
       story,
       `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect } from 'storybook/test'
@@ -351,15 +300,15 @@ export const Default: StoryObj<typeof meta> = {
     )
 
     try {
-      expectNpmSuccess(['run', 'test:storybook', '--', story])
+      starter.expectNpmSuccess(['run', 'test:storybook', '--', story])
     } finally {
-      rmSync(join(starter, story))
+      rmSync(join(starter.dir, story))
     }
   })
 })
 
 test('Starter는 특정 디자인 시스템의 패키지나 설정을 가져오지 않는다', () => {
-  const pkg = JSON.parse(readFileSync(join(starter, 'package.json'), 'utf8')) as {
+  const pkg = JSON.parse(readFileSync(join(starter.dir, 'package.json'), 'utf8')) as {
     dependencies: Record<string, string>
     devDependencies: Record<string, string>
   }
@@ -378,5 +327,5 @@ test('Starter는 특정 디자인 시스템의 패키지나 설정을 가져오�
   const dependencies = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
   expect(dependencies.filter((name) => designSystems.some((pattern) => pattern.test(name)))).toEqual([])
   // shadcn/ui CLI가 만드는 설정 파일
-  expect(existsSync(join(starter, 'components.json'))).toBe(false)
+  expect(existsSync(join(starter.dir, 'components.json'))).toBe(false)
 })

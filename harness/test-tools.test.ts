@@ -1,85 +1,27 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest'
-import { freePort, run, start, waitForServer } from './run.ts'
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { beforeAll, describe, expect, test } from 'vitest'
+import { freePort, start, waitForServer } from './run.ts'
+import { MSW_PROBE_ROUTE, SAMPLE_API_URL, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
 
 // Base의 샘플 명세(openapi.yaml)에서 생성한 MSW 핸들러가 받는 요청과 돌려주는 응답(명세의 example)
 const EXAMPLE_API = {
-  url: 'https://api.example.com/products',
-  body: [
-    { id: 1, name: '기본 티셔츠', price: 19000 },
-    { id: 2, name: '데님 재킷', price: 89000 },
-  ],
+  url: SAMPLE_API_URL,
+  body: SAMPLE_PRODUCTS,
   /** 응답을 화면에 그렸을 때 보이는 글자 */
   text: '기본 티셔츠',
 }
 
 // Starter 하나를 만들어 설치해 두고, 테스트마다 다시 설치하지 않도록 모든 테스트가 함께 쓴다.
-let workdir: string
-let starter: string
-
-function npm(args: readonly string[], env?: NodeJS.ProcessEnv) {
-  const result = run('npm', args, starter, env)
-  return { ...result, failureMessage: `npm ${args.join(' ')}\n${result.output}` }
-}
-
-function expectNpmSuccess(args: readonly string[], env?: NodeJS.ProcessEnv) {
-  const result = npm(args, env)
-  expect(result.status, result.failureMessage).toBe(0)
-  return result
-}
-
-// 개발자가 Starter에 파일을 추가하는 상황을 흉내 낸다.
-function writeStarterFile(path: string, content: string) {
-  const file = join(starter, path)
-  mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, content)
-}
-
-// 서버 컴포넌트가 렌더링할 때마다 API를 부르는 페이지. Next.js 서버 안에서 MSW가 요청을 받는지 확인할 때 쓴다.
-const MSW_PROBE_ROUTE = '/harness-msw'
-
-function writeMswProbePage() {
-  writeStarterFile(
-    `src/app${MSW_PROBE_ROUTE}/page.tsx`,
-    `export default async function HarnessMswPage() {
-  const response = await fetch('${EXAMPLE_API.url}', { cache: 'no-store' })
-  const products = (await response.json()) as { id: number; name: string }[]
-  return (
-    <ul>
-      {products.map((product) => (
-        <li key={product.id}>{product.name}</li>
-      ))}
-    </ul>
-  )
-}
-`,
-  )
-}
-
-beforeAll(() => {
-  workdir = mkdtempSync(join(tmpdir(), 'dcgen-test-tools-'))
-  const created = run(inject('dcgenBin'), ['new', 'my-app'], workdir)
-  expect(created.status, created.output).toBe(0)
-  starter = join(workdir, 'my-app')
-
-  expectNpmSuccess(['install', '--no-audit', '--no-fund'])
-  // Storybook 테스트와 E2E가 쓰는 Chromium. 이미 받아 두었으면 건너뛴다.
-  expectNpmSuccess(['run', 'playwright:install'])
-})
-
-afterAll(() => {
-  rmSync(workdir, { recursive: true, force: true })
-})
+const starter = useStarter({ prefix: 'dcgen-test-tools-', install: true, playwright: true })
 
 describe('Vitest와 Testing Library', () => {
   test('Starter의 단위·컴포넌트 테스트가 통과한다', () => {
-    expectNpmSuccess(['test'])
+    starter.expectNpmSuccess(['test'])
   })
 
   test('Testing Library로 작성한 컴포넌트 테스트를 npm test로 실행할 수 있다', () => {
-    writeStarterFile(
+    starter.writeFile(
       'src/app/harness-component.test.tsx',
       `import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
@@ -96,11 +38,11 @@ test('인사말을 보여 준다', () => {
 `,
     )
 
-    expectNpmSuccess(['test', '--', 'src/app/harness-component.test.tsx'])
+    starter.expectNpmSuccess(['test', '--', 'src/app/harness-component.test.tsx'])
   })
 
   test('테스트가 보내는 요청은 MSW가 받고, 테스트마다 응답을 바꿀 수 있다', () => {
-    writeStarterFile(
+    starter.writeFile(
       'src/app/harness-msw.test.ts',
       `import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
@@ -122,23 +64,23 @@ test('server.use로 이 테스트에서만 응답을 바꾼다', async () => {
 `,
     )
 
-    expectNpmSuccess(['test', '--', 'src/app/harness-msw.test.ts'])
+    starter.expectNpmSuccess(['test', '--', 'src/app/harness-msw.test.ts'])
   })
 })
 
 describe('Storybook', () => {
   test('Storybook 개발 서버가 뜬다', () => {
-    expectNpmSuccess(['run', 'storybook', '--', '--ci', '--smoke-test'])
+    starter.expectNpmSuccess(['run', 'storybook', '--', '--ci', '--smoke-test'])
   })
 
   test('스토리마다 axe 접근성 검사가 돌고, Starter의 스토리는 모두 통과한다', () => {
-    expectNpmSuccess(['run', 'test:storybook'])
+    starter.expectNpmSuccess(['run', 'test:storybook'])
   })
 
   test('WCAG 2.2 AA를 어기는 스토리가 있으면 접근성 검사가 실패한다', () => {
     const story = 'src/app/harness-a11y.stories.tsx'
     // 24px보다 작은 버튼 두 개를 붙여 둔다(WCAG 2.2 성공 기준 2.5.8 위반).
-    writeStarterFile(
+    starter.writeFile(
       story,
       `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 
@@ -161,12 +103,12 @@ export const Default: StoryObj<typeof meta> = {}
     )
 
     try {
-      const result = npm(['run', 'test:storybook', '--', story])
+      const result = starter.npm(['run', 'test:storybook', '--', story])
 
       expect(result.status, result.failureMessage).not.toBe(0)
       expect(result.output).toContain('target-size')
     } finally {
-      rmSync(join(starter, story))
+      rmSync(join(starter.dir, story))
     }
   })
 })
@@ -176,17 +118,17 @@ describe('Playwright', () => {
 
   beforeAll(async () => {
     e2eEnv = { E2E_PORT: String(await freePort()) }
-    writeMswProbePage()
-    expectNpmSuccess(['run', 'build'])
+    writeMswProbePage(starter)
+    starter.expectNpmSuccess(['run', 'build'])
   })
 
   test('스모크 E2E가 빌드된 Starter를 대상으로 통과한다', () => {
-    expectNpmSuccess(['run', 'test:e2e'], e2eEnv)
+    starter.expectNpmSuccess(['run', 'test:e2e'], e2eEnv)
   })
 
   test('E2E 대상 서버가 보내는 API 요청은 MSW가 받는다', () => {
     const spec = 'e2e/harness-msw.spec.ts'
-    writeStarterFile(
+    starter.writeFile(
       spec,
       `import { expect, test } from '@playwright/test'
 
@@ -198,15 +140,15 @@ test('서버 컴포넌트가 받은 MSW 응답을 보여 준다', async ({ page 
 `,
     )
 
-    expectNpmSuccess(['run', 'test:e2e', '--', spec], e2eEnv)
+    starter.expectNpmSuccess(['run', 'test:e2e', '--', spec], e2eEnv)
   })
 })
 
 describe('개발 서버', () => {
   test('개발 서버가 보내는 API 요청은 MSW가 받는다', async () => {
-    writeMswProbePage()
+    writeMswProbePage(starter)
     const port = await freePort()
-    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter)
+    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter.dir)
 
     try {
       const response = await waitForServer(`http://localhost:${port}${MSW_PROBE_ROUTE}`, devServer)
