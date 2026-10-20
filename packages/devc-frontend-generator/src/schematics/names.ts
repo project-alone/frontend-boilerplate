@@ -7,12 +7,14 @@ export function splitWords(text: string): string[] {
 }
 
 export function camelCase(words: readonly string[]): string {
-  return words
-    .map((word, index) => (index === 0 ? word.toLowerCase() : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
-    .join('')
+  return words.map((word, index) => (index === 0 ? word.toLowerCase() : upperFirst(word))).join('')
 }
 
-/** 'createProduct'를 'CreateProduct'처럼 첫 글자만 대문자로 바꾼다. */
+export function pascalCase(words: readonly string[]): string {
+  return words.map(upperFirst).join('')
+}
+
+/** 'createProduct'를 'CreateProduct'처럼 첫 글자만 대문자로 바꾸고 나머지는 그대로 둔다('XMLViewer'는 그대로). */
 export function upperFirst(text: string): string {
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}`
 }
