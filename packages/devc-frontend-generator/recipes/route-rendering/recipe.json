@@ -1,0 +1,6 @@
+{
+  "description": "라우트마다 다른 Rendering Mode(SSR, SSG, ISR, 스트리밍, CSR)를 나란히 비교해 보는 /rendering 페이지",
+  "requires": [],
+  "renderingModes": ["server"],
+  "renderingModesReason": "SSR, ISR, 스트리밍은 요청을 받는 Next.js 서버가 있어야 합니다."
+}
