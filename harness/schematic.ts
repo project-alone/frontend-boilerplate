@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect } from 'vitest'
 import { parse, stringify } from 'yaml'
-import { run, type RunResult } from './run.ts'
+import { run } from './run.ts'
 import type { Starter } from './starter.ts'
 
 interface Spec {
@@ -26,9 +26,4 @@ export function addOperations(starter: Starter, operations: string): void {
   const formatted = run('npx', ['--no', '--', 'prettier', '--write', 'openapi.yaml'], starter.dir)
   expect(formatted.status, formatted.output).toBe(0)
   starter.expectNpmSuccess(['run', 'api:gen'])
-}
-
-/** Starter 안에서 Starter에 설치된 Generator의 `dcgen`을 실행한다. `--`가 없으면 npm이 인자의 옵션을 가로챈다. */
-export function dcgen(starter: Starter, args: readonly string[]): RunResult {
-  return run('npx', ['--no', '--', 'dcgen', ...args], starter.dir)
 }

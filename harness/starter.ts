@@ -17,6 +17,11 @@ export function newStarter(cwd: string, args: readonly string[] = []): string {
   return join(cwd, 'my-app')
 }
 
+/** Starter 안에서 Starter에 설치된 Generator의 `dcgen`을 실행한다. `--`가 없으면 npm이 인자의 옵션을 가로챈다. */
+export function dcgen(starter: Pick<Starter, 'dir'>, args: readonly string[]): RunResult {
+  return run('npx', ['--no', '--', 'dcgen', ...args], starter.dir)
+}
+
 /** Generator의 npm 패키지 이름. Starter가 이 이름으로 Generator를 devDependencies에 고정한다. */
 export const GENERATOR_PACKAGE = 'devc-frontend-generator'
 

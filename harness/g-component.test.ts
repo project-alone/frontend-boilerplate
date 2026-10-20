@@ -1,8 +1,7 @@
 import { cpSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { run, type RunResult } from './run.ts'
-import { readTree, type Starter, useStarter } from './starter.ts'
+import { dcgen, readTree, type Starter, useStarter } from './starter.ts'
 
 // 생성 결과 스냅샷. Starter의 코드이므로 하네스의 타입 검사 대상에서 뺀다(tsconfig.json).
 const SNAPSHOTS = './__snapshots__/g-component'
@@ -10,11 +9,6 @@ const SNAPSHOTS = './__snapshots__/g-component'
 // component Schematic이 파일을 만드는 곳. Feature는 src/features/<feature>/, 공통 UI는 src/shared/ui/다.
 const FEATURES_DIR = 'src/features'
 const SHARED_UI_DIR = 'src/shared/ui'
-
-/** Starter 안에서 Starter에 설치된 Generator의 `dcgen`을 실행한다. `--`가 없으면 npm이 인자의 옵션을 가로챈다. */
-function dcgen(starter: Starter, args: readonly string[]): RunResult {
-  return run('npx', ['--no', '--', 'dcgen', ...args], starter.dir)
-}
 
 /** directory(Starter 최상위 기준) 안의 파일이 스냅샷과 같은지 본다. */
 async function expectFilesToMatchSnapshots(starter: Starter, directory: string, files: readonly string[]): Promise<void> {
