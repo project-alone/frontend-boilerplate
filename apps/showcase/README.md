@@ -2,7 +2,7 @@
 >
 > Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe를 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`)나 Recipe(`recipes/<이름>/`)를 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md)).
 >
-> - 켠 Recipe: `dark-mode`, `route-rendering`
+> - 켠 Recipe: `dark-mode`, `route-rendering`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
 > - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`
 > - 실행: 레포 최상위에서 `npm run showcase:dev`. Showcase를 레포 밖의 디렉터리에 복사해 설치하고 MSW 목으로 개발 서버를 띄웁니다. 아래는 Starter의 README이고, 그 명령은 그 디렉터리에서 실행합니다.
 
