@@ -16,5 +16,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # 하네스가 만든 Starter는 Storybook 테스트와 E2E에 Chromium을 쓴다.
+      # 브라우저는 Starter의 `npm run playwright:install`이 받고, 여기서는 캐시와 시스템 라이브러리만 준비한다.
+      - name: Read the Playwright version of the Base
+        id: playwright
+        run: echo "version=$(node -p "require('./packages/devc-frontend-generator/base/package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium system dependencies
+        run: npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
       - run: npm run typecheck
       - run: npm test

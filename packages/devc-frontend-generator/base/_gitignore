@@ -6,3 +6,7 @@ next-env.d.ts
 coverage/
 .env*.local
 .DS_Store
+test-results/
+playwright-report/
+storybook-static/
+*storybook.log
