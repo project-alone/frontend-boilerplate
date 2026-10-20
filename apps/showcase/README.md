@@ -187,14 +187,24 @@ const {
 
 `npm run g -- <schematic> ...`(`npx dcgen g <schematic> ...`과 같습니다)은 이 Starter를 만든 Generator(`devc-frontend-generator`)로 코드를 만듭니다. Generator는 `package.json`의 devDependencies에 정확한 버전으로 고정되어 있어 팀원 모두가 같은 결과를 얻습니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다.
 
-| Schematic   | 만드는 것                                                                | 넣는 곳                                                           |
-| ----------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)              | Query Domain(`src/queries/<domain>/`)                             |
-| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                   | Query Domain(`src/queries/<domain>/`)                             |
-| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트 | Feature(`src/features/<feature>/`)                                |
-| `component` | 컴포넌트, Storybook 스토리, 테스트                                       | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+| Schematic   | 만드는 것                                                                                                    | 넣는 곳                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)                                                  | Query Domain(`src/queries/<domain>/`)                             |
+| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                                                       | Query Domain(`src/queries/<domain>/`)                             |
+| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트                                     | Feature(`src/features/<feature>/`)                                |
+| `page`      | 라우트의 페이지(메타데이터, Rendering Mode), 로딩·오류 상태. `--query`의 결과를 보여 줄 컴포넌트와 그 테스트 | 라우트(`src/app/<route>/`), Feature(`src/features/<feature>/`)    |
+| `component` | 컴포넌트, Storybook 스토리, 테스트                                                                           | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
 
-- `query`, `mutation`, `form`은 Starter 최상위(`package.json`이 있는 디렉터리)의 `openapi.yaml`을 읽습니다. 만든 코드는 재생성 계층의 fetch 함수와 Zod 스키마를 쓰므로, 명세를 고쳤다면 먼저 `npm run api:gen`을 실행합니다.
+Schematic을 차례로 실행하면 화면 하나가 됩니다. 예를 들어 상품 목록과 등록 폼이 있는 화면은 이렇게 만듭니다.
+
+```sh
+npm run g -- query listProducts                                # 목록의 queryOptions
+npm run g -- mutation createProduct                            # 등록의 뮤테이션 훅
+npm run g -- form createProduct --feature product-admin        # 등록 폼
+npm run g -- page catalog --query listProducts --form createProduct --feature catalog
+```
+
+- `query`, `mutation`, `form`, `page`는 Starter 최상위(`package.json`이 있는 디렉터리)의 `openapi.yaml`을 읽습니다. 만든 코드는 재생성 계층의 fetch 함수와 Zod 스키마를 쓰므로, 명세를 고쳤다면 먼저 `npm run api:gen`을 실행합니다.
 - 만든 파일은 Starter의 Prettier로 포맷하므로 바로 `lint`, `format:check`, `typecheck`를 통과합니다.
 - 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고, 겹치는 이름을 알린 뒤 실패합니다. 명세에 없는 operationId도 실패합니다.
 
@@ -252,6 +262,35 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 - 검증 실패는 비워 둔 필수 입력으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
 - 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
+
+### page
+
+```sh
+npm run g -- page <route>                                             # 페이지, 로딩·오류 상태(Rendering Mode는 기본값)
+npm run g -- page <route> --mode <ssr|ssg|isr|streaming|csr>          # 라우트의 Rendering Mode를 고른다
+npm run g -- page <route> --query <operationId> --feature <feature>   # queryOptions로 가져온 결과를 보여 준다
+npm run g -- page <route> --form <operationId>                        # form Schematic이 만든 폼을 넣는다
+```
+
+- `src/app/<route>/`에 페이지(`page.tsx`), 로딩 상태(`loading.tsx`), 오류 상태(`error.tsx`)를 만듭니다. 페이지는 메타데이터(`metadata`의 `title`)와 제목을 담고, 제목은 `--query`(없으면 `--form`) operation의 `summary`, 둘 다 없으면 라우트의 경로입니다. 오류 상태의 "다시 시도"는 이 라우트를 서버에서 다시 가져와 렌더링합니다. 문구는 화면에 맞게 고칩니다.
+- 라우트는 `/`로 나눈 세그먼트입니다. 세그먼트는 kebab-case(`products/new`)이고, 동적 세그먼트(`products/[productId]`)와 경로 그룹(`(admin)/reports`)을 쓸 수 있습니다. catch-all(`[...slug]`), 병렬·가로채기 라우트, `generateMetadata`는 만들지 않으므로 직접 고칩니다. `src/app`은 Next.js 라우트 구조가 폴더 깊이를 정하므로 폴더 깊이 제한을 받지 않습니다.
+- `--mode`로 라우트의 Rendering Mode를 고릅니다. 고르지 않으면 server Starter에서는 `ssr`, static-export Starter에서는 `csr`입니다. static-export Starter에는 요청을 받는 서버가 없으므로 `ssg`, `csr`만 고를 수 있고, 다른 모드나 동적 세그먼트가 있는 라우트(빌드할 때 모든 경로를 `generateStaticParams`로 정해야 합니다)는 아무 파일도 만들지 않고 거부합니다.
+
+  | `--mode`    | 페이지에 넣는 것                                 | `--query`의 데이터                                                                        |
+  | ----------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+  | `ssr`       | `await connection()`                             | 요청마다 서버에서 가져와 hydration으로 넘깁니다                                           |
+  | `ssg`       | `export const dynamic = 'error'`                 | 빌드할 때 서버에서 가져와 HTML에 담습니다                                                 |
+  | `isr`       | `export const revalidate = 60`                   | 빌드할 때, 그 뒤로는 60초가 지나 요청이 오면 다시 렌더링할 때 서버에서 가져옵니다         |
+  | `streaming` | `await connection()`, 데이터 부분의 `<Suspense>` | 요청마다 서버에서 가져오되, 대체 UI를 먼저 보내고 데이터가 오면 같은 응답에 이어 보냅니다 |
+  | `csr`       | 없음(페이지 뼈대는 빌드할 때 렌더링)             | 브라우저가 가져옵니다. 서버가 보낸 HTML에는 불러오는 중 상태만 있습니다                   |
+
+- `--query <operationId>`는 그 GET operation의 queryOptions로 데이터를 가져옵니다. queryOptions가 없으면 아무 파일도 만들지 않고 `npm run g -- query <operationId>`를 먼저 실행하라고 알립니다.
+  - 결과는 `--feature`에 만드는 클라이언트 컴포넌트(예: `listProducts`는 `list-products-view.tsx`의 `ListProductsView`)가 `useQuery`로 보여 주고, 컴포넌트 테스트(응답 표시, 빈 목록, 실패)를 함께 만듭니다. `app`은 라우팅만 맡으므로 화면은 Feature에 둡니다. 같은 Feature에 그 컴포넌트가 이미 있으면 다시 만들지 않고 씁니다. 배열 응답은 항목마다 `name`(또는 `title`, `label`, 첫 번째 필수 문자열 속성)을 보여 주는 목록이고 `id`가 있으면 key로 씁니다. 객체 응답은 속성마다 이름과 값을 보여 줍니다. 보여 줄 값과 모양은 화면에 맞게 고칩니다. Storybook에는 MSW가 없으므로 스토리는 만들지 않습니다.
+  - 서버에서 렌더링하는 모드는 위 `/products`처럼 페이지가 `queryClient.query()`로 가져와 `HydrationBoundary`로 넘기므로 브라우저가 다시 요청하지 않습니다(SSG·ISR은 가져온 지 `staleTime`(1분)이 지나면 브라우저가 다시 가져옵니다). 가져오지 못하면 오류 상태가 보입니다.
+  - SSG·ISR 페이지는 빌드할 때 서버 컴포넌트가 백엔드를 부르므로, `npm run build`를 실행하는 환경(GitLab CI의 `build` 잡 포함)에 `API_BASE_URL`을 넣습니다. 빌드할 때는 MSW가 켜지지 않습니다. 동적 세그먼트가 있는 SSG·ISR 라우트는 `generateStaticParams`가 빈 목록을 돌려줘 빌드할 때는 렌더링하지 않고, 처음 요청이 온 경로를 렌더링해 둡니다. 빌드할 때 만들 경로가 있으면 `generateStaticParams`를 고칩니다.
+  - 경로 파라미터는 같은 이름의 동적 세그먼트에서 읽어 넘깁니다(`products/[productId]`에서 `getProductQueryOptions(productId)`). 라우트에 그 세그먼트가 없으면 거부합니다. 숫자 파라미터는 숫자로 바꾸고, 바꿀 수 없으면 없는 페이지(`notFound()`)로 봅니다. 쿼리 파라미터(`searchParams`)는 넘기지 않으므로, 필수 쿼리 파라미터가 있는 operation은 거부합니다.
+- `--form <operationId>`는 `npm run g -- form`이 Feature에 만든 폼(`<operation-id>-form.tsx`의 `<OperationId>Form`)을 넣습니다. 폼이 없으면 아무 파일도 만들지 않고 `npm run g -- form <operationId> --feature <feature>`를 먼저 실행하라고 알립니다. 같은 폼이 여러 Feature에 있으면 `--feature`로 고릅니다. 폼이 받는 경로 파라미터는 `--query`처럼 동적 세그먼트에서 넘깁니다. `--query`와 함께 쓰면 결과 아래에 폼을 두고, 제출에 성공하면 뮤테이션 훅이 Query Domain의 쿼리를 무효화해 결과를 다시 가져옵니다.
+- 만들 파일(페이지, 로딩·오류 상태, `--query`의 컴포넌트와 테스트) 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 
 ### component
 
