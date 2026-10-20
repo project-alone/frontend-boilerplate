@@ -32,7 +32,7 @@
 
 - `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
-- Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'list', params]`처럼 계층으로 만듭니다.
+- Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'listProducts', params]`처럼 계층으로 만듭니다. `src/queries`의 코드는 `npm run g -- query <operationId>`로 만들 수 있습니다(아래 "코드 생성(Schematic)").
 - 샘플: `/products` 페이지(`src/app/products/page.tsx`)는 빌드할 때 페이지 뼈대만 만들고, `src/features/product-list`가 브라우저에서 `listProductsQueryOptions()`로 상품 목록을 가져옵니다(`e2e/products.spec.ts`).
 
 ### 요청이 가는 곳
@@ -53,7 +53,7 @@
 
 `openapi.yaml`은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플입니다. 실제 프로젝트에서는 다음 순서로 바꿉니다.
 
-1. `openapi.yaml`을 백엔드의 명세로 바꿉니다. 파일 대신 URL을 쓰려면 `orval.config.ts`의 `input.target`을 고칩니다.
+1. `openapi.yaml`을 백엔드의 명세로 바꿉니다. `npm run g`도 이 파일을 읽으므로, 백엔드가 명세를 URL로 내주면 내려받아 이 파일에 저장합니다.
 2. 샘플 코드를 지웁니다: `src/app/products/`, `src/features/product-list/`, `src/queries/products/`, `e2e/products.spec.ts`
 3. `npm run api:gen`을 실행하고 생성 결과를 커밋합니다.
 4. 배포용 빌드를 만드는 환경에 `NEXT_PUBLIC_API_BASE_URL`을 넣습니다. 실제 백엔드로 개발하려면 `.env.development.local`에 아래 "API 목킹(MSW)"의 값을 넣습니다.

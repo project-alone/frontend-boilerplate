@@ -13,6 +13,22 @@ export function newStarter(cwd: string, args: readonly string[] = []): string {
   return join(cwd, 'my-app')
 }
 
+/** Generator의 npm 패키지 이름. Starter가 이 이름으로 Generator를 devDependencies에 고정한다. */
+export const GENERATOR_PACKAGE = 'devc-frontend-generator'
+
+/**
+ * Starter가 devDependencies에 고정한 Generator를 하네스가 npm pack으로 만든 tarball로 바꾼다. Starter를 설치하기 전에 부른다.
+ * Starter는 Generator를 npm 레지스트리의 정확한 버전으로 고정하지만 Generator는 아직 npm에 배포되지 않았으므로,
+ * 하네스에서는 그 항목만 tarball 경로(`file:`)로 바꿔 지금 소스로 만든 Generator를 설치한다. Generator 코드에는 하네스용 분기를 두지 않는다.
+ */
+export function linkPackedGenerator(starterDir: string): void {
+  const path = join(starterDir, 'package.json')
+  const pkg = JSON.parse(readFileSync(path, 'utf8')) as { devDependencies: Record<string, string> }
+  expect(pkg.devDependencies[GENERATOR_PACKAGE], 'Starter가 Generator를 devDependencies에 고정하지 않았습니다').toBeDefined()
+  pkg.devDependencies[GENERATOR_PACKAGE] = `file:${inject('dcgenTarball')}`
+  writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
+}
+
 export interface NpmResult extends RunResult {
   /** 실행한 npm 명령과 출력. 실패했을 때 보여 준다. */
   failureMessage: string
@@ -37,7 +53,7 @@ export interface StarterOptions {
   prefix: string
   /** `dcgen new --rendering-mode`. 없으면 플래그 없이 만든다(server). */
   renderingMode?: RenderingMode
-  /** npm으로 설치까지 한다. */
+  /** npm으로 설치까지 한다. Generator는 하네스가 팩한 tarball로 설치한다(linkPackedGenerator). */
   install?: boolean
   /** Storybook 테스트와 E2E가 쓰는 Chromium을 받는다(이미 받아 두었으면 건너뛴다). install이 필요하다. */
   playwright?: boolean
@@ -82,7 +98,10 @@ export function useStarter(options: StarterOptions): Starter {
     const workdir = mkdtempSync(join(tmpdir(), options.prefix))
     const args = options.renderingMode === undefined ? [] : ['--rendering-mode', options.renderingMode]
     created = { workdir, dir: newStarter(workdir, args) }
-    if (options.install === true) starter.expectNpmSuccess(['install', '--no-audit', '--no-fund'])
+    if (options.install === true) {
+      linkPackedGenerator(starter.dir)
+      starter.expectNpmSuccess(['install', '--no-audit', '--no-fund'])
+    }
     if (options.playwright === true) starter.expectNpmSuccess(['run', 'playwright:install'])
   })
 

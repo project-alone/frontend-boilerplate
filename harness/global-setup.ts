@@ -16,16 +16,18 @@ export default function setup(project: TestProject) {
     cwd: GENERATOR_DIR,
     encoding: 'utf8',
   })
-  const [tarball] = JSON.parse(packed) as { filename: string }[]
-  if (tarball === undefined) throw new Error(`npm pack 결과를 읽을 수 없습니다: ${packed}`)
+  const [packedFile] = JSON.parse(packed) as { filename: string }[]
+  if (packedFile === undefined) throw new Error(`npm pack 결과를 읽을 수 없습니다: ${packed}`)
+  const tarball = join(root, packedFile.filename)
 
   writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'harness-consumer', private: true }))
-  execFileSync('npm', ['install', '--no-audit', '--no-fund', join(root, tarball.filename)], {
+  execFileSync('npm', ['install', '--no-audit', '--no-fund', tarball], {
     cwd: root,
     stdio: 'inherit',
   })
 
   project.provide('dcgenBin', join(root, 'node_modules', '.bin', 'dcgen'))
+  project.provide('dcgenTarball', tarball)
 
   return () => {
     rmSync(root, { recursive: true, force: true })
@@ -35,5 +37,7 @@ export default function setup(project: TestProject) {
 declare module 'vitest' {
   export interface ProvidedContext {
     dcgenBin: string
+    /** npm pack으로 만든 Generator tarball. Starter가 npm 레지스트리 대신 이 파일로 Generator를 설치한다(starter.ts). */
+    dcgenTarball: string
   }
 }
