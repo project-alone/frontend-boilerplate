@@ -4,5 +4,10 @@
   },
   "devDependencies": {
     "sirv-cli": "3.0.1"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

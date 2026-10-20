@@ -49,6 +49,8 @@ export default defineConfig(
     'storybook-static/',
     // 재생성 API 계층(npm run api:gen의 결과). 손으로 고치지 않으므로 린트하지 않는다(ADR-0003).
     'src/shared/api/generated/',
+    // MSW CLI가 만드는 브라우저용 서비스 워커(Rendering Mode static-export). 손으로 고치지 않는다.
+    'public/mockServiceWorker.js',
   ]),
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,

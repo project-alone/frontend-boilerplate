@@ -1,0 +1,6 @@
+# Rendering Mode static-export에서 지우는 Base의 경로. 한 줄에 하나씩, Starter 최상위 기준으로 적는다.
+
+# BFF 프록시(ADR-0006). 요청을 받는 서버가 없으므로 Route Handler를 둘 수 없고(`output: 'export'` 빌드가 실패한다),
+# 브라우저는 NEXT_PUBLIC_API_BASE_URL의 백엔드를 직접 부른다(src/shared/api/base-url.ts).
+src/app/api/proxy
+src/shared/api/bff-proxy.ts

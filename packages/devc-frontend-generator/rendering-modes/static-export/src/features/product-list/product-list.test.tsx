@@ -1,0 +1,47 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { getListProductsMockHandler } from '@/shared/api/generated/products/products.msw'
+import { server } from '@/shared/mocks/node'
+import { ProductList } from './product-list'
+
+// 개발 서버와 E2E처럼 브라우저의 요청을 MSW가 받는 빌드를 흉내 낸다. Vitest에서는 @/shared/mocks/node가 받는다.
+beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_API_MOCKING', 'enabled')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+function renderWithQueryClient(ui: ReactNode) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
+}
+
+test('불러오는 중임을 알린 뒤, MSW가 돌려준 샘플 명세의 상품 목록을 보여 준다', async () => {
+  renderWithQueryClient(<ProductList />)
+
+  expect(screen.getByRole('status')).toHaveTextContent('상품을 불러오는 중입니다.')
+  expect(await screen.findByText(/기본 티셔츠/)).toBeInTheDocument()
+  expect(screen.getByText(/데님 재킷/)).toBeInTheDocument()
+})
+
+test('상품이 없으면 안내 문구를 보여 준다', async () => {
+  // 생성된 핸들러에 응답을 넘겨 이 테스트에서만 바꾼다.
+  server.use(getListProductsMockHandler([]))
+
+  renderWithQueryClient(<ProductList />)
+
+  expect(await screen.findByText('등록된 상품이 없습니다.')).toBeInTheDocument()
+})
+
+test('백엔드가 실패하면 불러오지 못했다고 알린다', async () => {
+  server.use(http.get('*/products', () => HttpResponse.json({ message: '점검 중' }, { status: 503 })))
+
+  renderWithQueryClient(<ProductList />)
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('상품을 불러오지 못했습니다.')
+})
