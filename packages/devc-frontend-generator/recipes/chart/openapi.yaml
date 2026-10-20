@@ -1,0 +1,105 @@
+tags:
+  - name: stats
+    description: 대시보드 통계
+paths:
+  # chart Recipe가 더한 operation. 차트 데모(src/features/stats-charts)가 시계열 차트와 비교 차트로 그린다.
+  /stats/daily-visits:
+    get:
+      operationId: listDailyVisits
+      summary: 최근 14일의 일별 방문 수
+      tags: [stats]
+      responses:
+        '200':
+          description: 날짜 오름차순의 일별 방문 수
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailyVisits'
+              # MSW 목이 늘 같은 값을 돌려주도록 example을 적는다.
+              example:
+                - date: '2026-10-01'
+                  visits: 1320
+                - date: '2026-10-02'
+                  visits: 1410
+                - date: '2026-10-03'
+                  visits: 980
+                - date: '2026-10-04'
+                  visits: 910
+                - date: '2026-10-05'
+                  visits: 1250
+                - date: '2026-10-06'
+                  visits: 1380
+                - date: '2026-10-07'
+                  visits: 1460
+                - date: '2026-10-08'
+                  visits: 1520
+                - date: '2026-10-09'
+                  visits: 1590
+                - date: '2026-10-10'
+                  visits: 1040
+                - date: '2026-10-11'
+                  visits: 960
+                - date: '2026-10-12'
+                  visits: 1430
+                - date: '2026-10-13'
+                  visits: 1610
+                - date: '2026-10-14'
+                  visits: 1680
+  /stats/channel-sales:
+    get:
+      operationId: listChannelSales
+      summary: 판매 채널별 이번 달과 지난달 매출
+      tags: [stats]
+      responses:
+        '200':
+          description: 판매 채널별 매출
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelSales'
+              example:
+                - channel: 온라인 스토어
+                  currentMonth: 48200000
+                  previousMonth: 41500000
+                - channel: 모바일 앱
+                  currentMonth: 36900000
+                  previousMonth: 38100000
+                - channel: 오프라인 매장
+                  currentMonth: 22400000
+                  previousMonth: 25800000
+                - channel: 제휴 마켓
+                  currentMonth: 12700000
+                  previousMonth: 9300000
+components:
+  schemas:
+    DailyVisits:
+      type: object
+      required: [date, visits]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 방문 날짜(YYYY-MM-DD)
+        visits:
+          type: integer
+          minimum: 0
+          description: 그날의 방문 수
+    ChannelSales:
+      type: object
+      required: [channel, currentMonth, previousMonth]
+      properties:
+        channel:
+          type: string
+          description: 판매 채널 이름
+        currentMonth:
+          type: integer
+          minimum: 0
+          description: 이번 달 매출(원)
+        previousMonth:
+          type: integer
+          minimum: 0
+          description: 지난달 매출(원)
