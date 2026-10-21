@@ -29,8 +29,8 @@ const formError: z.core.$ZodErrorMap = (issue) => {
 
 export interface FormResolverOptions<Input extends FieldValues> {
   /**
-   * 폼이 처음 보여 준 값. useForm의 defaultValues와 같은 값을 넘긴다. null을 받는 선택 필드는 여기에 값이 있던 입력을
-   * 비웠을 때만 null을 보낸다(값을 지운다). 처음부터 비어 있던 입력은 보내지 않는다.
+   * 폼이 처음 보여 준 값. useForm의 defaultValues와 같은 값을 넘긴다(useSchemaForm은 한 번만 받아 두 곳에 넘긴다). null을 받는
+   * 선택 필드는 여기에 값이 있던 입력을 비웠을 때만 null을 보낸다(값을 지운다). 처음부터 비어 있던 입력은 보내지 않는다.
    */
   defaultValues?: FormDraft<Input> | undefined
 }
