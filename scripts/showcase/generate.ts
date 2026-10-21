@@ -91,11 +91,16 @@ const lineComment =
 const cssComment: Comment = (lines) => ['/*', ...lines.map((line) => ` * ${line}`), ' */'].join('\n')
 
 // 형식마다 맨 위에 다는 주석. 주석을 달 수 없는 형식(JSON, .nvmrc 등)과 README는 undefined이고, README의 안내가 대신 알린다.
+// Dockerfile은 맨 위 주석 뒤의 parser directive(# syntax= 등)를 읽지 않으므로 Recipe의 Dockerfile은 directive를 쓰지 않는다.
 function commentFor(path: string): Comment | undefined {
   const name = path.split('/').at(-1) ?? path
   if (/\.[cm]?[jt]sx?$/.test(name) || /^tsconfig(?:\.[\w-]+)?\.json$/.test(name)) return lineComment('//')
   if (name.endsWith('.css')) return cssComment
-  if (/\.ya?ml$/.test(name) || /^\.env(?:\.|$)/.test(name) || name === '.gitignore' || name === '.prettierignore') {
+  if (
+    /\.ya?ml$/.test(name) ||
+    /^\.env(?:\.|$)/.test(name) ||
+    ['.gitignore', '.prettierignore', '.dockerignore', 'Dockerfile'].includes(name)
+  ) {
     return lineComment('#')
   }
   return undefined
