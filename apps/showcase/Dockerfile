@@ -56,6 +56,7 @@ RUN API_MOCKING=enabled npm run build
 FROM base AS runner
 ENV NODE_ENV=production
 # standalone 서버(server.js)는 PORT와 HOSTNAME으로 포트와 주소를 정한다. 컨테이너 밖에서 들어오도록 모든 주소에서 받는다.
+# 아래 HEALTHCHECK가 127.0.0.1로 부르므로 HOSTNAME은 바꾸지 않는다.
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
