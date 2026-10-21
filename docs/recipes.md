@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -23,7 +23,7 @@ Recipe는 `packages/devc-frontend-generator/recipes/<이름>/` 디렉터리 하�
 ```
 recipes/<이름>/
 ├── recipe.json      선언: 설명, 필요한 Recipe, 지원하는 Rendering Mode (필수)
-├── extensions.json  확장 지점에 더할 조각: Provider, 머리글, proxy, next.config, instrumentation
+├── extensions.json  확장 지점에 더할 조각: Provider, 머리글, proxy, next.config, instrumentation, 백엔드 요청, MSW 핸들러
 ├── openapi.yaml     Base 명세에 병합할 명세 조각
 ├── .env.<이름>      Starter의 같은 dotenv 파일에 변수 단위로 병합할 변수(.env.example, .env.development 등)
 ├── package.json     Starter의 package.json에 합칠 내용: 의존성, 스크립트
@@ -60,7 +60,7 @@ Recipe의 코드와 테스트는 Starter의 같은 경로에 새 파일로 더�
 
 ### 설정 패치(`<경로>.patch`)
 
-Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `.storybook/preview.tsx.patch`, `vitest.config.ts.patch`. 패치 하나는 파일 하나만 고친다. 사본 대신 패치를 쓰는 이유는 ADR-0007에 있다. 확장 지점이 있는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`의 래퍼, instrumentation, OpenAPI 명세, 환경 변수 파일)는 패치하지 않는다. 같은 자리를 패치하는 Recipe끼리는 Showcase에서 함께 켤 수 없다(ADR-0010).
+Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `.storybook/preview.tsx.patch`, `vitest.config.ts.patch`. 패치 하나는 파일 하나만 고친다. 사본 대신 패치를 쓰는 이유는 ADR-0007에 있다. 확장 지점이 있는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`의 래퍼, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수 파일)는 패치하지 않는다. 같은 자리를 패치하는 Recipe끼리는 Showcase에서 함께 켤 수 없다(ADR-0010).
 
 - 패치는 덧입히는 시점의 Starter 파일, 곧 Base에 Rendering Mode와 앞서 덧입힌 Recipe가 적용된 파일에 적용된다. 줄 번호가 달라도 맥락 줄이 맞는 곳을 찾아 적용하지만, 맥락 줄이 맞지 않으면 생성이 어느 패치인지 알리며 실패하고 만들던 Starter를 지운다.
 - Recipe가 지원하는 모든 Rendering Mode에서 맞아야 한다. Rendering Mode가 대신하는 파일(`rendering-modes/<mode>/`에 있는 파일)은 되도록 고치지 않는다.
@@ -98,15 +98,17 @@ npm은 패키지를 만들 때 `.gitignore`와 `.npmrc`를 뺀다. 특히 `.giti
 
 여러 Recipe가 Base의 같은 파일, 같은 자리에 끼어들어야 하는 곳이다. 이 자리를 패치로 고치면 Recipe끼리 맥락 줄이 어긋나 모든 Recipe를 켜는 Showcase를 만들 수 없으므로, Recipe는 자기 조각만 더하고 Generator가 모든 overlay를 덧입힌 뒤 한꺼번에 조립한다(ADR-0010). Base와 Rendering Mode overlay도 같은 방법으로 자기 조각을 더한다.
 
-| 확장 지점                                       | overlay에 두는 것                                                | Starter에 생기는 파일                           | Rendering Mode                       |
-| ----------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------ |
-| Provider(`providers`), 머리글(`header`)         | `extensions.json` + 컴포넌트                                     | `src/app/app-shell.tsx`(루트 레이아웃이 씀)     | 둘 다                                |
-| proxy(`proxy`)                                  | `extensions.json` + 요청 처리기                                  | `src/proxy.ts`                                  | `server`만                           |
-| next.config(`nextConfig`)                       | `extensions.json` + 설정 래퍼                                    | `next.config.plugins.ts`(`next.config.ts`가 씀) | 둘 다                                |
-| instrumentation(`instrumentation`)              | `extensions.json` + 서버 조각                                    | `src/instrumentation.ts`                        | 둘 다(`static-export`는 개발 서버만) |
-| instrumentation-client(`instrumentationClient`) | `extensions.json` + 브라우저 조각                                | `src/instrumentation-client.ts`                 | 둘 다                                |
-| OpenAPI 명세                                    | `openapi.yaml`(명세 조각)                                        | `openapi.yaml`, `src/shared/api/generated/`     | 둘 다                                |
-| 환경 변수                                       | `.env.example`, `.env.development` 등, `process-env.<이름>.d.ts` | 같은 이름의 dotenv 파일                         | 둘 다                                |
+| 확장 지점                                       | overlay에 두는 것                                                | Starter에 생기는 파일                                           | Rendering Mode                                   |
+| ----------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------ |
+| Provider(`providers`), 머리글(`header`)         | `extensions.json` + 컴포넌트                                     | `src/app/app-shell.tsx`(루트 레이아웃이 씀)                     | 둘 다                                            |
+| proxy(`proxy`)                                  | `extensions.json` + 요청 처리기                                  | `src/proxy.ts`                                                  | `server`만                                       |
+| next.config(`nextConfig`)                       | `extensions.json` + 설정 래퍼                                    | `next.config.plugins.ts`(`next.config.ts`가 씀)                 | 둘 다                                            |
+| instrumentation(`instrumentation`)              | `extensions.json` + 서버 조각                                    | `src/instrumentation.ts`                                        | 둘 다(`static-export`는 개발 서버만)             |
+| instrumentation-client(`instrumentationClient`) | `extensions.json` + 브라우저 조각                                | `src/instrumentation-client.ts`                                 | 둘 다                                            |
+| 백엔드 요청(`backendFetch`)                     | `extensions.json` + 요청 처리기                                  | `src/shared/api/backend-fetch.ts`(`apiFetch`와 BFF 프록시가 씀) | 둘 다(`static-export`는 빌드할 때와 개발 서버만) |
+| MSW 핸들러(`mockHandlers`)                      | `extensions.json` + 직접 만든 MSW 핸들러의 배열                  | `src/shared/mocks/handlers.ts`(MSW가 씀)                        | 둘 다                                            |
+| OpenAPI 명세                                    | `openapi.yaml`(명세 조각)                                        | `openapi.yaml`, `src/shared/api/generated/`                     | 둘 다                                            |
+| 환경 변수                                       | `.env.example`, `.env.development` 등, `process-env.<이름>.d.ts` | 같은 이름의 dotenv 파일                                         | 둘 다                                            |
 
 시험용 Recipe 둘(`harness/fixtures/recipes/extension-a-fixture`, `extension-b-fixture`)이 모든 확장 지점을 함께 쓰는 예다. `harness/extension-points.test.ts`가 두 Recipe를 함께 켠 Starter를 Rendering Mode마다 만들어 검증한다.
 
@@ -125,7 +127,9 @@ overlay 최상위에 두고, 확장 지점마다 조각의 배열을 적는다. 
   ],
   "instrumentationClient": [
     { "path": "src/shared/<이름>/<이름>-instrumentation-client.ts", "export": "someClientInstrumentation", "order": 50 }
-  ]
+  ],
+  "backendFetch": [{ "path": "src/shared/<이름>/<이름>-backend-fetch.ts", "export": "someBackendFetch", "order": 100 }],
+  "mockHandlers": [{ "path": "src/shared/<이름>/<이름>-mock-handlers.ts", "export": "someMockHandlers", "order": 100 }]
 }
 ```
 
@@ -182,11 +186,46 @@ export const someInstrumentation = {
 
 Node.js 전용 코드는 `process.env.NEXT_RUNTIME === 'nodejs'`를 확인한 뒤 동적 import로 불러온다(Base의 `src/shared/api/api-instrumentation.ts` 참고). `static-export` Starter에서는 개발 서버에서만 실행된다. 예: Sentry의 서버 초기화와 `captureRequestError`.
 
-Next.js는 `next build`에서 instrumentation을 실행하지 않는다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 코드에도 필요한 준비는 그 코드가 처음 쓰일 때 한다. 예를 들어 Base의 서버 조각이 켜는 MSW는 빌드할 때 켜지지 않으므로, 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`)에서는 서버의 `apiFetch`가 요청을 보내기 전에 켠다(`src/shared/api/api-mocking.ts`). 두 곳이 켜는 MSW는 같은 핸들러 목록(`src/shared/mocks/handlers.ts`)을 쓰므로, Recipe가 그 목록에 더한 핸들러는 빌드할 때도 응답한다.
+Next.js는 `next build`에서 instrumentation을 실행하지 않는다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 코드에도 필요한 준비는 그 코드가 처음 쓰일 때 한다. 예를 들어 Base의 서버 조각이 켜는 MSW는 빌드할 때 켜지지 않으므로, 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`)에서는 서버의 `apiFetch`가 요청을 보내기 전에 켠다(`src/shared/api/api-mocking.ts`). 두 곳이 켜는 MSW는 같은 핸들러 목록(`src/shared/mocks/handlers.ts`)을 쓰므로, Recipe가 [MSW 핸들러](#msw-핸들러mockhandlers) 확장 지점에 더한 핸들러는 빌드할 때도 응답한다.
 
 #### instrumentation-client(`instrumentationClient`)
 
 브라우저에서 앱 코드와 hydration보다 먼저 실행할 조각이다. `{ register?(): void; onRouterTransitionStart?(url, navigationType): void }` 객체를 내보낸다. `register`는 `order` 순으로 한 번, `onRouterTransitionStart`는 App Router가 페이지를 옮기기 시작할 때마다 실행된다(예: Sentry 초기화, 분석의 페이지뷰). 모듈 최상위에서는 일을 하지 않고 `register` 안에서 한다(import 순서는 `order`와 다르다). 개발·목 빌드에서만 쓸 코드는 `if (process.env.NEXT_PUBLIC_<값> === 'enabled') { ... }`로 감싸야 배포용 빌드에서 빠진다. 앞에서 `return`하면 빌드가 덜어 내지 못한다(`static-export`의 `browser-instrumentation.ts` 참고).
+
+#### 백엔드 요청(`backendFetch`)
+
+서버가 백엔드로 보내는 요청, 곧 서버(서버 컴포넌트, Route Handler, proxy)에서 부른 `apiFetch`와 BFF 프록시(`/api/proxy/*`)가 전달하는 브라우저의 요청을 감싸는 처리기다. 예: auth Recipe가 세션 쿠키의 accessToken을 붙이고 401이면 refresh한 뒤 다시 보낸다. 백엔드에 locale 헤더를 붙이는 것도 이 자리다. 처리기는 `fetch`와 같은 인자를 받고, `order`가 작은 처리기부터 이어진다.
+
+```ts
+type BackendFetchHandler = (
+  url: string,
+  init: RequestInit,
+  next: (url: string, init: RequestInit) => Promise<Response>,
+) => Promise<Response>
+```
+
+- `next(url, init)`로 다음 처리기에 넘긴다. 마지막 `next`는 `fetch`다. 요청을 고칠 때는 `init`을 고치지 않고 새 객체를 넘긴다(`{ ...init, headers }`).
+- 받은 응답을 고치거나 같은 요청을 다시 보낼 수 있다. 응답은 `order`의 거꾸로 거쳐 돌아간다. `fetch`가 돌려준 응답의 헤더는 고칠 수 없으므로 헤더를 복사한 새 `Response`를 만든다. BFF 프록시는 처리기가 더한 응답 헤더(예: `set-cookie`)도 브라우저에 넘긴다. 다시 보낼 때 쓰지 않을 응답 본문은 끝까지 읽어 버린다. Next.js의 `fetch`는 본문을 둘로 나눠(tee) 쓰므로 `body.cancel()`은 끝나지 않을 수 있다.
+- 요청 본문은 BFF 프록시에서는 `ArrayBuffer`, `apiFetch`에서는 문자열이라 다시 보낼 수 있다.
+- 처리기는 서버에서만 실행된다. `apiFetch`는 `typeof window === 'undefined'`인 블록 안에서만 조립 파일을 불러오므로 처리기 모듈은 브라우저 번들에 들어가지 않는다.
+- 모든 요청에서 `cookies()`나 `headers()`를 읽으면 그 요청을 보낸 페이지가 모두 요청마다 렌더링되어(SSR) SSG·ISR 페이지를 미리 만들 수 없다. BFF 프록시가 전달하는 요청은 브라우저의 헤더(쿠키 포함)를 그대로 싣고 있으므로 요청 헤더에서 읽는다. 서버 컴포넌트의 요청에 사용자별 값을 붙이려면 auth Recipe처럼 페이지가 먼저 읽은 값을 그 렌더링 동안만 기억해 두고 쓴다(`src/shared/auth/session-scope.ts`).
+- Base에는 처리기가 없다. 처리기가 없으면 `fetch`로 그대로 보낸다.
+
+#### MSW 핸들러(`mockHandlers`)
+
+명세에서 생성한 MSW 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)는 늘 명세의 `example`을 돌려준다. 요청의 파라미터대로 거르고 정렬하거나(table), 발급한 토큰을 기억하거나(auth), 일부 요청을 실패시키는 목 백엔드가 필요하면 Recipe가 직접 만든 MSW 핸들러의 배열을 내보내고 이 지점에 선언한다.
+
+```ts
+import { http, HttpResponse } from 'msw'
+
+export const someMockHandlers = [http.get('*/some-resources', () => HttpResponse.json([]))]
+```
+
+- Generator는 MSW의 핸들러 목록 `src/shared/mocks/handlers.ts`를 Recipe의 배열을 `order` 순으로 펼친 뒤 생성된 핸들러를 모두 붙여 쓴다. MSW는 앞의 핸들러가 먼저 응답하므로 Recipe의 핸들러는 같은 요청을 받는 생성된 핸들러(다른 Recipe의 명세 조각에서 생성된 것도)를 덮어쓴다. Recipe끼리 같은 요청을 받으면 `order`가 작은 Recipe의 핸들러가 응답한다. 핸들러가 응답을 돌려주지 않으면(`undefined`) 뒤의 핸들러가 그 요청을 받는다.
+- 이 목록은 Vitest(`src/shared/mocks/node.ts`), 개발 서버와 E2E 대상 서버(instrumentation), 목 빌드(`apiFetch`), `static-export`의 브라우저(서비스 워커)가 함께 쓴다. 그래서 핸들러 모듈은 Node.js와 브라우저에서 모두 불러올 수 있어야 한다(Node.js 전용 모듈을 import하지 않는다).
+- 핸들러의 경로는 `*/<경로>`처럼 백엔드 주소를 가리지 않게 쓴다. 서버는 `API_BASE_URL`(MSW가 켜져 있고 비어 있으면 명세의 `servers`), 브라우저는 BFF 프록시나 `NEXT_PUBLIC_API_BASE_URL`을 부른다.
+- 테스트 하나에서만 응답을 바꾸려면 이 지점 대신 테스트에서 `server.use(...)`를 쓴다.
+- Base에는 조각이 없다. 조각이 없으면 생성된 핸들러만 담는다. Base의 `src/shared/mocks/node.ts`가 이 파일을 쓰므로 조각이 없어도 늘 만든다.
 
 ### OpenAPI 명세 조각(`openapi.yaml`)
 
@@ -311,17 +350,17 @@ Recipe를 더하거나 고친 PR에는 changeset(`npm run changeset`)을 함께 
 
 TanStack Table로 정렬·필터·페이지를 백엔드가 처리하는 목록 테이블(`/members`)을 보여 주는 Recipe다. Base 명세의 operation은 고칠 수 없으므로 명세 조각으로 정렬·필터·페이지 파라미터를 받는 목록 operation `listMembers`(tag `members`)를 더하고, Query Domain(`src/queries/members/`)은 `npm run g -- query listMembers`가 만든 코드를 그대로 담는다. 테이블의 상태를 쿼리 파라미터로 바꿔 쿼리 키(ADR-0008)와 요청에 함께 담으므로, 브라우저가 상태가 바뀔 때마다 다시 요청한다. 그래서 서버에서 미리 가져오지 않고 두 Rendering Mode에서 같은 코드로 동작한다.
 
-생성된 MSW 핸들러는 명세의 `example`만 돌려주므로, 파라미터대로 거르고 정렬하는 핸들러(`src/shared/mocks/members.ts`)를 `src/shared/mocks/handlers.ts`의 패치로 생성된 핸들러 앞에 둔다. 이 자리는 아직 확장 지점이 아니다. 다른 Recipe도 직접 만든 MSW 핸들러를 같은 자리에 더하게 되면 확장 지점으로 만든다(ADR-0010).
+생성된 MSW 핸들러는 명세의 `example`만 돌려주므로, 파라미터대로 거르고 정렬하는 핸들러(`src/shared/mocks/members.ts`)를 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다.
 
-| 선언하는 것    | `recipes/table/`                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/members/page.tsx`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts` |
-| 확장 지점      | `openapi.yaml`(명세 조각): `GET /members`(`listMembers`), 스키마 `Member`, `MemberRole`, `MemberPage`           |
-| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                            |
-| npm 의존성     | `@tanstack/react-table`                                                                                         |
-| 자기 테스트    | `src/features/member-table/member-table.test.tsx`, `e2e/table.spec.ts`                                          |
-| 필요한 Recipe  | 없음                                                                                                            |
-| Rendering Mode | `server`, `static-export`                                                                                       |
+| 선언하는 것    | `recipes/table/`                                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/members/page.tsx`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts`                                             |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /members`(`listMembers`), 스키마 `Member`, `MemberRole`, `MemberPage`. `extensions.json`: MSW 핸들러 `membersHandlers`(100) |
+| 설정 패치      | 없음                                                                                                                                                        |
+| npm 의존성     | `@tanstack/react-table`                                                                                                                                     |
+| 자기 테스트    | `src/features/member-table/member-table.test.tsx`, `e2e/table.spec.ts`                                                                                      |
+| 필요한 Recipe  | 없음                                                                                                                                                        |
+| Rendering Mode | `server`, `static-export`                                                                                                                                   |
 
 ## 예: chart
 
@@ -362,3 +401,18 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 | 자기 테스트    | `src/shared/i18n/messages.test.tsx`, `request.test.ts`, `i18n-proxy.test.ts`, `src/features/i18n-example/cart-counter.test.tsx`, `locale-switcher.stories.tsx`, `e2e/i18n.spec.ts`                                                                                                                                          |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                                                                        |
 | Rendering Mode | `server`, `static-export`(proxy가 없어 홈 `/`는 기본 locale의 홈)                                                                                                                                                                                                                                                           |
+
+## 예: auth
+
+백엔드가 발급한 토큰으로 로그인하는 BFF 세션(ADR-0006)을 담은 Recipe다. 확장 지점 다섯과 명세 조각, 환경 변수로 끼어들고, 확장 지점이 없는 Base 파일 하나(E2E 설정)만 패치한다. 로그인·로그아웃 Route Handler와 BFF 프록시, proxy가 요청을 받는 서버에서 돌아야 하므로 `server`만 지원한다.
+
+| 선언하는 것    | `recipes/auth/`                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/shared/auth/`(세션 쿠키, refresh, 처리기, 목 백엔드), `src/app/api/session/route.ts`, `src/app/login`, `account`, `admin`, `forbidden` 페이지, `src/features/login-form/`, `user-menu/`, `account-profile/`, `src/queries/auth/`                                                                                                                                                                   |
+| 확장 지점      | `extensions.json`: 머리글 `UserMenu`(200), proxy `authProxy`(100, 보호된 라우트와 미리 refresh), instrumentation `authInstrumentation`(200, `SESSION_SECRET` 확인), 백엔드 요청 `authBackendFetch`(100, 토큰 첨부와 401 뒤 refresh, 토큰을 발급하는 operation은 BFF 프록시로 전달하지 않음), MSW 핸들러 `authMockHandlers`(100, 발급한 토큰을 기억하는 목 백엔드). 명세 조각 `openapi.yaml`(`auth` tag) |
+| 환경 변수      | `SESSION_SECRET`(`.env.example`, `.env.development`, `process-env.auth.d.ts`)                                                                                                                                                                                                                                                                                                                           |
+| 설정 패치      | `playwright.config.ts.patch`(E2E 대상 서버의 `SESSION_SECRET`)                                                                                                                                                                                                                                                                                                                                          |
+| npm 의존성     | `iron-session`, `cookie`                                                                                                                                                                                                                                                                                                                                                                                |
+| 자기 테스트    | `src/shared/auth/*.test.ts`, `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`                                                                                                                                                                                                                                                                        |
+| 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Rendering Mode | `server`                                                                                                                                                                                                                                                                                                                                                                                                |

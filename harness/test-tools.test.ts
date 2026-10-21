@@ -69,8 +69,11 @@ test('server.use로 이 테스트에서만 응답을 바꾼다', async () => {
 })
 
 describe('Storybook', () => {
-  test('Storybook 개발 서버가 뜬다', () => {
-    starter.expectNpmSuccess(['run', 'storybook', '--', '--ci', '--smoke-test'])
+  test('Storybook 개발 서버가 뜬다', async () => {
+    // Starter의 스크립트는 -p 6006으로 띄운다. 다른 워크트리의 하네스나 개발자의 Storybook이 6006을 쓰고 있어도 흔들리지 않도록
+    // 빈 포트를 뒤에 넘겨 덮어쓰고(뒤의 --port가 이긴다), 그 포트가 아니면 다른 포트로 옮기지 않고 실패하게 한다.
+    const port = String(await freePort())
+    starter.expectNpmSuccess(['run', 'storybook', '--', '--ci', '--smoke-test', '--port', port, '--exact-port'])
   })
 
   test('스토리마다 axe 접근성 검사가 돌고, Starter의 스토리는 모두 통과한다', () => {

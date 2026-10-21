@@ -20,5 +20,19 @@
       "export": "fixtureBClientInstrumentation",
       "order": 100
     }
+  ],
+  "backendFetch": [
+    {
+      "path": "src/shared/extension-b-fixture/fixture-b-backend-fetch.ts",
+      "export": "fixtureBBackendFetch",
+      "order": 100
+    }
+  ],
+  "mockHandlers": [
+    {
+      "path": "src/shared/extension-b-fixture/fixture-b-mock-handlers.ts",
+      "export": "fixtureBMockHandlers",
+      "order": 100
+    }
   ]
 }

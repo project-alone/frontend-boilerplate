@@ -1,5 +1,5 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/playwright.config.ts
+// 원본(packages/devc-frontend-generator/): base/playwright.config.ts, recipes/auth/playwright.config.ts.patch
 
 import { defineConfig, devices } from '@playwright/test'
 
@@ -22,6 +22,7 @@ export default defineConfig({
     command: `npm run start -- --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    env: { API_MOCKING: 'enabled' },
+    // auth Recipe: E2E 대상 서버가 로그인 세션 쿠키를 암호화할 때 쓰는 E2E 전용 비밀 값. 배포 환경에는 쓰지 않는다.
+    env: { API_MOCKING: 'enabled', SESSION_SECRET: 'e2e-only-session-secret-do-not-deploy' },
   },
 })

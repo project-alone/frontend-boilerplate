@@ -1,0 +1,156 @@
+# auth Recipe가 더한 인증 operation(ADR-0006). 백엔드가 accessToken·refreshToken을 발급하고, 프론트엔드의 BFF
+# (src/app/api/session/route.ts, BFF 프록시, proxy)가 이 operation을 불러 토큰을 암호화한 쿠키에 보관한다.
+# 브라우저는 이 operation을 직접 부르지 않는다. 실제 백엔드의 경로와 응답 모양이 다르면 이 명세와
+# src/shared/auth/auth-backend.ts를 맞춘다(README의 "인증").
+tags:
+  - name: auth
+    description: 인증
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: 로그인
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 발급한 토큰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+              example:
+                accessToken: sample-access-token
+                refreshToken: sample-refresh-token
+                expiresIn: 3600
+        '401':
+          description: 이메일이나 비밀번호가 맞지 않음
+  /auth/refresh:
+    post:
+      operationId: refreshTokens
+      summary: 토큰 재발급
+      description: refreshToken으로 새 토큰을 발급한다. 쓴 refreshToken은 더 쓸 수 없다(rotation).
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: 새로 발급한 토큰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+              example:
+                accessToken: sample-refreshed-access-token
+                refreshToken: sample-refreshed-refresh-token
+                expiresIn: 3600
+        '401':
+          description: refreshToken이 만료되었거나 이미 쓰였음
+  /auth/me:
+    get:
+      operationId: getMe
+      summary: 로그인한 사용자
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: accessToken의 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: 1
+                email: user@example.com
+                name: 김사용
+                roles: [user]
+        '401':
+          description: accessToken이 없거나 만료됨
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: 로그아웃
+      description: refreshToken을 더 쓸 수 없게 한다.
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: 로그아웃함
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          title: 이메일
+        password:
+          type: string
+          minLength: 1
+          title: 비밀번호
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          minimum: 0
+          description: accessToken이 만료되기까지 남은 초
+    Role:
+      type: string
+      enum: [admin, user]
+      description: 사용자의 역할. 보호된 라우트의 접근 규칙(src/shared/auth/access-rules.ts)이 쓴다.
+    User:
+      type: object
+      required: [id, email, name, roles]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'

@@ -1,0 +1,8 @@
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -20,3 +20,4 @@
+     reuseExistingServer: !process.env.CI,
+-    env: { API_MOCKING: 'enabled' },
++    // auth Recipe: E2E 대상 서버가 로그인 세션 쿠키를 암호화할 때 쓰는 E2E 전용 비밀 값. 배포 환경에는 쓰지 않는다.
++    env: { API_MOCKING: 'enabled', SESSION_SECRET: 'e2e-only-session-secret-do-not-deploy' },
+   },

@@ -1,0 +1,6 @@
+{
+  "description": "백엔드가 발급한 토큰으로 로그인하는 BFF 세션(암호화한 httpOnly 쿠키), BFF 프록시의 토큰 첨부와 refresh, 보호된 라우트와 역할",
+  "requires": [],
+  "renderingModes": ["server"],
+  "renderingModesReason": "로그인·로그아웃을 중계하는 Route Handler, 토큰을 붙이는 BFF 프록시, 보호된 라우트를 거르는 proxy는 요청을 받는 Next.js 서버에서 돌아야 합니다."
+}
