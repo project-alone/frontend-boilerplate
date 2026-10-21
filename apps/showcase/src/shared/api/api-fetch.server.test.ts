@@ -51,3 +51,12 @@ test('MSW를 끈 서버에 API_BASE_URL이 없으면 무엇을 넣어야 하는�
 
   await expect(apiFetch('/products')).rejects.toThrow('API_BASE_URL')
 })
+
+test('MSW를 끈 빌드(next build)에 API_BASE_URL이 없으면 배포용 빌드와 목 빌드의 방법을 알려 주며 실패한다', async () => {
+  // next build가 빌드 워커까지 넣는 단계 이름
+  vi.stubEnv('NEXT_PHASE', 'phase-production-build')
+  vi.stubEnv('API_MOCKING', 'disabled')
+  vi.stubEnv('API_BASE_URL', '')
+
+  await expect(apiFetch('/products')).rejects.toThrow('API_MOCKING=enabled')
+})

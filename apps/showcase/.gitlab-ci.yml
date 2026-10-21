@@ -80,8 +80,13 @@ test:storybook:
   script:
     - npm run test:storybook
 
+# 목 빌드: 빌드할 때 서버 컴포넌트가 보내는 API 요청(SSG·ISR 페이지의 데이터)도 MSW가 받게 하고 빌드해, 실제 백엔드 없이
+# 빌드가 깨지지 않는지 확인한다. 미리 렌더링한 페이지에 목 응답이 담기므로 이 잡의 빌드 결과는 배포하지 않는다.
+# 배포용 빌드는 API_MOCKING을 켜지 않고 API_BASE_URL에 백엔드 주소를 넣어 따로 만든다(README의 "실행과 배포").
 build:
   stage: build
+  variables:
+    API_MOCKING: enabled
   cache:
     - <<: *npm-cache
       policy: pull-push
@@ -91,6 +96,9 @@ build:
         - .next/cache/
   script:
     - npm run build
+    # 빌드할 때 받은 목 응답은 Next.js의 데이터 캐시(.next/cache/fetch-cache)에도 남는다. 다음 빌드가 빌드 캐시에서 목 응답을
+    # 이어받지 않도록 캐시에 넣기 전에 지운다.
+    - rm -rf .next/cache/fetch-cache
   # E2E가 `next start`로 띄울 빌드 결과. 빌드 캐시와 standalone 결과물은 E2E에 필요 없어 넘기지 않는다.
   artifacts:
     paths:
