@@ -1,0 +1,227 @@
+import { http, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
+import {
+  CreateUserBody,
+  ListUsersParams,
+  type ListUsersParamsOutput,
+  Role,
+  UpdateUserBody,
+  type UserAccount,
+  type UserAccountPage,
+  type UserStats,
+  UserStatus,
+} from '@/shared/api/generated/model'
+
+// 대시보드 Archetype: 사용자 관리 API(users tag)를 흉내 내는 목 백엔드. 명세에서 생성한 핸들러는 늘 같은 example을
+// 돌려주므로, 추가하고 고친 사용자를 기억하고 쿼리 파라미터대로 거르고 정렬하는 핸들러를 따로 둔다. 확장 지점 mockHandlers
+// (Archetype의 extensions.json)로 선언해, MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이 생성된 핸들러보다 앞에 둔다.
+// 생성된 핸들러처럼 목 백엔드 주소(MOCK_API_BASE_URL)로 가는 요청만 받는다(ADR-0013). Vitest, 개발 서버, E2E 대상 서버가 모두
+// 이 핸들러를 쓴다. 사용자는 서버 프로세스의 메모리에만 있어 서버를 다시 띄우면 처음 상태로 돌아간다. 실제 백엔드로 바꾸면
+// 쓰이지 않는다.
+//
+// 역할 확인(사용자를 추가하고 고치는 것은 관리자만)은 화면 쪽 접근 규칙(src/shared/auth/access-rules.ts)이 한다. 실제 백엔드는
+// accessToken의 사용자 역할을 보고 같은 규칙으로 요청을 거절해야 한다(명세의 403).
+
+/** 목 백엔드의 처음 사용자. auth Recipe의 목 계정(user@example.com, admin@example.com)도 들어 있다. */
+const SEED_USERS: readonly UserAccount[] = [
+  {
+    id: 1,
+    name: '김사용',
+    email: 'user@example.com',
+    role: 'user',
+    status: 'active',
+    department: '영업팀',
+    joinedAt: '2025-01-15',
+  },
+  {
+    id: 2,
+    name: '박관리',
+    email: 'admin@example.com',
+    role: 'admin',
+    status: 'active',
+    department: '운영팀',
+    joinedAt: '2025-03-02',
+  },
+  {
+    id: 3,
+    name: '이서준',
+    email: 'seojun.lee@example.com',
+    role: 'user',
+    status: 'active',
+    department: '개발팀',
+    joinedAt: '2025-04-11',
+  },
+  { id: 4, name: '최유나', email: 'yuna.choi@example.com', role: 'user', status: 'invited', joinedAt: '2025-05-20' },
+  {
+    id: 5,
+    name: '정하준',
+    email: 'hajun.jung@example.com',
+    role: 'admin',
+    status: 'active',
+    department: '개발팀',
+    joinedAt: '2025-06-03',
+  },
+  {
+    id: 6,
+    name: '강민지',
+    email: 'minji.kang@example.com',
+    role: 'user',
+    status: 'suspended',
+    department: '영업팀',
+    joinedAt: '2025-06-18',
+  },
+  {
+    id: 7,
+    name: '윤도현',
+    email: 'dohyun.yoon@example.com',
+    role: 'user',
+    status: 'active',
+    department: '디자인팀',
+    joinedAt: '2025-07-07',
+  },
+  { id: 8, name: '장수아', email: 'sua.jang@example.com', role: 'user', status: 'active', joinedAt: '2025-08-25' },
+  {
+    id: 9,
+    name: '임지호',
+    email: 'jiho.lim@example.com',
+    role: 'user',
+    status: 'invited',
+    department: '마케팅팀',
+    joinedAt: '2025-09-14',
+  },
+  {
+    id: 10,
+    name: '한예준',
+    email: 'yejun.han@example.com',
+    role: 'admin',
+    status: 'active',
+    department: '운영팀',
+    joinedAt: '2025-10-01',
+  },
+  {
+    id: 11,
+    name: '오지아',
+    email: 'jia.oh@example.com',
+    role: 'user',
+    status: 'active',
+    department: '개발팀',
+    joinedAt: '2025-11-12',
+  },
+  {
+    id: 12,
+    name: '서하린',
+    email: 'harin.seo@example.com',
+    role: 'user',
+    status: 'suspended',
+    department: '마케팅팀',
+    joinedAt: '2026-01-08',
+  },
+]
+
+let users: UserAccount[] = [...SEED_USERS]
+
+/** 사용자를 처음 상태로 되돌린다. 테스트가 서로의 추가·수정에 영향을 받지 않게 할 때 쓴다. */
+export function resetMockUsers(): void {
+  users = [...SEED_USERS]
+}
+
+/** 명세의 listUsers처럼 사용자를 거르고(q, role, status) 정렬하고(sort, order) 한 페이지(page, pageSize)를 잘라 돌려준다. */
+function listUsersPage({ q, role, status, sort, order, page, pageSize }: ListUsersParamsOutput): UserAccountPage {
+  const keyword = q?.trim().toLowerCase() ?? ''
+  const filtered = users.filter(
+    (user) =>
+      (role === undefined || user.role === role) &&
+      (status === undefined || user.status === status) &&
+      (keyword === '' || `${user.name} ${user.email}`.toLowerCase().includes(keyword)),
+  )
+  if (sort === undefined) {
+    // 정렬하지 않으면 최근에 추가한 사용자부터다.
+    filtered.sort((a, b) => b.id - a.id)
+  } else {
+    const direction = order === 'desc' ? -1 : 1
+    // 값이 같으면 추가한 순서(id)를 따르므로 같은 요청에는 늘 같은 순서로 답한다.
+    filtered.sort((a, b) => direction * a[sort].localeCompare(b[sort], 'ko') || a.id - b.id)
+  }
+  const start = (page - 1) * pageSize
+  return { items: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }
+}
+
+function statsOf(all: readonly UserAccount[]): UserStats {
+  return {
+    total: all.length,
+    byStatus: UserStatus.options.map((status) => ({
+      status,
+      count: all.filter((user) => user.status === status).length,
+    })),
+    byRole: Role.options.map((role) => ({ role, count: all.filter((user) => user.role === role).length })),
+  }
+}
+
+/** URL의 쿼리 파라미터를 명세의 파라미터 모양으로 읽는다. 숫자 파라미터는 문자열로 오므로 숫자로 바꾼다. */
+function readParams(url: URL): Record<string, unknown> {
+  const params: Record<string, unknown> = Object.fromEntries(url.searchParams)
+  for (const name of ['page', 'pageSize']) {
+    const value = params[name]
+    if (typeof value === 'string') params[name] = Number(value)
+  }
+  return params
+}
+
+function userAt(userId: unknown): UserAccount | undefined {
+  return users.find((user) => String(user.id) === userId)
+}
+
+function emailTaken(email: string, exceptId?: number): boolean {
+  return users.some((user) => user.email.toLowerCase() === email.toLowerCase() && user.id !== exceptId)
+}
+
+const DUPLICATE_EMAIL = '같은 이메일의 사용자가 이미 있습니다.'
+
+async function jsonBody(request: Request): Promise<unknown> {
+  return request.json().catch(() => undefined)
+}
+
+export const usersHandlers = [
+  // /users/:userId보다 앞에 두어 stats를 사용자 id로 읽지 않게 한다.
+  http.get(`${MOCK_API_BASE_URL}/users/stats`, () => HttpResponse.json(statsOf(users))),
+
+  http.get(`${MOCK_API_BASE_URL}/users`, ({ request }) => {
+    // 실제 백엔드처럼 명세에 없는 값(알 수 없는 정렬 항목 등)은 400으로 거절한다.
+    const params = ListUsersParams.safeParse(readParams(new URL(request.url)))
+    if (!params.success) return HttpResponse.json({ message: params.error.message }, { status: 400 })
+    return HttpResponse.json(listUsersPage(params.data))
+  }),
+
+  http.post(`${MOCK_API_BASE_URL}/users`, async ({ request }) => {
+    const body = CreateUserBody.safeParse(await jsonBody(request))
+    if (!body.success) return HttpResponse.json({ message: body.error.message }, { status: 400 })
+    if (emailTaken(body.data.email)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
+    const created: UserAccount = {
+      ...body.data,
+      id: Math.max(0, ...users.map((user) => user.id)) + 1,
+      status: 'invited',
+      joinedAt: new Date().toISOString().slice(0, 10),
+    }
+    users = [...users, created]
+    return HttpResponse.json(created, { status: 201 })
+  }),
+
+  http.get(`${MOCK_API_BASE_URL}/users/:userId`, ({ params }) => {
+    const user = userAt(params['userId'])
+    return user === undefined
+      ? HttpResponse.json({ message: '그런 사용자가 없습니다.' }, { status: 404 })
+      : HttpResponse.json(user)
+  }),
+
+  http.put(`${MOCK_API_BASE_URL}/users/:userId`, async ({ params, request }) => {
+    const current = userAt(params['userId'])
+    if (current === undefined) return HttpResponse.json({ message: '그런 사용자가 없습니다.' }, { status: 404 })
+    const body = UpdateUserBody.safeParse(await jsonBody(request))
+    if (!body.success) return HttpResponse.json({ message: body.error.message }, { status: 400 })
+    if (emailTaken(body.data.email, current.id)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
+    // PUT이므로 보내지 않은 선택 항목(department)은 지운다.
+    const updated: UserAccount = { ...body.data, id: current.id, joinedAt: current.joinedAt }
+    users = users.map((user) => (user.id === current.id ? updated : user))
+    return HttpResponse.json(updated)
+  }),
+]

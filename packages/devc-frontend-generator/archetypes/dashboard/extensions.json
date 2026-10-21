@@ -1,0 +1,4 @@
+{
+  "header": [{ "path": "src/features/dashboard-nav/dashboard-link.tsx", "export": "DashboardLink", "order": 50 }],
+  "mockHandlers": [{ "path": "src/shared/mocks/users.ts", "export": "usersHandlers", "order": 100 }]
+}

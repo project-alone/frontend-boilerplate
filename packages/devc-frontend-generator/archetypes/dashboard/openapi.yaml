@@ -1,0 +1,342 @@
+# 대시보드 Archetype이 Base 명세에 더하는 명세 조각(docs/archetypes.md). 관리자 대시보드가 다루는 사용자와 사용자 통계
+# operation이다. 사용자의 역할(Role)과 인증(bearerAuth)은 auth Recipe의 명세 조각에 있는 것을 그대로 쓰므로, 로그인한
+# 사용자(auth의 User)와 같은 역할로 관리한다. 목록은 table Recipe의 listMembers처럼 정렬·필터·페이지를 쿼리 파라미터로 받는다.
+tags:
+  - name: users
+    description: 사용자 관리
+paths:
+  /users:
+    get:
+      operationId: listUsers
+      summary: 사용자 목록
+      description: 검색어, 역할, 상태로 거르고 정렬한 사용자 목록의 한 페이지를 돌려준다.
+      tags: [users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: 이름이나 이메일에 들어 있는 검색어. 대소문자를 가리지 않는다.
+          required: false
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: 이 역할의 사용자만 돌려준다.
+          required: false
+          schema:
+            $ref: '#/components/schemas/Role'
+        - name: status
+          in: query
+          description: 이 상태의 사용자만 돌려준다.
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+        - name: sort
+          in: query
+          description: 정렬할 항목. 없으면 최근에 추가한 사용자부터(id 내림차순)다.
+          required: false
+          schema:
+            type: string
+            enum: [name, email, joinedAt]
+        - name: order
+          in: query
+          description: 정렬 방향. sort가 있을 때만 쓴다.
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+        - name: page
+          in: query
+          description: 1부터 세는 페이지 번호
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: 한 페이지의 사용자 수
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: 사용자 목록의 한 페이지
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAccountPage'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 대시보드의 핸들러(src/shared/mocks/users.ts)가
+              # 추가·수정한 사용자를 기억하고 파라미터대로 정렬·필터한 결과를 대신 돌려준다.
+              example:
+                items:
+                  - id: 2
+                    name: 박관리
+                    email: admin@example.com
+                    role: admin
+                    status: active
+                    department: 운영팀
+                    joinedAt: '2025-03-02'
+                  - id: 1
+                    name: 김사용
+                    email: user@example.com
+                    role: user
+                    status: active
+                    joinedAt: '2025-01-15'
+                total: 2
+                page: 1
+                pageSize: 10
+        '401':
+          description: 로그인하지 않았다.
+    post:
+      operationId: createUser
+      summary: 사용자 추가
+      description: 사용자를 초대한다. 추가한 사용자는 초대됨(invited) 상태로 시작한다. 관리자만 할 수 있다.
+      tags: [users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewUserAccount'
+      responses:
+        '201':
+          description: 추가한 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAccount'
+              example:
+                id: 13
+                name: 신입사
+                email: newbie@example.com
+                role: user
+                status: invited
+                joinedAt: '2026-10-21'
+        '403':
+          description: 관리자가 아니다.
+        '409':
+          description: 같은 이메일의 사용자가 이미 있다.
+  /users/stats:
+    get:
+      operationId: getUserStats
+      summary: 사용자 통계
+      description: 전체 사용자 수와 상태별·역할별 사용자 수
+      tags: [users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 사용자 통계
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStats'
+              example:
+                total: 12
+                byStatus:
+                  - status: active
+                    count: 8
+                  - status: invited
+                    count: 2
+                  - status: suspended
+                    count: 2
+                byRole:
+                  - role: admin
+                    count: 3
+                  - role: user
+                    count: 9
+  /users/{userId}:
+    get:
+      operationId: getUser
+      summary: 사용자 상세
+      tags: [users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAccount'
+              example:
+                id: 1
+                name: 김사용
+                email: user@example.com
+                role: user
+                status: active
+                joinedAt: '2025-01-15'
+        '404':
+          description: 그런 사용자가 없다.
+    put:
+      operationId: updateUser
+      summary: 사용자 수정
+      description: 사용자의 정보를 보낸 값으로 바꾼다. 보내지 않은 선택 항목(department)은 지운다. 관리자만 할 수 있다.
+      tags: [users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAccountUpdate'
+      responses:
+        '200':
+          description: 고친 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAccount'
+              example:
+                id: 1
+                name: 김사용
+                email: user@example.com
+                role: user
+                status: suspended
+                joinedAt: '2025-01-15'
+        '403':
+          description: 관리자가 아니다.
+        '404':
+          description: 그런 사용자가 없다.
+        '409':
+          description: 같은 이메일의 다른 사용자가 이미 있다.
+components:
+  schemas:
+    UserStatus:
+      type: string
+      enum: [active, invited, suspended]
+      description: 활성(active), 초대만 하고 아직 로그인하지 않음(invited), 정지(suspended)
+    UserAccount:
+      type: object
+      required: [id, name, email, role, status, joinedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        department:
+          type: string
+          description: 소속 부서. 없으면 비운다.
+        joinedAt:
+          type: string
+          format: date
+          description: 추가한 날(YYYY-MM-DD)
+    NewUserAccount:
+      type: object
+      required: [name, email, role]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+          title: 이름
+        email:
+          type: string
+          format: email
+          title: 이메일
+        role:
+          $ref: '#/components/schemas/Role'
+        department:
+          type: string
+          maxLength: 40
+          title: 부서
+    UserAccountUpdate:
+      type: object
+      required: [name, email, role, status]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+          title: 이름
+        email:
+          type: string
+          format: email
+          title: 이메일
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        department:
+          type: string
+          maxLength: 40
+          title: 부서
+    UserAccountPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserAccount'
+        total:
+          type: integer
+          description: 거른 뒤의 전체 사용자 수
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    UserStats:
+      type: object
+      required: [total, byStatus, byRole]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: 전체 사용자 수
+        byStatus:
+          type: array
+          description: 상태별 사용자 수. 모든 상태가 한 번씩 UserStatus의 순서대로 온다.
+          items:
+            $ref: '#/components/schemas/UserStatusCount'
+        byRole:
+          type: array
+          description: 역할별 사용자 수. 모든 역할이 한 번씩 Role의 순서대로 온다.
+          items:
+            $ref: '#/components/schemas/UserRoleCount'
+    UserStatusCount:
+      type: object
+      required: [status, count]
+      properties:
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        count:
+          type: integer
+          minimum: 0
+    UserRoleCount:
+      type: object
+      required: [role, count]
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+        count:
+          type: integer
+          minimum: 0

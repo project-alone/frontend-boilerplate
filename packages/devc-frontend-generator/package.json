@@ -30,6 +30,7 @@
     "base",
     "rendering-modes",
     "recipes",
+    "archetypes",
     "CHANGELOG.md"
   ],
   "scripts": {

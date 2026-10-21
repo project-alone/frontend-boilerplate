@@ -2,6 +2,7 @@ import { cp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { regenerateApiLayer } from './api-layer.js'
+import { type Archetype, archetypeOverlay } from './archetypes.js'
 import { type DotenvSource, findDotenvConflicts, isDotenvFile } from './dotenv.js'
 import { checkExtensions, EXTENSIONS_MANIFEST, readExtensions, writeExtensionFiles } from './extensions.js'
 import { formatForStarter } from './format.js'
@@ -30,8 +31,10 @@ export class TargetNotEmptyError extends Error {
 
 export interface StarterChoices {
   renderingMode: RenderingMode
-  /** 덧입힐 순서대로 늘어놓은 Recipe(resolveRecipes의 결과) */
+  /** 덧입힐 순서대로 늘어놓은 Recipe(resolveSelection의 결과) */
   recipes: readonly Recipe[]
+  /** Recipe를 모두 덧입힌 뒤에 덧입힐 Archetype(resolveSelection의 결과). 없으면 빈 배열이다. */
+  archetypes?: readonly Archetype[]
 }
 
 /** Starter를 만들 디렉터리의 절대 경로. 이미 내용이 있으면 TargetNotEmptyError를 던진다. 아무것도 쓰지 않는다. */
@@ -42,17 +45,23 @@ export async function prepareTarget(name: string, cwd: string): Promise<string> 
 }
 
 /**
- * Base에 Rendering Mode와 Recipe를 차례로 덧입혀 target에 Starter를 만든다(ADR-0002, ADR-0007). 그다음 overlay의 명세 조각을
+ * Base에 Rendering Mode, Recipe, Archetype을 차례로 덧입혀 target에 Starter를 만든다(ADR-0002, ADR-0007). Archetype은
+ * 자기가 쓰는 Recipe 위에 화면을 더하므로 Recipe를 모두 덧입힌 뒤에 덧입힌다. 그다음 overlay의 명세 조각을
  * Base 명세에 병합하고, Base와 overlay가 선언한 확장 지점의 조각(extensions.json)으로 조립 파일을 만든다(ADR-0010).
  * 확장 지점의 선언, 명세 조각, dotenv 파일은 무엇을 쓰기 전에 읽어 보고, 잘못되었거나 명세가 겹치거나 같은 변수에 다른 값을
  * 적었으면 OverlayError로 실패한다.
  * 도중에 실패하면 반쯤 만든 Starter를 지운다. prepareTarget이 확인했듯 target은 없거나 빈 디렉터리였으므로,
  * 원래 있던 빈 디렉터리는 비운 채로 남긴다.
  */
-export async function createStarter(target: string, { renderingMode, recipes }: StarterChoices): Promise<void> {
-  const overlays = [renderingModeOverlay(renderingMode), ...recipes.map(recipeOverlay)].filter(
-    (overlay) => overlay !== undefined,
-  )
+export async function createStarter(
+  target: string,
+  { renderingMode, recipes, archetypes = [] }: StarterChoices,
+): Promise<void> {
+  const overlays = [
+    renderingModeOverlay(renderingMode),
+    ...recipes.map(recipeOverlay),
+    ...archetypes.map(archetypeOverlay),
+  ].filter((overlay) => overlay !== undefined)
   const pieces = (await Promise.all([BASE, ...overlays].map(readExtensions))).flat()
   checkExtensions(pieces)
   const fragments = await readSpecFragments(overlays)

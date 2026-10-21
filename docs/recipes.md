@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`, 확장 지점 세 곳(`next.config`, instrumentation, instrumentation-client)에 조각을 더하는 `recipes/sentry/`, 그와 같은 instrumentation-client에 페이지뷰 조각을 더하는 `recipes/analytics/`, 진행률을 알려 주는 요청으로 파일을 올리는 `recipes/file-upload/`, 이벤트 스트림으로 쿼리 캐시를 고치는 `recipes/realtime/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`, 확장 지점 세 곳(`next.config`, instrumentation, instrumentation-client)에 조각을 더하는 `recipes/sentry/`, 그와 같은 instrumentation-client에 페이지뷰 조각을 더하는 `recipes/analytics/`, 진행률을 알려 주는 요청으로 파일을 올리는 `recipes/file-upload/`, 이벤트 스트림으로 쿼리 캐시를 고치는 `recipes/realtime/`도 적는다. 여러 Recipe를 조합한 완성된 앱 유형인 Archetype은 같은 overlay 형식을 쓰며 [Archetype 작성하기](archetypes.md)에 따로 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -8,13 +8,14 @@ Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있�
 
 1. `base/`를 복사한다(`base/extensions.json`은 빼고).
 2. 고른 Rendering Mode의 overlay(`rendering-modes/<mode>/`)를 덧입힌다. `server`는 Base 그대로라 overlay가 없다.
-3. 고른 Recipe와 그 Recipe가 필요로 하는 Recipe를 덧입힌다. 필요한 Recipe가 먼저 오고, 나머지는 이름순이다. 고른 순서와 상관없이 같은 Starter가 나온다.
-4. overlay의 OpenAPI 명세 조각을 Base 명세(`openapi.yaml`)에 병합하고, 병합한 명세로 재생성 API 계층을 다시 만든다(명세 조각이 있을 때만).
-5. Base, Rendering Mode, Recipe가 확장 지점에 선언한 조각(`extensions.json`)을 모아 조립 파일(`src/app/app-shell.tsx` 등)을 쓴다.
-6. Starter의 `package.json`에 Starter 이름을 적고, Starter를 만든 Generator를 정확한 버전으로 `devDependencies`에 고정한다(`npm run g`가 이 Generator를 쓴다). overlay를 모두 덧입힌 뒤에 정하므로 Recipe가 바꿀 수 없다.
-7. `npm install`로 의존성을 설치한다(`--skip-install`이면 건너뛴다).
+3. 고른 Recipe, 고른 Archetype이 쓰는 Recipe, 그 Recipe들이 필요로 하는 Recipe를 덧입힌다. 필요한 Recipe가 먼저 오고, 나머지는 이름순이다. 고른 순서와 상관없이 같은 Starter가 나온다.
+4. 고른 Archetype의 overlay(`archetypes/<이름>/`)를 이름순으로 덧입힌다. Recipe를 모두 덧입힌 뒤이므로 Archetype은 Recipe의 파일을 패치로 고칠 수 있다([Archetype 작성하기](archetypes.md)).
+5. overlay의 OpenAPI 명세 조각을 Base 명세(`openapi.yaml`)에 병합하고, 병합한 명세로 재생성 API 계층을 다시 만든다(명세 조각이 있을 때만).
+6. Base, Rendering Mode, Recipe, Archetype이 확장 지점에 선언한 조각(`extensions.json`)을 모아 조립 파일(`src/app/app-shell.tsx` 등)을 쓴다.
+7. Starter의 `package.json`에 Starter 이름을 적고, Starter를 만든 Generator를 정확한 버전으로 `devDependencies`에 고정한다(`npm run g`가 이 Generator를 쓴다). overlay를 모두 덧입힌 뒤에 정하므로 Recipe가 바꿀 수 없다.
+8. `npm install`로 의존성을 설치한다(`--skip-install`이면 건너뛴다).
 
-고른 조합에 알 수 없는 Recipe가 있거나, 고른 Rendering Mode를 지원하지 않는 Recipe(함께 넣을 Recipe 포함)가 있으면 아무것도 만들기 전에 이유와 함께 거부한다. 확장 지점의 선언이 잘못되었거나 명세 조각이 Base나 다른 Recipe의 명세와 겹쳐도 아무것도 만들기 전에 실패한다.
+고른 조합에 알 수 없는 Recipe나 Archetype이 있거나, 고른 Rendering Mode를 지원하지 않는 Archetype이나 Recipe(함께 넣을 Recipe 포함)가 있으면 아무것도 만들기 전에 이유와 함께 거부한다. 확장 지점의 선언이 잘못되었거나 명세 조각이 Base나 다른 Recipe의 명세와 겹쳐도 아무것도 만들기 전에 실패한다.
 
 ## 디렉터리 구조
 
@@ -313,20 +314,20 @@ npx vitest run harness/<이름>.test.ts   # 하네스는 Generator를 npm pack�
 
 ## Showcase
 
-Showcase(`apps/showcase/`)는 Base에 Rendering Mode `server`와 Generator에 담긴 모든 Recipe를 덧입혀 생성한 Starter다(ADR-0002). 생성 결과를 커밋해 두어 GitHub에서 CLI 없이 코드를 둘러볼 수 있고, 로컬에서는 명령 하나로 실행해 본다. Showcase는 직접 고치지 않는다. 주석을 달 수 있는 파일은 맨 위 주석이 고칠 원본(Base 파일, Recipe 파일, Recipe의 패치)을 알리고, 주석을 달 수 없는 파일(JSON 등)은 Showcase의 README 맨 위 안내가 알린다.
+Showcase(`apps/showcase/`)는 Base에 Rendering Mode `server`와 Generator에 담긴 모든 Recipe, 모든 Archetype을 덧입혀 생성한 Starter다(ADR-0002). 생성 결과를 커밋해 두어 GitHub에서 CLI 없이 코드를 둘러볼 수 있고, 로컬에서는 명령 하나로 실행해 본다. Showcase는 직접 고치지 않는다. 주석을 달 수 있는 파일은 맨 위 주석이 고칠 원본(Base 파일, Recipe 파일, Recipe의 패치)을 알리고, 주석을 달 수 없는 파일(JSON 등)은 Showcase의 README 맨 위 안내가 알린다.
 
 | 명령(레포 최상위)        | 하는 일                                                                                                                                                                           |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run showcase`       | Generator를 빌드하고 Showcase를 다시 만들어 `apps/showcase/`를 그 결과와 같게 만든다. 바뀐 파일만 쓰고, 이제 생기지 않는 파일은 지운다                                            |
 | `npm run showcase:check` | 다시 만든 결과가 `apps/showcase/`와 다르면 다른 파일을 알리고 실패한다. CI(GitHub Actions의 `Showcase drift`)가 실행한다                                                          |
-| `npm run showcase:watch` | Generator의 Base, Recipe, Rendering Mode overlay, 소스가 바뀔 때마다 Showcase를 다시 만든다                                                                                       |
+| `npm run showcase:watch` | Generator의 Base, Recipe, Archetype, Rendering Mode overlay, 소스가 바뀔 때마다 Showcase를 다시 만든다                                                                            |
 | `npm run showcase:dev`   | Showcase를 레포 밖(운영체제의 임시 디렉터리)에 복사·설치하고 MSW 목으로 개발 서버를 띄운다. Showcase가 바뀌면 개발 서버에 옮긴다. `-- --port 3001`처럼 `next dev`의 인자를 넘긴다 |
 
 - 같은 원본에서는 늘 같은 Showcase가 나온다. 생성 결과에 시각이나 난수 같은 값을 넣지 않는다. Recipe의 파일도 마찬가지다.
-- Showcase는 Rendering Mode `server`라서, Recipe는 `server`를 지원해야 Showcase에 들어간다(지원하지 않으면 생성이 실패한다).
+- Showcase는 Rendering Mode `server`라서, Recipe와 Archetype은 `server`를 지원해야 Showcase에 들어간다(지원하지 않으면 생성이 실패한다).
 - Showcase는 npm workspace가 아니고 레포 안에서 설치하지 않는다. 설치하면 Starter의 lefthook이 postinstall에서 이 레포에 git 훅과 `lefthook.yml`을 만들고, workspace로 두면 레포를 설치할 때마다 Showcase의 의존성까지 설치하게 된다. `showcase:dev`는 레포 밖에서 설치하고, Showcase가 고정한 Generator 대신 레포의 Generator를 쓴다.
 - Showcase의 `package.json`은 다른 Starter처럼 Generator를 정확한 버전으로 고정한다. 그래서 Generator 버전을 올리는 Version PR(`npm run release:version`)도 Showcase를 다시 만든다([릴리스와 배포](release.md)).
-- 하네스의 `harness/showcase.test.ts`가 생성·어긋남 검사·watch·dev를, `harness/showcase-starter.test.ts`가 Showcase를 설치해 Starter의 모든 스크립트를 검증한다. 후자가 조합 매트릭스의 "모든 Recipe를 켠 조합"이다.
+- 하네스의 `harness/showcase.test.ts`가 생성·어긋남 검사·watch·dev를, `harness/showcase-starter.test.ts`가 Showcase를 설치해 Starter의 모든 스크립트를 검증한다. 후자가 조합 매트릭스의 "모든 Recipe·Archetype을 켠 조합"이다.
 
 ### Recipe를 더하거나 고칠 때
 

@@ -12,15 +12,19 @@ Node.js 22.12 이상에서 실행합니다. 만들어진 Starter는 `.nvmrc`에 
 npx devc-frontend-generator new my-app
 ```
 
-터미널에서 실행하면 Rendering Mode와 Recipe를 차례로 묻습니다. 고를 수 있는 Recipe는 설명과 함께 선택지에 나옵니다. 플래그로 정하면 묻지 않습니다.
+터미널에서 실행하면 Rendering Mode, Archetype, Recipe를 차례로 묻습니다. 고를 수 있는 Archetype과 Recipe는 설명과 함께 선택지에 나옵니다. 플래그로 정하면 묻지 않습니다.
 
 ```sh
 npx devc-frontend-generator new my-app --rendering-mode static-export --recipe dark-mode
+npx devc-frontend-generator new my-admin --archetype dashboard   # 관리자 대시보드. auth, chart, table Recipe가 함께 들어간다
 ```
+
+Archetype은 여러 Recipe를 조합해 만든 완성된 앱 유형입니다(예: 관리자 대시보드). 고르면 그 Archetype이 쓰는 Recipe가 함께 들어가고, 쓰는 Recipe가 지원하지 않는 Rendering Mode와는 만들기 전에 이유와 함께 거부됩니다.
 
 | 옵션                      | 뜻                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------- |
 | `--rendering-mode <mode>` | Starter 전체의 Rendering Mode입니다. `server`(기본) 또는 `static-export`         |
+| `--archetype <name>`      | 넣을 Archetype입니다. 여러 번 쓸 수 있고, 그 Archetype이 쓰는 Recipe도 넣습니다  |
 | `--recipe <name>`         | 넣을 Recipe입니다. 여러 번 쓸 수 있고, Recipe에 필요한 다른 Recipe는 함께 넣습니다 |
 | `--skip-install`          | Starter를 만든 뒤 `npm install`을 하지 않습니다                                  |
 
@@ -53,6 +57,7 @@ npx dcgen g --help                                     # 쓸 수 있는 Schemati
 
 - [소스와 문서](https://github.com/project-alone/frontend-boilerplate)
 - [Recipe 작성하기](https://github.com/project-alone/frontend-boilerplate/blob/master/docs/recipes.md)
+- [Archetype 작성하기](https://github.com/project-alone/frontend-boilerplate/blob/master/docs/archetypes.md)
 - [릴리스와 배포](https://github.com/project-alone/frontend-boilerplate/blob/master/docs/release.md)
 - [변경 내역](https://github.com/project-alone/frontend-boilerplate/blob/master/packages/devc-frontend-generator/CHANGELOG.md)
 

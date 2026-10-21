@@ -30,18 +30,6 @@ export class RecipeDefinitionError extends Error {
   }
 }
 
-/** 고른 Recipe 조합으로는 Starter를 만들 수 없다. 사용자가 선택을 바꿔야 하는 오류다. */
-export class RecipeSelectionError extends Error {
-  /** 거부한 이유. Recipe마다 한 줄이다. */
-  readonly reasons: readonly string[]
-
-  constructor(summary: string, reasons: readonly string[]) {
-    super([summary, ...reasons.map((reason) => `- ${reason}`)].join('\n'))
-    this.name = 'RecipeSelectionError'
-    this.reasons = reasons
-  }
-}
-
 /** Generator에 담긴 Recipe를 이름순으로 읽는다. 선언이 잘못되었으면 RecipeDefinitionError를 던진다. */
 export async function loadRecipes(): Promise<Recipe[]> {
   const entries = await readdir(RECIPES_DIR, { withFileTypes: true })
@@ -92,61 +80,6 @@ function parseManifest(name: string, dir: string, manifest: unknown): Recipe {
     ...(renderingModesReason === undefined ? {} : { renderingModesReason }),
     dir,
   }
-}
-
-export interface RecipeSelection {
-  /** 넣을 Recipe. 필요한 Recipe가 그것을 필요로 하는 Recipe보다 앞에 오는, 덧입힐 순서다. */
-  recipes: Recipe[]
-  /** 고르지 않았지만 다른 Recipe에 필요해 함께 넣은 Recipe와 그것을 필요로 한 Recipe */
-  added: { name: string; requiredBy: string }[]
-}
-
-/**
- * 고른 Recipe에 필요한 Recipe를 더하고, 덧입힐 순서를 정한다. 고른 순서와 상관없이 결과가 같도록 이름순으로 정한다.
- * 알 수 없는 Recipe가 있거나 renderingMode를 지원하지 않는 Recipe가 있으면 무엇도 만들기 전에 RecipeSelectionError로 거부한다.
- */
-export function resolveRecipes(
-  available: readonly Recipe[],
-  selected: readonly string[],
-  renderingMode: RenderingMode,
-): RecipeSelection {
-  const byName = new Map(available.map((recipe) => [recipe.name, recipe]))
-  const unknown = selected.filter((name) => !byName.has(name))
-  if (unknown.length > 0) {
-    const choices = available.length > 0 ? available.map(({ name }) => name).join(', ') : '(없음)'
-    throw new RecipeSelectionError(`알 수 없는 Recipe입니다: ${unknown.join(', ')}. 고를 수 있는 Recipe: ${choices}`, [])
-  }
-
-  const ordered: Recipe[] = []
-  const added: RecipeSelection['added'] = []
-  const visiting = new Set<string>()
-  const visit = (name: string, requiredBy: string | undefined) => {
-    const recipe = byName.get(name)
-    if (recipe === undefined || ordered.includes(recipe)) return
-    if (visiting.has(name)) throw new RecipeDefinitionError(`Recipe의 requires가 순환합니다: ${[...visiting, name].join(' → ')}`)
-    visiting.add(name)
-    for (const required of [...recipe.requires].sort()) visit(required, name)
-    visiting.delete(name)
-    ordered.push(recipe)
-    if (requiredBy !== undefined && !selected.includes(name)) added.push({ name, requiredBy })
-  }
-  for (const name of [...new Set(selected)].sort()) visit(name, undefined)
-
-  const unsupported = ordered.filter((recipe) => !recipe.renderingModes.includes(renderingMode))
-  if (unsupported.length > 0) {
-    const reasons = unsupported.map((recipe) => {
-      const requiredBy = added.find(({ name }) => name === recipe.name)?.requiredBy
-      return [
-        `Recipe ${recipe.name}은(는) Rendering Mode ${renderingMode}에서 쓸 수 없습니다` +
-          `(지원: ${recipe.renderingModes.join(', ')}).`,
-        ...(recipe.renderingModesReason === undefined ? [] : [recipe.renderingModesReason]),
-        ...(requiredBy === undefined ? [] : [`${requiredBy}에 필요해 함께 넣으려던 Recipe입니다.`]),
-      ].join(' ')
-    })
-    throw new RecipeSelectionError('고른 Rendering Mode와 Recipe를 함께 쓸 수 없습니다.', reasons)
-  }
-
-  return { recipes: ordered, added }
 }
 
 /** Starter에 덧입힐 Recipe의 overlay */
