@@ -8,22 +8,9 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-test('사이트 메타데이터는 사이트 주소를 기준으로 페이지마다 자기 주소를 canonical과 og:url로 알리고, 제목 뒤에 사이트 이름을 붙인다', () => {
+// 페이지마다 풀린 canonical·og:url·공유 이미지의 주소는 빌드한 앱에서 e2e/seo.spec.ts가 본다.
+test('모든 페이지의 상대 주소(canonical, og:url, 공유 이미지)는 사이트 주소를 기준으로 절대 주소가 된다', () => {
   vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.example.com')
 
-  const metadata = siteMetadata()
-
-  expect(String(metadata.metadataBase)).toBe('https://www.example.com/')
-  expect(metadata.title).toEqual({ default: 'Starter', template: '%s | Starter' })
-  // Next.js는 ./로 시작하는 주소를 그 페이지의 경로로 푼다(/products → https://www.example.com/products).
-  expect(metadata.alternates?.canonical).toBe('./')
-  expect(metadata.openGraph).toMatchObject({ url: './', siteName: 'Starter', locale: 'ko_KR', type: 'website' })
-  expect(metadata.twitter).toMatchObject({ card: 'summary_large_image' })
-})
-
-test('사이트 주소가 없는 배포용 빌드에서는 실패한다', () => {
-  vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
-  vi.stubEnv('API_MOCKING', 'disabled')
-
-  expect(() => siteMetadata()).toThrow(/NEXT_PUBLIC_SITE_URL/)
+  expect(String(siteMetadata().metadataBase)).toBe('https://www.example.com/')
 })

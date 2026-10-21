@@ -416,7 +416,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - Rendering Mode `server`와 `static-export` 모두에서 sitemap.xml, robots.txt, 공유 이미지를 빌드할 때 만듭니다. static-export는 `out/sitemap.xml`, `out/robots.txt`, `out/**/opengraph-image/image.png`로 내보냅니다.
 - 사이트 이름, 설명, locale은 `src/shared/seo/site.ts`에서 바꿉니다. 루트 레이아웃의 `<html lang>`과 locale을 맞춥니다.
 - `/products` 샘플을 지우면(위 "샘플 명세 바꾸기") `src/app/sitemap.test.ts`와 `e2e/seo.spec.ts`에서 `/products`를 확인하는 부분도 지웁니다.
-- 테스트: `src/shared/seo/site.test.ts`(사이트 주소와 없을 때의 실패), `page-routes.test.ts`(sitemap에 넣을 페이지 찾기), `metadata.test.ts`(모든 페이지의 기본값), `og-image.test.tsx`(한글 공유 이미지를 네트워크 없이 그림), `src/app/sitemap.test.ts`(이 Starter의 sitemap과 robots.txt), `e2e/seo.spec.ts`(빌드한 앱의 메타데이터, 공유 이미지, sitemap.xml, robots.txt).
+- 테스트: `src/shared/seo/site.test.ts`(사이트 주소와 없을 때의 실패), `page-routes.test.ts`(sitemap에 넣을 페이지 찾기), `metadata.test.ts`(모든 페이지의 기본값), `og-image.test.tsx`(한글 공유 이미지를 네트워크 없이 그림), `src/app/sitemap.test.ts`(이 Starter의 sitemap), `robots.test.ts`(robots.txt), `e2e/seo.spec.ts`(빌드한 앱의 메타데이터, 공유 이미지, sitemap.xml, robots.txt).
 
 ## 테이블
 

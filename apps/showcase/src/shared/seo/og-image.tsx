@@ -8,8 +8,8 @@ import { SITE_NAME } from './site'
 
 // seo Recipe: 공유 카드(Open Graph, Twitter)에 보이는 이미지. 라우트 폴더의 opengraph-image.tsx가 이 함수로 그린다.
 
-/** 공유 카드 이미지의 권장 크기 */
-export const OG_IMAGE_SIZE = { width: 1200, height: 630 }
+// 공유 카드 이미지의 권장 크기
+const OG_IMAGE_SIZE = { width: 1200, height: 630 }
 
 /**
  * opengraph-image.tsx의 generateImageMetadata로 쓴다. 이미지를 `opengraph-image/image.png`처럼 확장자가 붙은 주소 하나로
@@ -34,9 +34,12 @@ export interface OgImageContent {
  *   글자(한글 등)를 만나면 빌드 중에 Google Fonts에서 글꼴을 받으려 하므로, 네트워크가 막힌 CI에서도 같은 이미지가 나오도록
  *   글꼴을 함께 둔다. 한자, 일본어, 이모지처럼 이 글꼴에 없는 글자는 여전히 받으러 가니 제목에 쓰지 않는다.
  * - next/og는 CSS 변수를 읽지 못하므로 색은 디자인 토큰 파일(src/shared/ui/tokens.css)의 값을 읽어 쓴다. 토큰 값은 hex,
- *   rgb(), hsl() 같은 next/og가 아는 색 형식이어야 한다.
+ *   rgb(), hsl() 같은 next/og가 아는 색 형식이어야 한다. 글자 크기와 간격은 화면이 아니라 1200×630 이미지에 맞춘 픽셀
+ *   값이고 테마가 바꿀 일이 없으므로 토큰을 쓰지 않는다.
  */
 export async function ogImage({ title, description }: OgImageContent): Promise<ImageResponse> {
+  // sitemap(src/app/sitemap.ts)과 달리 이 두 파일은 번들러가 따라가게 둔다. server Starter의 빌드 결과(standalone)에
+  // 함께 담겨, 빌드할 때 만들지 않은 이미지 주소로 요청이 와도 서버가 이미지를 그릴 수 있다.
   const [font, tokens] = await Promise.all([
     readFile(join(process.cwd(), 'src/shared/seo/pretendard-bold.woff')),
     readFile(join(process.cwd(), 'src/shared/ui/tokens.css'), 'utf8'),

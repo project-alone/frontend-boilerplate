@@ -12,5 +12,5 @@ export const dynamic = 'force-static'
 export const generateImageMetadata = () => ogImageMetadata(TITLE)
 
 export default function Image() {
-  return ogImage({ title: TITLE, description: '샘플 API에서 가져온 상품 목록' })
+  return ogImage({ title: TITLE })
 }

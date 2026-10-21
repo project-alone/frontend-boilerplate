@@ -25,7 +25,7 @@ export function findPageRoutes(appDir: string, { exclude = [] }: FindPageRoutesO
   const routes = readdirSync(appDir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile() && PAGE_FILE.test(entry.name))
     .map((entry) => routeSegments(relative(appDir, entry.parentPath)))
-    .filter((segments) => segments.every(isStaticRouteSegment))
+    .filter((segments) => segments.every(hasFixedUrl))
     .map((segments) => `/${segments.filter((segment) => !isRouteGroup(segment)).join('/')}`)
     .filter((route) => !exclude.some((excluded) => route === excluded || route.startsWith(`${excluded}/`)))
   return [...new Set(routes)].sort()
@@ -36,7 +36,9 @@ function routeSegments(directory: string): string[] {
   return directory === '' ? [] : directory.split(sep)
 }
 
-function isStaticRouteSegment(segment: string): boolean {
+// 이 세그먼트 아래의 페이지가 빌드할 때 정해지는 주소 하나를 갖는가. 동적 세그먼트, private 폴더, 병렬·가로채기 라우트는 아니다.
+// 경로 그룹은 주소에서 빠질 뿐 주소를 바꾸지 않으므로 갖는 것으로 본다.
+function hasFixedUrl(segment: string): boolean {
   return !segment.startsWith('[') && !segment.startsWith('_') && !segment.startsWith('@') && !segment.startsWith('(.')
 }
 
