@@ -1,0 +1,13 @@
+{
+  "nextConfig": [{ "path": "src/shared/sentry/sentry-next-config.ts", "export": "withSentry", "order": 0 }],
+  "instrumentation": [
+    { "path": "src/shared/sentry/sentry-instrumentation.ts", "export": "sentryInstrumentation", "order": 0 }
+  ],
+  "instrumentationClient": [
+    {
+      "path": "src/shared/sentry/sentry-instrumentation-client.ts",
+      "export": "sentryClientInstrumentation",
+      "order": 0
+    }
+  ]
+}

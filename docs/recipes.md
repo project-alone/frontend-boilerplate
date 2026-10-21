@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`, 확장 지점 세 곳(`next.config`, instrumentation, instrumentation-client)에 조각을 더하는 `recipes/sentry/`, 그와 같은 instrumentation-client에 페이지뷰 조각을 더하는 `recipes/analytics/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -527,3 +527,35 @@ table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared
 | 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `robots.test.ts`, `e2e/seo.spec.ts`                                                                                                     |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                                              |
 | Rendering Mode | `server`, `static-export`                                                                                                                                                                                                                                         |
+
+## 예: sentry
+
+Sentry의 Next.js SDK(`@sentry/nextjs`)로 브라우저와 서버의 오류를 보고하는 Recipe다. Base 파일을 패치하지 않고 확장 지점 세 곳에 조각을 더한다. `withSentryConfig`는 다른 래퍼보다 바깥이어야 하므로 next.config의 `order`가 0이고, SDK가 다른 조각보다 먼저 초기화되도록 instrumentation과 instrumentation-client의 `order`도 0이다. `static-export`에는 서버가 없어 브라우저의 오류만 보낸다.
+
+SDK는 `NODE_ENV`가 `production`이고 DSN이 있을 때만 초기화하므로, 개발 서버와 테스트, DSN 없이 만든 빌드(E2E, GitLab CI)는 아무것도 보내지 않는다. 소스맵은 Sentry 인증 토큰이 있는 빌드에서만 만들어 올린다. 그대로 두면 `withSentryConfig`가 Turbopack 빌드에서 브라우저용 소스맵을 켜므로, 토큰 없이 만든 배포 결과에 올리지 못한 소스맵이 남아 소스가 드러난다. 빌드 도구가 Sentry에 사용 통계를 보내는 기능(`telemetry`)도 끈다. 하네스(`harness/sentry.test.ts`)는 DSN을 하네스가 띄운 가짜 수집 서버(로컬)로 가리켜 빌드한 앱이 브라우저와 서버의 오류를 보내는지, 개발 서버는 DSN이 있어도 보내지 않는지 본다. 진짜 Sentry로는 보내지 않는다.
+
+| 선언하는 것    | `recipes/sentry/`                                                                                                                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/shared/sentry/`(SDK를 초기화하는 조건과 설정, 세 조각)                                                                                                                                                                                                                        |
+| 확장 지점      | `extensions.json`: next.config `withSentry`(order 0), instrumentation `sentryInstrumentation`(order 0), instrumentation-client `sentryClientInstrumentation`(order 0). 환경 변수: `.env.example`(`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, 소스맵 업로드), `process-env.sentry.d.ts` |
+| 설정 패치      | 없음                                                                                                                                                                                                                                                                               |
+| npm 의존성     | `@sentry/nextjs`                                                                                                                                                                                                                                                                   |
+| 자기 테스트    | `src/shared/sentry/sentry.test.ts`, `sentry-instrumentation.test.ts`, `e2e/sentry.spec.ts`                                                                                                                                                                                         |
+| 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                               |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                                                                                                                          |
+
+## 예: analytics
+
+특정 분석 서비스에 묶이지 않는 페이지뷰·이벤트 인터페이스(`trackPageView`, `trackEvent`)와, 아무 데도 보내지 않는 기본 공급자를 담는 Recipe다. 분석 서비스의 SDK는 담지 않고, 프로젝트가 `src/shared/analytics/analytics-provider.ts`의 공급자만 바꿔 붙인다. 기본 공급자는 개발 서버에서는 브라우저 콘솔에만 남기고, 배포용 빌드와 테스트에서는 아무것도 하지 않는다.
+
+페이지뷰는 instrumentation-client 조각이 남긴다. 브라우저가 페이지를 새로 불러오면 `register`가, App Router로 옮겨 가면 `onRouterTransitionStart`가 남긴다. 루트 레이아웃의 Provider에서 `usePathname`·`useSearchParams`로 남기지 않는 것은, `useSearchParams`를 Suspense 경계로 감싸지 않으면 미리 렌더링하는 페이지가 브라우저 렌더링으로 바뀌어 빌드가 실패하기 때문이다. sentry와 같은 확장 지점에 조각을 더하지만 서로 기대지 않으므로 따로도 함께도 켤 수 있다. 하네스(`harness/analytics.test.ts`)는 개발자가 하듯 공급자를 바꿔 빌드한 앱에서 페이지뷰와 이벤트가 그 공급자로 가는지도 본다.
+
+| 선언하는 것    | `recipes/analytics/`                                                                  |
+| -------------- | ------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/shared/analytics/`(인터페이스, 공급자, 페이지뷰 조각)                            |
+| 확장 지점      | `extensions.json`: instrumentation-client `analyticsClientInstrumentation`(order 200) |
+| 설정 패치      | 없음                                                                                  |
+| npm 의존성     | 없음                                                                                  |
+| 자기 테스트    | `src/shared/analytics/analytics.test.ts`, `e2e/analytics.spec.ts`                     |
+| 필요한 Recipe  | 없음                                                                                  |
+| Rendering Mode | `server`, `static-export`                                                             |

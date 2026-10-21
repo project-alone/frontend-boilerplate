@@ -1,0 +1,9 @@
+{
+  "instrumentationClient": [
+    {
+      "path": "src/shared/analytics/analytics-instrumentation-client.ts",
+      "export": "analyticsClientInstrumentation",
+      "order": 200
+    }
+  ]
+}
