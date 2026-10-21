@@ -1,0 +1,5 @@
+{
+  "description": "infiniteQueryOptions로 스크롤하면 다음 페이지를 불러오는 무한 스크롤 목록(더 보기 버튼 포함)과, 같은 데이터의 번호형 페이지네이션",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}

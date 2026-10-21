@@ -1,0 +1,22 @@
+## 무한 스크롤과 페이지네이션
+
+`infinite-list` Recipe로 넣었습니다. 긴 목록을 나눠 불러오는 두 가지 패턴을 같은 게시글로 보여 줍니다. `/articles`는 목록 끝까지 스크롤하면 다음 페이지를 불러와 이어 붙이는 무한 스크롤 목록이고, `/articles/pagination`은 쪽 번호로 넘겨 보는 번호형 페이지네이션입니다.
+
+| 위치                           | 내용                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `src/shared/paging/`           | 어느 목록에나 쓰는 무한 스크롤 목록(`infinite-list.tsx`)과 번호형 페이지네이션(`pagination.tsx`)         |
+| `src/features/article-list/`   | 게시글 목록 두 가지(`article-infinite-list.tsx`, `article-paged-list.tsx`)와 게시글 항목, 보기 방식 링크 |
+| `src/queries/articles/`        | `articles` Query Domain(`listArticles`의 infiniteQueryOptions·queryOptions, `countArticles`)             |
+| `src/shared/mocks/articles.ts` | 게시글 46개를 페이지 번호대로 나눠 돌려주는 MSW 핸들러                                                   |
+| `src/app/articles/`            | `/articles`, `/articles/pagination` 라우트                                                               |
+
+- 명세: `openapi.yaml`의 `listArticles`(`GET /articles`, tag `articles`)는 `page`(1부터)와 `pageSize`(기본 10)를 받아 게시글 한 페이지를 배열로 돌려주고, 마지막 페이지 뒤의 페이지는 빈 배열입니다. `countArticles`(`GET /articles/count`)는 전체 게시글 수(`total`)를 돌려줍니다.
+- Query Domain: `src/queries/articles/`는 `npm run g -- query listArticles --infinite`, `npm run g -- query listArticles`, `npm run g -- query countArticles`가 만든 코드 그대로입니다. infiniteQueryOptions는 첫 페이지(`page=1`)부터 페이지 번호를 하나씩 늘려 가져오고, 빈 페이지를 받으면 다음 페이지가 없다고 봅니다(`getNextPageParam`). 그래서 마지막 페이지 뒤의 빈 페이지를 한 번 더 요청합니다. 백엔드가 다음 페이지가 있는지(`hasNext`)나 다음 커서를 함께 주면 `getNextPageParam`을 그 값으로 고칩니다. 무한 스크롤의 쿼리 키(`['articles', 'listArticles', 'infinite', { pageSize }]`)는 쪽마다 가져오는 쿼리 키(`['articles', 'listArticles', { page, pageSize }]`)와 달라 캐시가 섞이지 않습니다.
+- 무한 스크롤 목록(`InfiniteList`): 목록 끝 바로 아래의 빈 요소를 `IntersectionObserver`로 지켜보다가 화면 아래 200px 안에 들어오면 `fetchNextPage`를 부릅니다. 불러오는 동안과 실패한 뒤에는 지켜보지 않으므로 같은 페이지를 두 번 요청하지 않고, 실패한 페이지를 계속 다시 요청하지도 않습니다. 목록이 화면보다 짧으면 화면이 찰 때까지 이어서 불러옵니다.
+- 키보드와 스크린 리더: 목록 끝에 더 보기 버튼이 있어 스크롤하지 않아도 다음 페이지를 불러옵니다. 버튼으로 불러오면 새로 불러온 첫 게시글로 포커스를 옮겨 이어서 읽게 하고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않습니다. 불러온 개수, 불러오는 중, 모두 불러옴은 목록 끝의 상태 문구(`role="status"`)로, 첫 페이지나 다음 페이지를 받지 못하면 `role="alert"`로 알리고 같은 자리의 버튼이 다시 시도 버튼이 됩니다(받아 둔 페이지를 창에 돌아왔을 때 다시 가져오다 실패한 것은 목록을 그대로 둡니다). 번호형 페이지네이션은 지금 쪽을 `aria-current="page"`로 알리고, 쪽 번호 버튼은 "3 쪽"으로 읽힙니다.
+- 번호형 페이지네이션(`Pagination`): 첫 쪽, 마지막 쪽, 지금 쪽과 앞뒤 쪽을 보여 주고 나머지는 줄임표로 줄입니다. 쪽 수는 `countArticles`로 정하고, 쪽을 바꾸면 다음 쪽을 받는 동안 지금 쪽을 그대로 보여 줍니다(`keepPreviousData`). 쪽은 컴포넌트 상태로 들고 있으므로, 주소(`?page=3`)로 공유하거나 뒤로 가기로 돌아오게 하려면 `useSearchParams`로 읽고 쪽 버튼을 `next/link`로 바꿉니다.
+- 다른 목록에 쓰려면: `src/features/article-list/`의 두 컴포넌트를 복사해, 쓰는 queryOptions와 항목 컴포넌트(`ArticleSummary`)를 바꿉니다. `InfiniteList`와 `Pagination`은 그대로 씁니다. 백엔드가 배열 대신 `{ items, total }` 같은 객체를 돌려주면 infiniteQueryOptions의 `getNextPageParam`과 `pages.flat()`을 그 모양에 맞게 고칩니다.
+- Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고 게시글은 브라우저가 가져옵니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 서버에서 첫 페이지를 미리 가져오려면(`server`만) Base의 `src/app/products/page.tsx`처럼 페이지에서 `getQueryClient().infiniteQuery(listArticlesInfiniteQueryOptions({ pageSize: 10 }))`로 가져와 `HydrationBoundary`로 넘깁니다. Feature가 같은 infiniteQueryOptions를 쓰므로 브라우저는 둘째 페이지부터 요청합니다.
+- MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/articles.ts`의 핸들러가 고정된 규칙으로 만든 게시글 46개(한 페이지 10개씩 다섯 페이지, 마지막 페이지는 6개)를 페이지 번호대로 나눠 돌려줍니다. `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 넣습니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `articlesHandlers`를 지웁니다.
+- 테스트: `src/features/article-list/article-infinite-list.test.tsx`(스크롤로 다음 페이지, 빈 페이지에서 멈춤, 더 보기 버튼과 포커스, 버튼에 포커스가 있을 때 멈춤, 첫 페이지·다음 페이지 실패와 다시 시도, 받아 둔 페이지를 다시 가져오다 실패해도 목록 유지, 빈 목록), `article-paged-list.test.tsx`(쪽 수, 쪽 번호·이전·다음과 요청 파라미터, 한 쪽이 실패해도 다른 쪽으로 이동, 게시글 수 실패와 다시 시도), `src/shared/paging/pagination.test.tsx`(줄임표로 줄이는 쪽 번호), `infinite-list.stories.tsx`·`pagination.stories.tsx`(실제 브라우저의 IntersectionObserver, 키보드, 상태마다 axe 검사. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/infinite-list.spec.ts`(빌드한 앱에서 스크롤로 마지막 페이지까지, 키보드로 더 보기, 번호형 페이지네이션, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 샘플을 지우려면 `src/app/articles/`, `src/features/article-list/`, `src/queries/articles/`, `src/shared/mocks/articles.ts`(와 `handlers.ts`의 `articlesHandlers`), `e2e/infinite-list.spec.ts`를 지우고 `openapi.yaml`에서 `articles` tag·경로·스키마(`Article`, `ArticleCount`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 목록에 쓸 `src/shared/paging/`은 남겨 둡니다.
