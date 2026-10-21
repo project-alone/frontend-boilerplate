@@ -1,10 +1,10 @@
 // Showcase(apps/showcase)를 만들고, 어긋났는지 검사하고, 실행하는 기여자용 스크립트. 레포 최상위 package.json의
-// showcase* 스크립트가 부른다. Showcase는 Base에 Rendering Mode server와 모든 Recipe를 덧입혀 생성한 Starter이고 직접
+// showcase* 스크립트가 부른다. Showcase는 Base에 Rendering Mode server와 모든 Recipe·Archetype을 덧입혀 생성한 Starter이고 직접
 // 고치지 않는다(ADR-0002). 쓰는 법은 docs/recipes.md의 "Showcase"에 있다.
 //
 //   generate [--generator <dir>] [--out <dir>]   Showcase를 만들어 out(기본 apps/showcase)을 그 결과와 같게 맞춘다
 //   check    [--generator <dir>] [--out <dir>]   다시 만든 결과와 out이 다르면 다른 파일을 알리고 실패한다(CI)
-//   watch    [--generator <dir>] [--out <dir>]   Generator의 Base, Recipe, Rendering Mode overlay, 소스가 바뀔 때마다 generate한다
+//   watch    [--generator <dir>] [--out <dir>]   Generator의 Base, Recipe, Archetype, Rendering Mode overlay, 소스가 바뀔 때마다 generate한다
 //   dev [--showcase <dir>] [--run-dir <dir>] [next dev 인자...]
 //                                                Showcase를 레포 밖에 설치해 MSW 목으로 개발 서버를 띄운다
 //
@@ -114,18 +114,18 @@ function check(): void {
   const { out } = options
   const { changed, missing, extra } = compareFiles(out, buildShowcase(options, true), listShowcaseFiles(out))
   if (changed.length + missing.length + extra.length === 0) {
-    console.log(`Showcase(${relativeToCwd(out)})가 Base와 Recipe로 다시 만든 결과와 같습니다.`)
+    console.log(`Showcase(${relativeToCwd(out)})가 Base와 Recipe·Archetype으로 다시 만든 결과와 같습니다.`)
     return
   }
   const list = (label: string, paths: readonly string[]) =>
     paths.length > 0 ? [`  ${label}: ${paths.join(', ')}`] : []
   console.error(
     [
-      `Showcase(${relativeToCwd(out)})가 Base와 Recipe로 다시 만든 결과와 다릅니다.`,
+      `Showcase(${relativeToCwd(out)})가 Base와 Recipe·Archetype으로 다시 만든 결과와 다릅니다.`,
       ...list('내용이 다른 파일', changed),
       ...list('빠진 파일', missing),
       ...list('남는 파일', extra),
-      'Showcase는 직접 고치지 않습니다. Base나 Recipe를 고친 뒤 레포 최상위에서 npm run showcase로 다시 만들어 함께 커밋하세요(docs/recipes.md).',
+      'Showcase는 직접 고치지 않습니다. Base나 Recipe, Archetype을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만들어 함께 커밋하세요(docs/recipes.md).',
     ].join('\n'),
   )
   process.exitCode = 1
@@ -147,14 +147,14 @@ function watchSources(): void {
 
   // Generator의 소스(src)가 바뀌었으면 빌드한 뒤에 만든다.
   const src = join(generatorDir, 'src')
-  const sources = ['base', 'recipes', 'rendering-modes', 'src']
+  const sources = ['base', 'recipes', 'archetypes', 'rendering-modes', 'src']
     .map((name) => join(generatorDir, name))
     .filter((directory) => existsSync(directory))
   watchDirectories(sources, (changed) => {
     run(changed.has(src))
   })
   console.log(
-    `Generator(${relativeToCwd(generatorDir)})의 base, recipes, rendering-modes, src에서 파일이 바뀌면 Showcase(${relativeToCwd(options.out)})를 다시 만듭니다.`,
+    `Generator(${relativeToCwd(generatorDir)})의 base, recipes, archetypes, rendering-modes, src에서 파일이 바뀌면 Showcase(${relativeToCwd(options.out)})를 다시 만듭니다.`,
   )
 }
 

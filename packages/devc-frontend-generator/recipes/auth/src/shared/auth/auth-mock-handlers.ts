@@ -39,8 +39,12 @@ function accessTokenOf(request: Request): string | undefined {
   return /^Bearer (.+)$/.exec(request.headers.get('authorization') ?? '')?.[1]
 }
 
-/** Authorization 헤더의 accessToken이 가리키는 사용자. 없거나 만료된 토큰이면 undefined */
-function userOf(request: Request): User | undefined {
+/**
+ * Authorization 헤더의 accessToken이 가리키는 사용자. 없거나 만료된 토큰이면 undefined. 인증이 필요한 operation을 흉내 내는 다른
+ * 목 핸들러(예: 대시보드 Archetype의 src/shared/mocks/users.ts)도 이 함수로 요청한 사용자와 역할을 알아내, 실제 백엔드처럼
+ * 401(로그인하지 않음)이나 403(역할이 없음)으로 거절한다.
+ */
+export function mockUserOf(request: Request): User | undefined {
   const token = accessTokenOf(request)
   const grant = token === undefined ? undefined : accessTokens.get(token)
   if (grant === undefined || grant.expiresAt <= Date.now()) return undefined
@@ -75,13 +79,13 @@ export const authMockHandlers = [
   }),
 
   http.get(`${MOCK_API_BASE_URL}/auth/me`, ({ request }) => {
-    const user = userOf(request)
+    const user = mockUserOf(request)
     return user === undefined ? unauthorized('accessToken이 없거나 만료되었습니다.') : HttpResponse.json(user)
   }),
 
   // 명세처럼 유효한 accessToken이 있어야 로그아웃을 받는다(bearerAuth).
   http.post(`${MOCK_API_BASE_URL}/auth/logout`, async ({ request }) => {
-    if (userOf(request) === undefined) return unauthorized('accessToken이 없거나 만료되었습니다.')
+    if (mockUserOf(request) === undefined) return unauthorized('accessToken이 없거나 만료되었습니다.')
     const body = LogoutRequest.safeParse(await jsonBody(request))
     if (body.success) refreshTokens.delete(body.data.refreshToken)
     const token = accessTokenOf(request)

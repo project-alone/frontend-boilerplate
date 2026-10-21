@@ -1,27 +1,38 @@
 import { spawnSync } from 'node:child_process'
 import { relative } from 'node:path'
 import { Command, Option } from 'commander'
+import { loadArchetypes } from './archetypes.js'
 import { createStarter, prepareTarget, TargetNotEmptyError } from './create-starter.js'
 import { OverlayError } from './overlay.js'
-import { promptChoices, type UserChoices } from './prompts.js'
-import { loadRecipes, type RecipeSelection, RecipeSelectionError, resolveRecipes } from './recipes.js'
+import { promptChoices } from './prompts.js'
+import { loadRecipes } from './recipes.js'
 import { DEFAULT_RENDERING_MODE, RENDERING_MODES, type RenderingMode } from './rendering-mode.js'
+import { type Catalog, resolveSelection, type Selection, SelectionError, type UserChoices } from './selection.js'
 
 interface NewOptions {
   renderingMode: RenderingMode
+  archetype: string[]
   recipe: string[]
   skipInstall?: true
 }
 
-/** `dcgen new`: Base에 고른 Rendering Mode와 Recipe를 덧입혀 Starter를 만들고 의존성을 설치한다. */
+/** `dcgen new`: Base에 고른 Rendering Mode와 Recipe, Archetype을 덧입혀 Starter를 만들고 의존성을 설치한다. */
 export function newCommand(): Command {
   return new Command('new')
-    .description('Base에 고른 Rendering Mode와 Recipe를 덧입혀 새 Starter를 만들고 의존성을 설치한다')
+    .description('Base에 고른 Rendering Mode와 Recipe, Archetype을 덧입혀 새 Starter를 만들고 의존성을 설치한다')
     .argument('<name>', 'Starter 이름이자 만들 디렉터리')
     .addOption(
       new Option('--rendering-mode <mode>', 'Starter 전체의 Rendering Mode')
         .choices(RENDERING_MODES)
         .default(DEFAULT_RENDERING_MODE),
+    )
+    .addOption(
+      new Option(
+        '--archetype <name>',
+        '넣을 Archetype(완성된 앱 유형). 필요한 Recipe가 함께 들어간다. 여러 번 쓸 수 있다(예: --archetype dashboard)',
+      )
+        .argParser(collect)
+        .default([], '없음'),
     )
     .addOption(
       new Option('--recipe <name>', '넣을 Recipe. 여러 번 쓸 수 있다(예: --recipe dark-mode --recipe <다른 Recipe>)')
@@ -31,7 +42,7 @@ export function newCommand(): Command {
     .option('--skip-install', 'Starter를 만든 뒤 npm install을 하지 않는다')
     .addHelpText(
       'after',
-      '\n터미널에서 --rendering-mode와 --recipe 없이 실행하면 둘을 차례로 묻는다. CI처럼 터미널이 아니면 묻지 않고 기본값(server, Recipe 없음)으로 만든다.',
+      '\n터미널에서 --rendering-mode, --archetype, --recipe 없이 실행하면 셋을 차례로 묻는다. CI처럼 터미널이 아니면 묻지 않고 기본값(server, Archetype과 Recipe 없음)으로 만든다.',
     )
     .action(async (name: string, options: NewOptions, command: Command) => {
       await runNew(name, options, command)
@@ -45,38 +56,44 @@ function collect(value: string, previous: string[]): string[] {
 async function runNew(name: string, options: NewOptions, command: Command): Promise<void> {
   // 무엇을 묻거나 쓰기 전에 만들 곳부터 확인한다.
   const target = await prepareTarget(name, process.cwd()).catch((error: unknown) => exitWithMessage(command, error))
-  const available = await loadRecipes()
+  const recipes = await loadRecipes()
+  const catalog: Catalog = { recipes, archetypes: await loadArchetypes(recipes) }
 
-  const flagsGiven =
-    command.getOptionValueSource('renderingMode') !== 'default' || command.getOptionValueSource('recipe') !== 'default'
+  const flagsGiven = (['renderingMode', 'archetype', 'recipe'] as const).some(
+    (option) => command.getOptionValueSource(option) !== 'default',
+  )
   const choices: UserChoices | undefined =
     !flagsGiven && isInteractive()
-      ? await promptChoices(name, available)
-      : { renderingMode: options.renderingMode, recipes: options.recipe }
+      ? await promptChoices(name, catalog)
+      : { renderingMode: options.renderingMode, archetypes: options.archetype, recipes: options.recipe }
   if (choices === undefined) {
     process.exitCode = 1
     return
   }
 
-  let selection: RecipeSelection
+  let selection: Selection
   try {
-    selection = resolveRecipes(available, choices.recipes, choices.renderingMode)
+    selection = resolveSelection(catalog, choices)
   } catch (error) {
     exitWithMessage(command, error)
   }
   for (const { name: recipe, requiredBy } of selection.added) {
-    console.log(`Recipe ${requiredBy}에 필요한 Recipe ${recipe}을(를) 함께 넣습니다.`)
+    console.log(`${requiredBy}에 필요한 Recipe ${recipe}을(를) 함께 넣습니다.`)
   }
 
-  await createStarter(target, { renderingMode: choices.renderingMode, recipes: selection.recipes }).catch(
-    (error: unknown) => exitWithMessage(command, error),
-  )
-  const recipeNames = selection.recipes.map((recipe) => recipe.name)
+  await createStarter(target, {
+    renderingMode: choices.renderingMode,
+    recipes: selection.recipes,
+    archetypes: selection.archetypes,
+  }).catch((error: unknown) => exitWithMessage(command, error))
+  const names = (items: readonly { name: string }[], none: string) =>
+    items.length > 0 ? items.map((item) => item.name).join(', ') : none
   console.log(
     [
       `Starter를 만들었습니다: ${target}`,
       `  Rendering Mode: ${choices.renderingMode}`,
-      `  Recipe: ${recipeNames.length > 0 ? recipeNames.join(', ') : '없음(Base만)'}`,
+      `  Archetype: ${names(selection.archetypes, '없음')}`,
+      `  Recipe: ${names(selection.recipes, '없음(Base만)')}`,
     ].join('\n'),
   )
 
@@ -85,9 +102,9 @@ async function runNew(name: string, options: NewOptions, command: Command): Prom
   console.log(`\n다음 단계:\n\n${nextSteps.map((step) => `  ${step}`).join('\n')}\n`)
 }
 
-// 사용자가 고칠 수 있는 오류(만들 곳, Recipe 조합)와 Recipe를 덧입히지 못한 오류는 스택 없이 메시지만 보여 주고 끝낸다.
+// 사용자가 고칠 수 있는 오류(만들 곳, Recipe·Archetype 조합)와 overlay를 덧입히지 못한 오류는 스택 없이 메시지만 보여 주고 끝낸다.
 function exitWithMessage(command: Command, error: unknown): never {
-  if (error instanceof TargetNotEmptyError || error instanceof RecipeSelectionError || error instanceof OverlayError) {
+  if (error instanceof TargetNotEmptyError || error instanceof SelectionError || error instanceof OverlayError) {
     command.error(error.message)
   }
   throw error
