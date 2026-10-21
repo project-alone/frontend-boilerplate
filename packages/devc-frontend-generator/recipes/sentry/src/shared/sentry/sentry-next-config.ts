@@ -24,6 +24,9 @@ export function withSentry(config: NextConfig): NextConfig {
       sourcemaps: { disable: !uploadSourceMaps },
       // 릴리스(배포 버전)도 소스맵을 올릴 때만 만든다. 조직과 프로젝트는 SENTRY_ORG, SENTRY_PROJECT에서 읽는다.
       release: { create: uploadSourceMaps },
+      // 올리지 않을 때는 빌드 도구의 로그를 끈다. 끄지 않으면 CI가 커밋 SHA로 정한 릴리스 이름(GitLab CI의 CI_COMMIT_SHA)을
+      // 보고 "인증 토큰이 없어 릴리스를 만들지 않는다"는 경고를 빌드마다 낸다.
+      silent: !uploadSourceMaps,
     },
   )
 }

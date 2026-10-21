@@ -153,11 +153,13 @@ describe.each(['server', 'static-export'] as const)(
     })
 
     test('DSN과 인증 토큰 없이 빌드를 통과하고, 브라우저가 받을 수 있는 곳에 소스맵을 남기지 않는다', () => {
-      const result = starter.expectNpmSuccess(['run', 'build'])
+      // CI는 커밋 SHA로 release 이름을 정하므로(GitLab CI의 CI_COMMIT_SHA), 같은 조건에서 빌드한다.
+      const result = starter.expectNpmSuccess(['run', 'build'], { CI_COMMIT_SHA: 'ci-commit-sha' })
 
       // 소스맵을 올릴 인증 토큰이 없으면 소스맵을 만들지 않는다. 만들면 올리지 못한 소스맵이 배포 결과에 남아 소스가 드러난다.
       const published = renderingMode === 'server' ? join(starter.dir, '.next', 'static') : join(starter.dir, 'out')
       expect(sourceMaps(published)).toEqual([])
+      // 올릴 것이 없으므로 인증 토큰이 없다는 Sentry 빌드 도구의 경고도 내지 않는다.
       expect(result.output).not.toMatch(/auth token/i)
     })
 
