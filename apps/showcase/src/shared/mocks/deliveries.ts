@@ -6,7 +6,7 @@ import type { Delivery } from '@/shared/api/generated/model'
 import { createMockEventStream, type MockEventStream, type MockServerSentEvent } from './event-stream'
 
 // realtime Recipe: 배송 현황 목록(listDeliveries)과 배송 이벤트 스트림(streamDeliveryEvents)을 흉내 내는 목 백엔드.
-// 명세에서 생성한 핸들러는 example을 그대로 돌려주므로, 이 핸들러가 그보다 앞에서(handlers.ts) 이벤트로 바뀐 목록을
+// 명세에서 생성한 핸들러는 example을 그대로 돌려주므로, 이 핸들러가 그보다 앞에서(확장 지점 mockHandlers, extensions.json) 이벤트로 바뀐 목록을
 // 백엔드처럼 돌려준다. 이벤트를 보내면 목록도 함께 바뀌므로, 다시 가져온 목록이 받은 이벤트와 맞는다.
 //
 // - 테스트(Vitest): createMockDeliveryBackend()로 테스트마다 새 백엔드를 만들어 이벤트와 연결을 직접 다룬다.
