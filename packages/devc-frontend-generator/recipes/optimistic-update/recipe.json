@@ -1,0 +1,5 @@
+{
+  "description": "낙관적 업데이트로 응답 전에 바뀐 값을 먼저 보여 주고, 서버가 거절하면 되돌린 뒤 알림으로 알리는 할 일 목록(/todos)",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}
