@@ -455,7 +455,7 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 스크롤하지 않는 키보드·스크린 리더 사용자를 위해 목록 끝에 더 보기 버튼을 둔다. 버튼으로 불러오면 새로 불러온 첫 항목으로 포커스를 옮기고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않는다. 무한 스크롤 목록과 쪽 번호의 틀(`src/shared/paging/`)은 쿼리를 직접 부르지 않고 불러온 항목과 상태(useInfiniteQuery의 `hasNextPage` 등, 지금 쪽과 쪽 수)만 props로 받으므로 다른 Query Domain의 목록에도 쓴다. jsdom에는 `IntersectionObserver`가 없어 컴포넌트 테스트는 가짜 observer로 스크롤을 흉내 내고, 실제 브라우저의 동작은 스토리와 E2E가 본다.
 
-table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared/mocks/articles.ts`)를 `src/shared/mocks/handlers.ts`의 패치로 생성된 핸들러 앞에 둔다. Recipe는 이름순으로 덧입혀져 infinite-list의 패치가 table의 패치보다 먼저 적용되므로, table의 패치가 맥락 줄로 쓰는 import와 `handlers` 목록은 고치지 않고 import를 맨 위에, `handlers.unshift(...articlesHandlers)`를 맨 끝에 덧붙인다. 직접 만든 핸들러를 같은 자리에 더하는 Recipe가 둘이 되었으므로 이 자리는 확장 지점 후보다(ADR-0010).
+table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared/mocks/articles.ts`)를 `src/shared/mocks/handlers.ts`의 패치로 생성된 핸들러 앞에 둔다. Recipe는 이름순으로 덧입혀져 infinite-list의 패치가 table의 패치보다 먼저 적용되므로, table의 패치가 맥락 줄로 쓰는 import와 `handlers` 목록은 고치지 않고 import를 맨 위에, `handlers.unshift(...articlesHandlers)`를 맨 끝에 덧붙인다. 직접 만든 핸들러를 같은 자리에 더하는 Recipe가 둘이 되었으므로, ADR-0010과 위 table 절에 따르면 이제 이 자리를 확장 지점으로 만들어야 한다. 아직 만들지 않았으므로 그때까지 두 패치는 덧입히는 순서(이름순)와 서로의 맥락 줄에 기대어 함께 적용된다. 이 자리를 고치는 Recipe를 더 넣기 전에 확장 지점으로 옮긴다.
 
 | 선언하는 것    | `recipes/infinite-list/`                                                                                                                                                                                               |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

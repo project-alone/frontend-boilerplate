@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { listArticlesInfiniteQueryOptions } from '@/queries/articles/articles.queries'
+import { failedWithoutData } from '@/shared/paging/failed-without-data'
 import { InfiniteList } from '@/shared/paging/infinite-list'
 import { ArticleSummary } from './article-summary'
 
@@ -18,9 +19,8 @@ const PAGE_SIZE = 10
 export function ArticleInfiniteList() {
   const { data, hasNextPage, isFetchingNextPage, isError, isFetchNextPageError, fetchNextPage, refetch } =
     useInfiniteQuery(listArticlesInfiniteQueryOptions({ pageSize: PAGE_SIZE }))
-  // 첫 페이지나 다음 페이지를 받지 못한 것만 알린다. 받아 둔 페이지를 다시 가져오다(창에 돌아왔을 때 등) 실패한 것은
-  // 보여 준 목록을 그대로 두고 다음에 다시 가져온다.
-  const failed = isFetchNextPageError || (isError && data === undefined)
+  // 첫 페이지나 다음 페이지를 받지 못한 것만 알린다. 받아 둔 페이지를 다시 가져오다 실패한 것은 목록을 그대로 둔다.
+  const failed = isFetchNextPageError || failedWithoutData({ isError, data })
 
   return (
     <InfiniteList

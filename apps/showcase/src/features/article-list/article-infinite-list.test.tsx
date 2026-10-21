@@ -6,6 +6,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
+import { articlesKeys } from '@/queries/articles/articles.keys'
 import { server } from '@/shared/mocks/node'
 import { ArticleInfiniteList } from './article-infinite-list'
 
@@ -80,11 +81,11 @@ function renderArticleInfiniteList() {
 }
 
 /** 목록이 게시글 목록(listArticles)을 요청할 때마다 보낸 쿼리 파라미터를 모은다. */
-function recordArticleRequests(): string[] {
-  const requests: string[] = []
+function recordArticleRequests(): Record<string, string>[] {
+  const requests: Record<string, string>[] = []
   server.events.on('request:start', ({ request }) => {
     const url = new URL(request.url)
-    if (url.pathname.endsWith('/articles')) requests.push(url.search)
+    if (url.pathname.endsWith('/articles')) requests.push(Object.fromEntries(url.searchParams))
   })
   onTestFinished(() => {
     server.events.removeAllListeners()
@@ -124,7 +125,10 @@ test('불러오는 중임을 알린 뒤 최근 게시글 10개를 보여 주고,
   await waitForStatus('게시글 20개를 불러왔습니다.')
   expect(articleTitles().slice(0, 10)).toEqual(firstPage)
   expect(articleTitles()[10]).toBe('개발 블로그 36호')
-  expect(requests).toEqual(['?pageSize=10&page=1', '?pageSize=10&page=2'])
+  expect(requests).toEqual([
+    { page: '1', pageSize: '10' },
+    { page: '2', pageSize: '10' },
+  ])
 })
 
 test('마지막 페이지 뒤의 빈 페이지를 받으면 모두 불러왔다고 알리고, 더 스크롤해도 다시 요청하지 않는다', async () => {
@@ -144,7 +148,7 @@ test('마지막 페이지 뒤의 빈 페이지를 받으면 모두 불러왔다�
   expect(articleTitles()).toHaveLength(46)
   expect(articleTitles().at(-1)).toBe('릴리스 노트 1호')
   expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
-  expect(requests).toEqual([1, 2, 3, 4, 5, 6].map((page) => `?pageSize=10&page=${String(page)}`))
+  expect(requests).toEqual([1, 2, 3, 4, 5, 6].map((page) => ({ page: String(page), pageSize: '10' })))
 })
 
 test('스크롤하지 않고 더 보기 버튼으로도 다음 페이지를 불러오고, 새로 불러온 첫 게시글로 포커스를 옮긴다', async () => {
@@ -204,16 +208,20 @@ test('다음 페이지를 불러오지 못하면 알리고 스크롤로는 다�
   expect(screen.getByRole('heading', { name: '개발 블로그 36호' }).closest('li')).toHaveFocus()
 })
 
-test('이미 보여 준 목록을 다시 가져오다 실패하면 목록을 그대로 두고, 스크롤로 계속 불러온다', async () => {
+test('창에 돌아와 받아 둔 페이지를 다시 가져오다 실패해도 목록을 그대로 두고, 스크롤로 계속 불러온다', async () => {
   const { queryClient } = renderArticleInfiniteList()
   await waitForStatus('게시글 10개를 불러왔습니다.')
-  // 창에 다시 돌아왔을 때처럼 받아 둔 페이지를 다시 가져오다 실패한다.
   server.use(http.get('*/articles', () => HttpResponse.json({ message: '점검 중' }, { status: 503 }), { once: true }))
-  await act(async () => {
-    await queryClient.refetchQueries()
-    // TanStack Query는 결과를 다음 매크로태스크에 컴포넌트에 알리므로, 그 뒤에 그려진 화면을 본다.
-    await new Promise((resolve) => setTimeout(resolve, 0))
+
+  // 다른 탭에 갔다가 돌아오면 받아 둔 페이지를 다시 가져온다(TanStack Query의 refetchOnWindowFocus).
+  act(() => {
+    window.dispatchEvent(new Event('visibilitychange'))
   })
+  await waitFor(() => {
+    expect(queryClient.getQueryState(articlesKeys.listArticlesInfinite({ pageSize: 10 }))?.status).toBe('error')
+  })
+  // 실패한 결과는 다음 매크로태스크에 컴포넌트에 알려지므로, 그 뒤에 그려진 화면을 본다.
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
 
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   expect(articleTitles()).toHaveLength(10)

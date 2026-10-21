@@ -47,6 +47,37 @@ async function scrollToBottom(page: Page) {
   })
 }
 
+/** failArticlePage가 막은 페이지를 다시 받게 하는 window의 값 */
+interface ArticlePageFailure {
+  articlePageRecovered?: boolean
+}
+
+/**
+ * 브라우저에서 pageNumber번째 게시글 페이지의 요청을 recoverArticlePage를 부를 때까지 503으로 실패시킨다. 목 백엔드는
+ * 실패하지 않으므로 앱 코드보다 먼저 브라우저의 fetch를 감싼다. 요청이 BFF 프록시로 가든(server) 백엔드로 바로
+ * 가든(static-export) 이 fetch를 거친다.
+ */
+async function failArticlePage(page: Page, pageNumber: number) {
+  await page.addInitScript((target) => {
+    const originalFetch = window.fetch.bind(window)
+    const failure = window as ArticlePageFailure
+    window.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input, window.location.href)
+      const blocked = url.pathname.endsWith('/articles') && url.searchParams.get('page') === target
+      if (blocked && failure.articlePageRecovered !== true) {
+        return Response.json({ message: '점검 중' }, { status: 503 })
+      }
+      return originalFetch(input, init)
+    }
+  }, String(pageNumber))
+}
+
+async function recoverArticlePage(page: Page) {
+  await page.evaluate(() => {
+    ;(window as ArticlePageFailure).articlePageRecovered = true
+  })
+}
+
 function articles(page: Page) {
   return page.getByRole('list', { name: '게시글 목록' }).getByRole('listitem')
 }
@@ -114,6 +145,27 @@ test('스크롤하지 않는 키보드 사용자는 더 보기 버튼으로 다�
   await expect(status).toHaveText('게시글 30개를 불러왔습니다.')
   await expect(articleItem(page, '운영 공지 26호')).toBeFocused()
   expect(requested).toEqual(['1', '2', '3'])
+})
+
+test('다음 페이지를 받지 못하면 몇 번 더 시도한 뒤 알리고, 다시 시도 버튼으로 이어서 불러온다', async ({ page }) => {
+  await failArticlePage(page, 2)
+  await page.goto('/articles')
+  const status = page.getByRole('status')
+  await expect(status).toHaveText('게시글 10개를 불러왔습니다.')
+
+  await scrollToBottom(page)
+
+  // TanStack Query는 실패한 요청을 세 번 더 보낸 뒤(1, 2, 4초 간격) 실패로 본다. Next.js의 라우트 알림(role="alert")은
+  // main 밖에 있다.
+  const alert = page.getByRole('main').getByRole('alert')
+  await expect(alert).toHaveText('다음 페이지를 불러오지 못했습니다.', { timeout: 15_000 })
+  await expect(articles(page)).toHaveCount(10)
+  // 백엔드가 다시 응답하면 다시 시도 버튼으로 그 페이지부터 이어서 불러온다.
+  await recoverArticlePage(page)
+  await page.getByRole('button', { name: '다시 시도' }).click()
+
+  await expect(status).toHaveText('게시글 20개를 불러왔습니다.')
+  await expect(alert).toHaveCount(0)
 })
 
 test('번호형 페이지네이션은 같은 게시글을 쪽 번호와 이전·다음으로 넘겨 보여 준다', async ({ page }) => {
