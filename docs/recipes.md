@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -416,3 +416,19 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 | 자기 테스트    | `src/shared/auth/*.test.ts`, `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`                                                                                                                                                                                                                                                                        |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Rendering Mode | `server`                                                                                                                                                                                                                                                                                                                                                                                                |
+
+## 예: multi-step-form
+
+입점 신청서(`/partners/apply`)를 사업자 정보 → 담당자 정보 → 판매 계획 → 신청 내용 확인의 네 단계로 나눠 입력받고, 확인 단계에서 한 번에 보내는 Recipe다. table처럼 명세 조각으로 요청 본문이 큰 operation `submitPartnerApplication`(tag `partners`)을 더하고, Query Domain(`src/queries/partners/`)은 `npm run g -- mutation submitPartnerApplication`이 만든 뮤테이션 훅을 그대로 담는다. 검증 규칙을 명세에서만 가져오도록(ADR-0003) 단계마다 재생성 계층의 요청 본문 스키마에서 그 단계의 필드만 고른 스키마(`.pick`)로 검증하고, 확인 단계에서 요청 본문 스키마 전체로 한 번 더 검증한 뒤 보낸다. 입력 요소와 오류 표시, 알림은 `form` Schematic이 만드는 폼과 같다.
+
+다른 다단계 폼에도 쓸 부품은 `src/shared/multi-step-form/`에 둔다. `useFormSteps`가 단계와 모든 단계의 값(검증하기 전의 값)을 들고 단계를 옮길 때 포커스를 단계 제목으로 옮기며, `StepForm`이 단계마다 React Hook Form 폼을 하나씩 만들어 "다음"은 그 단계의 스키마로 검증하고 "이전"은 검증 없이 값을 넘긴다. 단계와 값은 `sessionStorage`에 둬 새로 고쳐도 이어 가고, 그린 뒤에 읽으므로 hydration이 어긋나지 않는다. 페이지 뼈대는 미리 렌더링하고 값은 브라우저가 들고 있다가 신청할 때만 요청하므로 두 Rendering Mode에서 같은 코드로 동작한다. MSW 목은 명세의 `example`만으로 충분해 직접 만든 핸들러가 없다.
+
+| 선언하는 것    | `recipes/multi-step-form/`                                                                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/partners/apply/page.tsx`, `src/features/partner-application/`, `src/queries/partners/`, `src/shared/multi-step-form/`                                                                  |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /partner-applications`(`submitPartnerApplication`), 스키마 `PartnerApplication`, `PartnerCategory`, `PartnerApplicationReceipt`                                |
+| 설정 패치      | 없음                                                                                                                                                                                            |
+| npm 의존성     | 없음(Base의 React Hook Form과 Zod를 쓴다)                                                                                                                                                       |
+| 자기 테스트    | `src/features/partner-application/partner-application-form.test.tsx`, `src/shared/multi-step-form/draft-storage.test.ts`, `partner-application-form.stories.tsx`, `e2e/multi-step-form.spec.ts` |
+| 필요한 Recipe  | 없음                                                                                                                                                                                            |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                                       |

@@ -1,0 +1,5 @@
+{
+  "description": "단계마다 그 단계의 필드만 검증하고, 이전 단계로 돌아가도 값이 남고, 확인 단계에서 한 번에 제출하는 다단계 폼(/partners/apply)",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}
