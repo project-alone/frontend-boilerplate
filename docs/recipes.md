@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`과 명세 조각으로 목록 operation을 더하는 `recipes/table/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -304,3 +304,19 @@ Recipe를 더하거나 고친 PR에는 changeset(`npm run changeset`)을 함께 
 | 자기 테스트    | `src/features/rendering-demo/browser-product-list.test.tsx`, `e2e/route-rendering.spec.ts`                       |
 | 필요한 Recipe  | 없음                                                                                                             |
 | Rendering Mode | `server`                                                                                                         |
+
+## 예: table
+
+TanStack Table로 정렬·필터·페이지를 백엔드가 처리하는 목록 테이블(`/members`)을 보여 주는 Recipe다. Base 명세의 operation은 고칠 수 없으므로 명세 조각으로 정렬·필터·페이지 파라미터를 받는 목록 operation `listMembers`(tag `members`)를 더하고, Query Domain(`src/queries/members/`)은 `npm run g -- query listMembers`가 만든 코드를 그대로 담는다. 테이블의 상태를 쿼리 파라미터로 바꿔 쿼리 키(ADR-0008)와 요청에 함께 담으므로, 브라우저가 상태가 바뀔 때마다 다시 요청한다. 그래서 서버에서 미리 가져오지 않고 두 Rendering Mode에서 같은 코드로 동작한다.
+
+생성된 MSW 핸들러는 명세의 `example`만 돌려주므로, 파라미터대로 거르고 정렬하는 핸들러(`src/shared/mocks/members.ts`)를 `src/shared/mocks/handlers.ts`의 패치로 생성된 핸들러 앞에 둔다. 이 자리는 아직 확장 지점이 아니다. 다른 Recipe도 직접 만든 MSW 핸들러를 같은 자리에 더하게 되면 확장 지점으로 만든다(ADR-0010).
+
+| 선언하는 것    | `recipes/table/`                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/members/page.tsx`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts` |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /members`(`listMembers`), 스키마 `Member`, `MemberRole`, `MemberPage`           |
+| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                            |
+| npm 의존성     | `@tanstack/react-table`                                                                                         |
+| 자기 테스트    | `src/features/member-table/member-table.test.tsx`, `e2e/table.spec.ts`                                          |
+| 필요한 Recipe  | 없음                                                                                                            |
+| Rendering Mode | `server`, `static-export`                                                                                       |
