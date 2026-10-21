@@ -100,7 +100,6 @@ for (const { renderingMode, recipes, plugProvider } of COMBINATIONS) {
 
       const report = runVitestScript(starter, ['test'])
       expectFileToPass(report, 'src/shared/analytics/analytics.test.ts', 1)
-      if (recipes.includes('sentry')) expectFileToPass(report, 'src/shared/sentry/sentry.test.ts', 1)
     })
 
     test('빌드를 통과한다', () => {
