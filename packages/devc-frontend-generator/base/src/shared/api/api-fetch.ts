@@ -28,7 +28,16 @@ export class ApiError extends Error {
  * 응답은 명세에서 만든 Zod 스키마로 검증해 돌려준다.
  */
 export async function apiFetch<T>(path: string, { schema, ...init }: ApiRequestInit<T> = {}): Promise<T> {
-  const baseUrl = typeof window === 'undefined' ? backendBaseUrl() : browserBaseUrl()
+  let baseUrl: string
+  if (typeof window === 'undefined') {
+    // 목 빌드(API_MOCKING=enabled로 실행한 next build)이면 요청을 보내기 전에 MSW를 켠다(api-mocking.ts). Next.js는
+    // 브라우저 번들의 `typeof window`를 값으로 바꾸므로, 이 블록 안에서 불러오는 모듈과 MSW는 브라우저 번들에서 빠진다.
+    const { startBuildApiMocking } = await import('./api-mocking')
+    await startBuildApiMocking()
+    baseUrl = backendBaseUrl()
+  } else {
+    baseUrl = browserBaseUrl()
+  }
   const response = await fetch(`${baseUrl}${path}`, init)
   const body = await readBody(response)
   if (!response.ok) throw new ApiError(response.status, body)

@@ -246,6 +246,7 @@ function instrumentation(pieces: readonly ExtensionPiece[]): GeneratedFile | und
       '',
       GENERATED_NOTICE,
       '// Next.js 서버가 뜰 때(register)와 서버가 요청을 처리하다 오류가 났을 때(onRequestError) 조각을 위에서부터 차례로 실행한다.',
+      '// next build에서는 실행되지 않으므로, 빌드할 때도 필요한 준비(예: 목 빌드의 MSW)는 그 코드를 쓰는 곳에서 한다.',
       'interface InstrumentationHook {',
       '  /** 서버 런타임(nodejs, edge)마다 한 번 실행된다. Node.js 전용 코드는 process.env.NEXT_RUNTIME을 확인한 뒤 동적 import로 불러온다. */',
       '  register?: () => void | Promise<void>',

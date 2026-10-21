@@ -94,6 +94,15 @@ describe.each([
     for (const image of images) expect(image).toMatch(new RegExp(`^node:${nvmrc}(?:-|$)`))
   })
 
+  // 빌드할 때 데이터를 가져오는 SSG·ISR 페이지가 실제 백엔드 없이 빌드되도록 목 빌드로 한다(README의 "배포용 빌드와 목 빌드").
+  test('build 잡은 목 빌드(API_MOCKING=enabled)로 빌드하고, 빌드 캐시에 담길 목 응답(.next/cache/fetch-cache)은 지운다', () => {
+    const buildJob = ciSections(starter.dir).find((section) => npmScriptsIn(section['script']).includes('build'))
+    if (buildJob === undefined) throw new Error('build를 실행하는 잡이 없습니다.')
+
+    expect(buildJob['variables']).toMatchObject({ API_MOCKING: 'enabled' })
+    expect([buildJob['script']].flat()).toContain('rm -rf .next/cache/fetch-cache')
+  })
+
   test(`E2E 잡은 build 잡에서 필요한 빌드 결과(${e2eArtifacts.join(', ') || '없음'})만 받는다`, () => {
     const config = readGitlabCi(starter.dir)
     const e2eJob = Object.values(config)

@@ -16,6 +16,7 @@ import {
   QUERY_PARAMS_ARGUMENT,
   SchematicError,
   StarterProject,
+  successSchema,
 } from './starter-project.js'
 
 export interface QuerySchematicOptions {
@@ -150,14 +151,6 @@ function pageParameter(operation: Operation, name: string): PageParameter {
   // 첫 페이지 번호는 명세의 기본값, 없으면 최솟값을 따르고, 둘 다 없으면 1이다.
   const initial = [schema.default, schema.minimum].find((value) => typeof value === 'number') as number | undefined
   return { name, initial: initial ?? 1 }
-}
-
-function successSchema(operation: Operation): OpenAPIV3.SchemaObject | undefined {
-  const [, response] =
-    Object.entries(operation.definition.responses).find(([status]) => status.startsWith('2')) ?? []
-  return (response as OpenAPIV3.ResponseObject | undefined)?.content?.['application/json']?.schema as
-    | OpenAPIV3.SchemaObject
-    | undefined
 }
 
 // 키는 인자를 모두 받는다. 인자가 빠지면 서로 다른 요청이 같은 키를 쓰게 된다.

@@ -34,18 +34,20 @@ Starter 안에서 실행합니다. `npm run g -- <schematic> ...`은 `npx dcgen 
 npm run g -- query listProducts                        # listProducts operation의 쿼리 키와 queryOptions
 npm run g -- mutation createProduct                    # createProduct operation의 뮤테이션 훅
 npm run g -- form createProduct --feature products     # Feature에 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼, 스토리, 테스트
+npm run g -- page catalog --query listProducts --feature catalog  # 목록 페이지와 목록을 보여 줄 컴포넌트, 테스트
 npm run g -- component order-summary --feature orders  # Feature에 컴포넌트, 스토리, 테스트
 npx dcgen g --help                                     # 쓸 수 있는 Schematic
 ```
 
-| Schematic   | 만드는 것                                                                                      |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)                                    |
-| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                                         |
-| `form`      | 요청 본문의 Zod 스키마로 검증하고 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트(Feature) |
-| `component` | 컴포넌트, Storybook 스토리, 테스트(Feature 또는 공통 UI)                                       |
+| Schematic   | 만드는 것                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)                                                                                |
+| `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                                                                                     |
+| `form`      | 요청 본문의 Zod 스키마로 검증하고 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트(Feature)                                             |
+| `page`      | 라우트의 페이지(메타데이터, `--mode`의 Rendering Mode), 로딩·오류 상태. `--query`의 결과를 보여 줄 컴포넌트(Feature), `--form`의 폼을 넣음 |
+| `component` | 컴포넌트, Storybook 스토리, 테스트(Feature 또는 공통 UI)                                                                                   |
 
-`query`, `mutation`, `form`은 Starter 최상위의 `openapi.yaml`을 읽어 코드를 만듭니다. 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고 실패합니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다. Schematic마다의 자세한 사용법은 만들어진 Starter의 README에 있습니다.
+`query`, `mutation`, `form`, `page`는 Starter 최상위의 `openapi.yaml`을 읽어 코드를 만듭니다. 같은 이름의 코드가 이미 있으면 아무 파일도 바꾸지 않고 실패합니다. `page`만은 `--query`의 결과를 보여 줄 컴포넌트가 그 Feature에 이미 있으면 새로 만들지 않고 씁니다. 만든 코드는 그 뒤로 프로젝트가 직접 소유하고 고칩니다. Schematic마다의 자세한 사용법은 만들어진 Starter의 README에 있습니다.
 
 ## 더 보기
 

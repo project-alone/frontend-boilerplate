@@ -1,10 +1,11 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import type { OpenAPIV3 } from 'openapi-types'
 import { Node, Project, QuoteKind, type SourceFile, type TypeNode } from 'ts-morph'
+import type { RenderingMode } from '../rendering-mode.js'
 import { camelCase, splitWords } from './names.js'
 
 // `dcgen g`가 읽고 쓰는 곳. 모두 Starter 최상위(package.json이 있는 디렉터리) 기준이다.
@@ -20,6 +21,9 @@ export const QUERY_PARAMS_ARGUMENT = 'params'
 const REQUEST_OPTIONS_ARGUMENT = 'options'
 
 const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const
+
+// Starter의 Next.js 설정 파일. output: 'export'면 Rendering Mode static-export다.
+const NEXT_CONFIG_FILES = ['next.config.ts', 'next.config.mjs', 'next.config.js']
 
 // 확장자 없는 import('./order-summary')가 풀릴 수 있는 모듈 파일의 확장자. 이 가운데 하나라도 있으면 같은 이름의 코드다.
 const MODULE_EXTENSIONS = ['.tsx', '.ts', '.d.ts', '.jsx', '.js']
@@ -93,6 +97,25 @@ export class StarterProject {
         throw new SchematicError('package.json을 찾지 못했습니다. dcgen g는 Starter 안에서 실행합니다.')
       }
     }
+  }
+
+  /** Starter 단위 Rendering Mode. next.config의 output이 'export'면 static-export, 아니면 server다. */
+  renderingMode(): RenderingMode {
+    for (const file of NEXT_CONFIG_FILES) {
+      const path = join(this.root, file)
+      if (existsSync(path) && /\boutput\s*:\s*['"]export['"]/.test(readFileSync(path, 'utf8'))) return 'static-export'
+    }
+    return 'server'
+  }
+
+  /** Starter 최상위 기준 path 바로 아래의 폴더 이름. path가 없으면 빈 목록이다. */
+  subdirectories(path: string): string[] {
+    const directory = join(this.root, path)
+    if (!existsSync(directory)) return []
+    return readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map(({ name }) => name)
+      .sort()
   }
 
   async findOperation(operationId: string): Promise<Operation> {
@@ -253,6 +276,15 @@ export class StarterProject {
       throw error
     }
   }
+}
+
+/** operation이 성공(2xx)했을 때 돌려주는 JSON 응답 본문의 스키마. 응답 본문이 없으면 undefined다. */
+export function successSchema(operation: Operation): OpenAPIV3.SchemaObject | undefined {
+  const [, response] =
+    Object.entries(operation.definition.responses).find(([status]) => status.startsWith('2')) ?? []
+  return (response as OpenAPIV3.ResponseObject | undefined)?.content?.['application/json']?.schema as
+    | OpenAPIV3.SchemaObject
+    | undefined
 }
 
 /**

@@ -6,7 +6,12 @@ declare namespace NodeJS {
   interface ProcessEnv {
     /** Next.js가 넣는 서버 런타임 이름 */
     readonly NEXT_RUNTIME?: 'nodejs' | 'edge'
-    /** enabled이면 Next.js 서버가 보내는 API 요청을 MSW가 받는다(src/shared/api/api-instrumentation.ts). */
+    /** Next.js가 넣는 단계 이름. next build 중(빌드 워커 포함)에는 phase-production-build다(src/shared/api/api-mocking.ts). */
+    readonly NEXT_PHASE?: string
+    /**
+     * enabled이면 Next.js 서버(src/shared/api/api-instrumentation.ts)와 next build(src/shared/api/api-mocking.ts)가 보내는
+     * API 요청을 MSW가 받는다. 이 값으로 만든 빌드 결과는 배포하지 않는다.
+     */
     readonly API_MOCKING?: 'enabled' | 'disabled'
     /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/base-url.ts). API_MOCKING이 enabled가 아니면 꼭 넣는다. */
     readonly API_BASE_URL?: string

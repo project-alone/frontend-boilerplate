@@ -1,7 +1,8 @@
 import { kebabCase, pascalCase, splitWords } from './names.js'
 import { SchematicError } from './starter-project.js'
 
-const FEATURES_DIR = 'src/features'
+/** Feature를 두는 폴더. Starter 최상위 기준이다. */
+export const FEATURES_DIR = 'src/features'
 
 // 컴포넌트, 폼, Feature의 이름. 영문자로 시작해 영문자·숫자를 하이픈으로 잇는 kebab-case, 또는 PascalCase·camelCase다.
 // 폴더 깊이(src/<계층>/<이름>/<파일>, ADR-0005)를 넘지 않도록 경로 구분자는 받지 않는다.
