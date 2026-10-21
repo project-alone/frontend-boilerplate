@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type {
   LandingFaqSection,
   LandingFeatureSection,
@@ -46,28 +47,22 @@ function Hero({ hero }: Readonly<{ hero: LandingHero }>) {
 
 function Features({ section }: Readonly<{ section: LandingFeatureSection }>) {
   return (
-    <section id="features" aria-labelledby="features-heading" className="flex flex-col gap-4">
-      <h2 id="features-heading" className="text-lg font-semibold">
-        {section.heading}
-      </h2>
+    <LandingSection id="features" heading={section.heading}>
       <ul className="grid gap-4 md:grid-cols-3">
         {section.items.map((feature) => (
           <li key={feature.id} className="flex flex-col gap-2 rounded-lg border border-border p-4">
-            <h3 className="font-semibold">{feature.title}</h3>
+            <h3 className="font-medium">{feature.title}</h3>
             <p className="text-sm text-muted-foreground">{feature.body}</p>
           </li>
         ))}
       </ul>
-    </section>
+    </LandingSection>
   )
 }
 
 function Testimonials({ section }: Readonly<{ section: LandingTestimonialSection }>) {
   return (
-    <section id="testimonials" aria-labelledby="testimonials-heading" className="flex flex-col gap-4">
-      <h2 id="testimonials-heading" className="text-lg font-semibold">
-        {section.heading}
-      </h2>
+    <LandingSection id="testimonials" heading={section.heading}>
       <ul className="grid gap-4 md:grid-cols-2">
         {section.items.map((testimonial) => (
           <li key={testimonial.id}>
@@ -82,16 +77,13 @@ function Testimonials({ section }: Readonly<{ section: LandingTestimonialSection
           </li>
         ))}
       </ul>
-    </section>
+    </LandingSection>
   )
 }
 
 function Faqs({ section }: Readonly<{ section: LandingFaqSection }>) {
   return (
-    <section id="faqs" aria-labelledby="faqs-heading" className="flex flex-col gap-4">
-      <h2 id="faqs-heading" className="text-lg font-semibold">
-        {section.heading}
-      </h2>
+    <LandingSection id="faqs" heading={section.heading}>
       <div className="flex flex-col gap-2">
         {section.items.map((faq) => (
           <details key={faq.id} className="rounded-lg border border-border">
@@ -100,6 +92,18 @@ function Faqs({ section }: Readonly<{ section: LandingFaqSection }>) {
           </details>
         ))}
       </div>
+    </LandingSection>
+  )
+}
+
+/** 제목(h2)으로 이름을 붙인 섹션(랜드마크). id는 콘텐츠의 링크(#features 등)가 가리키는 위치다. */
+function LandingSection({ id, heading, children }: Readonly<{ id: string; heading: string; children: ReactNode }>) {
+  return (
+    <section id={id} aria-labelledby={`${id}-heading`} className="flex flex-col gap-4">
+      <h2 id={`${id}-heading`} className="font-semibold">
+        {heading}
+      </h2>
+      {children}
     </section>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import { Link } from '@/shared/i18n/navigation'
+import { LANDING_PATH } from './landing-routes'
 
 /**
  * 모든 페이지 위의 머리글에 놓이는 랜딩 페이지 링크(확장 지점 header). 지금 locale의 랜딩 페이지로 간다(/ko/landing,
@@ -13,7 +14,10 @@ export function LandingLink() {
 
   return (
     <nav aria-label={t('label')} className="flex items-center">
-      <Link href="/landing" className="focus-ring rounded-sm text-sm font-medium underline-offset-4 hover:underline">
+      <Link
+        href={LANDING_PATH}
+        className="focus-ring rounded-sm text-sm font-medium underline-offset-4 hover:underline"
+      >
         {t('label')}
       </Link>
     </nav>

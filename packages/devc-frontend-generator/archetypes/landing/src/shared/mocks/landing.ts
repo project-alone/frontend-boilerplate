@@ -150,11 +150,11 @@ export const MOCK_LANDING_PAGES = {
   },
 } satisfies Record<string, LandingPageContent>
 
-const pages: ReadonlyMap<string, LandingPageContent> = new Map(Object.entries(MOCK_LANDING_PAGES))
+const contentByLocale: ReadonlyMap<string, LandingPageContent> = new Map(Object.entries(MOCK_LANDING_PAGES))
 
 export const landingHandlers = [
   http.get<{ locale: string }>(`${MOCK_API_BASE_URL}/landing-pages/:locale`, ({ params }) => {
-    const content = pages.get(params.locale)
+    const content = contentByLocale.get(params.locale)
     // 그 locale로 쓴 콘텐츠가 없다(명세의 404).
     if (content === undefined) return new HttpResponse(null, { status: 404 })
     return HttpResponse.json(content)
