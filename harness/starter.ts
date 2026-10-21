@@ -228,6 +228,13 @@ export function readTree(directory: string): Record<string, string> {
   )
 }
 
+/** Starter의 검사 스크립트(타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사)가 모두 통과하는지 본다. */
+export function expectStarterChecksToPass(starter: Pick<Starter, 'expectNpmSuccess'>): void {
+  for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check'], ['test'], ['run', 'test:storybook']]) {
+    starter.expectNpmSuccess(script)
+  }
+}
+
 /**
  * `next build`가 보여 주는 라우트 표에서 route의 줄. 라우트마다 미리 렌더링했는지(○ Static, ● generateStaticParams로 만든
  * SSG) 요청마다 렌더링하는지(ƒ Dynamic) 보여 준다. 없으면 빈 문자열이다.

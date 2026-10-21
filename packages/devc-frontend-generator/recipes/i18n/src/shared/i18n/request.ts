@@ -1,6 +1,6 @@
 import { hasLocale } from 'next-intl'
 import { getRequestConfig } from 'next-intl/server'
-import { MESSAGES, TIME_ZONE } from './messages'
+import { intlConfig } from './messages'
 import { routing } from './routing'
 
 /*
@@ -22,7 +22,7 @@ export function i18nRequestConfig(locale: string | undefined) {
   if (!hasLocale(routing.locales, locale)) {
     throw new Error(`지원하지 않는 locale입니다: ${locale}. 지원하는 locale: ${routing.locales.join(', ')}`)
   }
-  return { locale, messages: MESSAGES[locale], timeZone: TIME_ZONE }
+  return intlConfig(locale)
 }
 
 export default getRequestConfig(({ locale }) => i18nRequestConfig(locale))

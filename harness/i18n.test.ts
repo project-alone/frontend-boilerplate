@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { freePort, start, waitForServer } from './run.ts'
-import { buildRouteLine, runPlaywrightAgainst, useStarter } from './starter.ts'
+import { buildRouteLine, expectStarterChecksToPass, runPlaywrightAgainst, useStarter } from './starter.ts'
 
 // 하네스 매트릭스: Base에 i18n Recipe를 넣은 Starter를 Rendering Mode마다 만들어, Starter 자신의 스크립트와 Recipe가 함께
 // 넣은 테스트(메시지 카탈로그, locale을 고르는 proxy 처리기, locale 전환 UI 스토리, e2e/i18n.spec.ts)가 통과하는지 본다.
@@ -18,15 +18,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 i18n R
   })
 
   test('타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사를 통과한다', () => {
-    for (const script of [
-      ['run', 'typecheck'],
-      ['run', 'lint'],
-      ['run', 'format:check'],
-      ['test'],
-      ['run', 'test:storybook'],
-    ]) {
-      starter.expectNpmSuccess(script)
-    }
+    expectStarterChecksToPass(starter)
   })
 
   // 메시지 타입은 Rendering Mode와 상관없으므로 server에서만 본다.
