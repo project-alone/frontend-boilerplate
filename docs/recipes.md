@@ -23,7 +23,7 @@ Recipe는 `packages/devc-frontend-generator/recipes/<이름>/` 디렉터리 하�
 ```
 recipes/<이름>/
 ├── recipe.json      선언: 설명, 필요한 Recipe, 지원하는 Rendering Mode (필수)
-├── extensions.json  확장 지점에 더할 조각: Provider, 머리글, proxy, next.config, instrumentation, 백엔드 요청, MSW 핸들러
+├── extensions.json  확장 지점에 더할 조각: Provider, 머리글, proxy, next.config, instrumentation, 백엔드 요청, MSW 핸들러, sitemap 규칙
 ├── openapi.yaml     Base 명세에 병합할 명세 조각
 ├── .env.<이름>      Starter의 같은 dotenv 파일에 변수 단위로 병합할 변수(.env.example, .env.development 등)
 ├── package.json     Starter의 package.json에 합칠 내용: 의존성, 스크립트
@@ -96,7 +96,7 @@ npm은 패키지를 만들 때 `.gitignore`와 `.npmrc`를 뺀다. 특히 `.giti
 
 ## 확장 지점
 
-여러 Recipe가 Base의 같은 파일, 같은 자리에 끼어들어야 하는 곳이다. 이 자리를 패치로 고치면 Recipe끼리 맥락 줄이 어긋나 모든 Recipe를 켜는 Showcase를 만들 수 없으므로, Recipe는 자기 조각만 더하고 Generator가 모든 overlay를 덧입힌 뒤 한꺼번에 조립한다(ADR-0010). Base와 Rendering Mode overlay도 같은 방법으로 자기 조각을 더한다.
+여러 Recipe가 Base의 같은 파일, 같은 자리(또는 sitemap처럼 한 Recipe가 더한 파일에 다른 Recipe가 알려야 하는 자리)에 끼어들어야 하는 곳이다. 이 자리를 패치로 고치면 Recipe끼리 맥락 줄이 어긋나 모든 Recipe를 켜는 Showcase를 만들 수 없으므로, Recipe는 자기 조각만 더하고 Generator가 모든 overlay를 덧입힌 뒤 한꺼번에 조립한다(ADR-0010). Base와 Rendering Mode overlay도 같은 방법으로 자기 조각을 더한다.
 
 | 확장 지점                                       | overlay에 두는 것                                                | Starter에 생기는 파일                                           | Rendering Mode                                   |
 | ----------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------ |
@@ -107,6 +107,7 @@ npm은 패키지를 만들 때 `.gitignore`와 `.npmrc`를 뺀다. 특히 `.giti
 | instrumentation-client(`instrumentationClient`) | `extensions.json` + 브라우저 조각                                | `src/instrumentation-client.ts`                                 | 둘 다                                            |
 | 백엔드 요청(`backendFetch`)                     | `extensions.json` + 요청 처리기                                  | `src/shared/api/backend-fetch.ts`(`apiFetch`와 BFF 프록시가 씀) | 둘 다(`static-export`는 빌드할 때와 개발 서버만) |
 | MSW 핸들러(`mockHandlers`)                      | `extensions.json` + 직접 만든 MSW 핸들러의 배열                  | `src/shared/mocks/handlers.ts`(MSW가 씀)                        | 둘 다                                            |
+| sitemap 규칙(`sitemap`)                         | `extensions.json` + 규칙 객체                                    | `src/app/sitemap-rules.ts`(`src/app/sitemap.ts`가 있을 때만)    | 둘 다                                            |
 | OpenAPI 명세                                    | `openapi.yaml`(명세 조각)                                        | `openapi.yaml`, `src/shared/api/generated/`                     | 둘 다                                            |
 | 환경 변수                                       | `.env.example`, `.env.development` 등, `process-env.<이름>.d.ts` | 같은 이름의 dotenv 파일                                         | 둘 다                                            |
 
@@ -129,7 +130,8 @@ overlay 최상위에 두고, 확장 지점마다 조각의 배열을 적는다. 
     { "path": "src/shared/<이름>/<이름>-instrumentation-client.ts", "export": "someClientInstrumentation", "order": 50 }
   ],
   "backendFetch": [{ "path": "src/shared/<이름>/<이름>-backend-fetch.ts", "export": "someBackendFetch", "order": 100 }],
-  "mockHandlers": [{ "path": "src/shared/<이름>/<이름>-mock-handlers.ts", "export": "someMockHandlers", "order": 100 }]
+  "mockHandlers": [{ "path": "src/shared/<이름>/<이름>-mock-handlers.ts", "export": "someMockHandlers", "order": 100 }],
+  "sitemap": [{ "path": "src/shared/<이름>/<이름>-routes.ts", "export": "someSitemapRules", "order": 100 }]
 }
 ```
 
@@ -226,6 +228,22 @@ export const someMockHandlers = [http.get('*/some-resources', () => HttpResponse
 - 핸들러의 경로는 `*/<경로>`처럼 백엔드 주소를 가리지 않게 쓴다. 서버는 `API_BASE_URL`(MSW가 켜져 있고 비어 있으면 명세의 `servers`), 브라우저는 BFF 프록시나 `NEXT_PUBLIC_API_BASE_URL`을 부른다.
 - 테스트 하나에서만 응답을 바꾸려면 이 지점 대신 테스트에서 `server.use(...)`를 쓴다.
 - Base에는 조각이 없다. 조각이 없으면 생성된 핸들러만 담는다. Base의 `src/shared/mocks/node.ts`가 이 파일을 쓰므로 조각이 없어도 늘 만든다.
+
+#### sitemap 규칙(`sitemap`)
+
+seo Recipe의 sitemap(`src/app/sitemap.ts`)은 `src/app`의 페이지 파일을 찾아 저절로 넣지만, 페이지를 더한 Recipe만 아는 것이 있다. 로그인해야 들어가는 페이지는 검색 엔진에 알리지 않아야 하고(auth), 값을 아는 동적 세그먼트 아래 페이지는 그 값마다 알려야 한다(i18n의 `[locale]`). 그런 Recipe는 자기 페이지의 규칙을 이 지점에 선언하고, sitemap과 robots.txt(`src/app/robots.ts`)는 조립 파일 `src/app/sitemap-rules.ts`의 `sitemapRules`를 읽는다. seo가 이 Recipe들의 모듈을 import하지 않고, 이 Recipe들도 seo에 기대지 않는다.
+
+```ts
+export const someSitemapRules = {
+  exclude: ['/login'], // sitemap에 넣지 않는다. 그 아래 주소도 뺀다(`/`는 홈만). 검색 결과에서 빼려면 그 페이지의 metadata에 robots: { index: false }를 적는다
+  disallow: ['/account'], // robots.txt가 막는다. 그 아래 주소도 막고 sitemap에도 넣지 않는다
+  locales: { param: 'locale', values: ['ko', 'en'] }, // [locale] 아래 페이지를 locale마다 넣고 서로를 언어별 주소(hreflang)로 알린다
+}
+```
+
+- 세 항목 모두 선택이다. 규칙은 모두 합쳐 쓰므로 `order`는 결과를 바꾸지 않는다. `locales`는 한 Recipe만 적는다.
+- 조립 파일은 Starter에 sitemap(`src/app/sitemap.ts`)이 있을 때만 만든다. sitemap이 있으면 조각이 없어도 만들고(`sitemapRules`가 빈 배열), sitemap이 없으면 조각을 선언한 Recipe가 있어도 쓸 곳이 없어 만들지 않는다. 그래서 조각은 새 파일 대신 그 Recipe의 기존 모듈(예: auth의 `access-rules.ts`)에 두어, sitemap이 없는 Starter에 쓰이지 않는 파일이 생기지 않게 한다.
+- 조각의 모양은 조립 파일의 `SitemapRules`가 정하고 Starter의 `typecheck`가 검사한다. `src/app` 계층의 파일이라 `src/app/sitemap.ts`, `robots.ts`만 import한다.
 
 ### OpenAPI 명세 조각(`openapi.yaml`)
 
@@ -492,14 +510,15 @@ table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared
 
 - 메타데이터의 기본값은 루트 레이아웃의 `metadata` 한 곳(`siteMetadata()`)이 정한다. canonical과 og:url을 `./`로 두면 Next.js가 페이지마다 그 페이지의 경로로 풀고, 공유 이미지는 Next.js가 가장 가까운 폴더의 `opengraph-image`를 물려주므로, 다른 Recipe와 Schematic의 페이지는 `title`과 `description`만 적어도 자기 주소와 공유 이미지를 알린다. 페이지가 `openGraph`, `twitter`, `alternates`를 적으면 그 항목의 기본값이 통째로 사라지므로 적지 않는다. 루트 레이아웃의 `metadata`는 확장 지점이 아니어서 패치(`src/app/layout.tsx.patch`)로 바꾼다.
 - sitemap은 빌드할 때 `src/app`의 페이지 파일을 찾아 만든다(`src/shared/seo/page-routes.ts`). 다른 Recipe나 `npm run g -- page`가 더한 페이지는 sitemap을 고치거나 확장 지점에 선언하지 않아도 들어가고, 동적 세그먼트가 있는 페이지는 빠진다. 페이지 목록을 모으는 확장 지점은 두지 않았다. 페이지를 더하는 Recipe가 seo에 기대지 않아도 되고, Starter를 만든 뒤 더한 페이지도 같은 규칙으로 들어간다.
+- 페이지를 더한 Recipe만 아는 규칙은 확장 지점 [sitemap 규칙](#sitemap-규칙sitemap)(`src/app/sitemap-rules.ts`)으로 받는다. sitemap은 규칙이 뺀 주소와 robots.txt가 막는 주소를 넣지 않고, locale을 받는 세그먼트 아래 페이지는 locale마다 넣는다. locale마다 넣은 페이지는 sitemap에서 같은 페이지의 locale별 주소(`alternates.languages`, hreflang)를 서로 알린다. sitemap에 넣은 페이지는 모두 다른 주소로 보내지 않고 200으로 응답해야 하므로 E2E가 하나씩 받아 본다.
 - 공유 이미지는 `opengraph-image.tsx`가 `generateImageMetadata`로 `opengraph-image/image.png`처럼 확장자가 붙은 주소 하나로 만든다. 확장자가 없으면 static-export가 내보낸 파일(`out/opengraph-image`)을 정적 파일 서버가 이미지로 알리지 못한다. `next/og`는 기본 글꼴에 없는 글자를 빌드 중에 Google Fonts에서 받으므로, 한글 11,172자를 담은 글꼴(Pretendard Bold, SIL Open Font License)을 함께 넣어 네트워크 없이 같은 이미지를 만든다.
 
-| 선언하는 것    | `recipes/seo/`                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/sitemap.ts`, `src/app/robots.ts`, `src/app/opengraph-image.tsx`, `src/app/products/opengraph-image.tsx`, `src/shared/seo/`(글꼴과 라이선스 포함)     |
-| 확장 지점      | 환경 변수: `.env.development`, `.env.example`의 `NEXT_PUBLIC_SITE_URL`, `process-env.seo.d.ts`                                                                |
-| 설정 패치      | `src/app/layout.tsx.patch`(루트 레이아웃의 metadata)                                                                                                          |
-| npm 의존성     | 없음(`next/og`는 Next.js에 들어 있다)                                                                                                                         |
-| 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `robots.test.ts`, `e2e/seo.spec.ts` |
-| 필요한 Recipe  | 없음                                                                                                                                                          |
-| Rendering Mode | `server`, `static-export`                                                                                                                                     |
+| 선언하는 것    | `recipes/seo/`                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 추가 파일      | `src/app/sitemap.ts`, `src/app/robots.ts`, `src/app/opengraph-image.tsx`, `src/app/products/opengraph-image.tsx`, `src/shared/seo/`(글꼴과 라이선스 포함)                |
+| 확장 지점      | 환경 변수: `.env.development`, `.env.example`의 `NEXT_PUBLIC_SITE_URL`, `process-env.seo.d.ts`. sitemap과 robots.txt가 sitemap 규칙(`src/app/sitemap-rules.ts`)을 읽는다 |
+| 설정 패치      | `src/app/layout.tsx.patch`(루트 레이아웃의 metadata)                                                                                                                     |
+| npm 의존성     | 없음(`next/og`는 Next.js에 들어 있다)                                                                                                                                    |
+| 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `robots.test.ts`, `e2e/seo.spec.ts`            |
+| 필요한 Recipe  | 없음                                                                                                                                                                     |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                |

@@ -5,7 +5,7 @@ import { exists, type Overlay, OverlayError, readOptionalFile } from './overlay.
 import type { RenderingMode } from './rendering-mode.js'
 
 // 확장 지점: 여러 Recipe가 같은 Base 파일(루트 레이아웃, proxy, next.config, instrumentation, 서버가 백엔드로 보내는 요청,
-// MSW 핸들러 목록)에 끼어들어야 하는 곳.
+// MSW 핸들러 목록)이나 sitemap의 규칙에 끼어들어야 하는 곳.
 // Recipe는 그 파일을 패치하지 않고 자기 모듈을 overlay 최상위의 extensions.json에 선언한다. Generator는 모든 overlay를
 // 덧입힌 뒤 Base와 Rendering Mode, Recipe의 선언을 모아 지점마다 조립 파일 하나를 만든다(docs/recipes.md의 "확장 지점").
 
@@ -21,6 +21,7 @@ export const EXTENSION_POINTS = [
   'instrumentationClient',
   'backendFetch',
   'mockHandlers',
+  'sitemap',
 ] as const
 
 export type ExtensionPoint = (typeof EXTENSION_POINTS)[number]
@@ -90,6 +91,8 @@ export async function readExtensions({ dir, label }: Overlay): Promise<Extension
  * - src/shared/mocks/handlers.ts: Base의 MSW(node.ts, Rendering Mode static-export의 browser.ts)가 쓰므로 늘 만든다.
  * - src/instrumentation.ts, src/instrumentation-client.ts: 조각이 있을 때만 만든다.
  * - src/proxy.ts: 조각이 있고 요청을 받는 서버가 있는(server) Starter에만 만든다. static-export에는 proxy가 없다.
+ * - src/app/sitemap-rules.ts: Starter에 sitemap(SITEMAP_ROUTE, 예: seo Recipe)이 있을 때만 만든다. sitemap과 robots.txt가 쓰므로
+ *   조각이 없어도 만들고, sitemap이 없으면 조각이 있어도 쓸 곳이 없어 만들지 않는다.
  */
 export const ASSEMBLED_FILES: readonly { path: string; points: readonly ExtensionPoint[]; reserved: readonly string[] }[] =
   [
@@ -120,7 +123,11 @@ export const ASSEMBLED_FILES: readonly { path: string; points: readonly Extensio
       points: ['mockHandlers'],
       reserved: ['generatedMocks', 'getMockHandlers', 'handlers'],
     },
+    { path: 'src/app/sitemap-rules.ts', points: ['sitemap'], reserved: ['SitemapRules', 'sitemapRules'] },
   ]
+
+/** sitemap 규칙(src/app/sitemap-rules.ts)을 쓰는 Next.js의 sitemap. Starter에 이 파일이 있을 때만 규칙을 조립한다. */
+export const SITEMAP_ROUTE = 'src/app/sitemap.ts'
 
 /**
  * 조각을 Starter에 쓰기 전에 검사한다. 한 조립 파일에서 두 조각이 같은 이름을 내보내거나(같은 모듈의 같은 값을 다른
@@ -183,6 +190,7 @@ export async function writeExtensionFiles(
     renderingMode === 'server' ? proxy(at('proxy')) : undefined,
     backendFetch(at('backendFetch')),
     mockHandlers(at('mockHandlers')),
+    (await exists(join(target, SITEMAP_ROUTE))) ? sitemapRules(at('sitemap')) : undefined,
   ]
   for (const file of files) {
     if (file === undefined) continue
@@ -406,6 +414,31 @@ function mockHandlers(pieces: readonly ExtensionPiece[]): GeneratedFile {
       pieces.length === 0
         ? `export const handlers = ${generated}`
         : `export const handlers = [${pieces.map((piece) => `...${piece.export}, `).join('')}...${generated}]`,
+    ].join('\n'),
+  }
+}
+
+function sitemapRules(pieces: readonly ExtensionPiece[]): GeneratedFile {
+  const path = 'src/app/sitemap-rules.ts'
+  return {
+    path,
+    content: [
+      ...imports(path, pieces),
+      '',
+      GENERATED_NOTICE,
+      '// sitemap(src/app/sitemap.ts)과 robots.txt(src/app/robots.ts)가 따르는 규칙. 페이지를 더한 Recipe가 자기 페이지를 어떻게',
+      '// 알릴지 정한다(예: 로그인해야 들어가는 페이지는 검색 엔진에 알리지 않고, locale을 받는 페이지는 locale마다 알린다).',
+      '// 규칙은 모두 합쳐 쓰므로 순서는 결과를 바꾸지 않는다.',
+      'export interface SitemapRules {',
+      '  /** sitemap에 넣지 않을 주소. 그 아래 주소도 뺀다(`/`는 홈만 뺀다). robots.txt는 막지 않으므로, 검색 결과에서 빼려면 페이지의 metadata에 robots: { index: false }를 적는다. */',
+      '  exclude?: readonly string[]',
+      '  /** robots.txt가 검색 엔진에 막을 주소. 그 아래 주소도 막고, sitemap에도 넣지 않는다. */',
+      '  disallow?: readonly string[]',
+      '  /** locale을 값으로 받는 동적 세그먼트의 이름(`[locale]`이면 locale)과 그 값. 그 아래 페이지를 locale마다 넣고 서로를 언어별 주소(hreflang)로 알린다. */',
+      '  locales?: { param: string; values: readonly string[] }',
+      '}',
+      '',
+      `export const sitemapRules: readonly SitemapRules[] = [${pieces.map((piece) => piece.export).join(', ')}]`,
     ].join('\n'),
   }
 }

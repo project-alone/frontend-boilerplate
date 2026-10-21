@@ -9,6 +9,7 @@
 | `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                            |
 | `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                          |
 | `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                        |
+| `src/app/sitemap-rules.ts`                | 다른 Recipe가 자기 페이지에 대해 알린 sitemap·robots.txt의 규칙(Generator가 조립)                    |
 | `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예        |
 
 - **사이트 주소**: `NEXT_PUBLIC_SITE_URL`(예: `https://www.example.com`)로 sitemap, robots.txt, canonical, og:url, 공유 이미지의 절대 주소를 만듭니다. 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다(`.env.example`). 없으면 엉뚱한 주소가 검색 엔진에 알려지지 않도록 빌드가 실패합니다. 개발 서버는 `.env.development`의 `http://localhost:3000`을 쓰고, 배포하지 않는 목 빌드(`API_MOCKING=enabled`. GitLab CI의 `build` 잡과 E2E)는 값이 없으면 같은 주소를 씁니다.
@@ -38,9 +39,11 @@
   - 글꼴은 함께 넣은 Pretendard Bold(한글 11,172자, SIL Open Font License 1.1. `src/shared/seo/pretendard-license.txt`)입니다. next/og는 글꼴에 없는 글자를 만나면 빌드 중에 Google Fonts에서 글꼴을 받으므로, 네트워크가 막힌 CI에서도 같은 이미지가 나오도록 글꼴을 함께 둡니다. 한자, 일본어, 이모지는 이 글꼴에 없어 받으러 가므로 공유 이미지의 글에 쓰지 않습니다. 글꼴을 바꾸면 라이선스 파일도 함께 바꿉니다.
 - **sitemap**: 빌드할 때 `src/app`의 페이지를 찾아 `/sitemap.xml`에 넣습니다. 다른 Recipe나 `npm run g -- page`가 더한 페이지도 `sitemap.ts`를 고치지 않고 들어갑니다.
   - 경로 그룹(`(admin)`)은 주소에서 빠집니다. 동적 세그먼트가 있는 페이지(`products/[productId]`)는 빌드할 때 주소를 알 수 없어 빠지므로, `sitemap.ts`에서 데이터를 가져와 주소를 더합니다(예: `listProducts`의 상품마다 `/products/<id>`).
+  - 다른 Recipe가 더한 페이지의 규칙은 `src/app/sitemap-rules.ts`의 `sitemapRules`에 있습니다(Starter를 만들 때 Generator가 Recipe의 선언을 모아 씀). 규칙이 뺀 주소(`exclude`)와 robots.txt가 막는 주소(`disallow`)는 그 아래 주소까지 sitemap에 넣지 않고, locale을 받는 세그먼트(`locales`) 아래 페이지는 locale마다 넣어 같은 페이지의 locale별 주소를 서로 알립니다(`<xhtml:link rel="alternate" hreflang>`). 이 프로젝트의 규칙은 `sitemap.ts`의 `EXCLUDED_ROUTES`에 적거나 이 파일을 직접 고칩니다.
+  - sitemap에는 다른 주소로 보내지 않고 200으로 응답하는 페이지만 넣습니다(`e2e/seo.spec.ts`가 하나씩 받아 봅니다). 로그인 페이지로 보내는 페이지나 다른 주소로 보내는 페이지는 규칙으로 뺍니다.
   - 빌드할 때 만들어 두므로 페이지를 더하거나 지우면 다시 빌드해야 반영됩니다.
-- **robots.txt**: 모든 검색 엔진에 사이트 전체를 열고 sitemap의 주소를 알립니다. 스테이징처럼 검색에 노출하지 않을 배포라면 `src/app/robots.ts`의 `rules`를 `{ userAgent: '*', disallow: '/' }`로 바꿉니다.
+- **robots.txt**: 모든 검색 엔진에 사이트를 열고 sitemap의 주소를 알립니다. 다른 Recipe가 규칙으로 막은 주소(`sitemapRules`의 `disallow`)만 `Disallow`로 막습니다. 스테이징처럼 검색에 노출하지 않을 배포라면 `src/app/robots.ts`의 `rules`를 `{ userAgent: '*', disallow: '/' }`로 바꿉니다.
 - Rendering Mode `server`와 `static-export` 모두에서 sitemap.xml, robots.txt, 공유 이미지를 빌드할 때 만듭니다. static-export는 `out/sitemap.xml`, `out/robots.txt`, `out/**/opengraph-image/image.png`로 내보냅니다.
 - 사이트 이름, 설명, locale은 `src/shared/seo/site.ts`에서 바꿉니다. 루트 레이아웃의 `<html lang>`과 locale을 맞춥니다.
 - `/products` 샘플을 지우면(위 "샘플 명세 바꾸기") `src/app/sitemap.test.ts`와 `e2e/seo.spec.ts`에서 `/products`를 확인하는 부분도 지웁니다.
-- 테스트: `src/shared/seo/site.test.ts`(사이트 주소와 없을 때의 실패), `page-routes.test.ts`(sitemap에 넣을 페이지 찾기), `metadata.test.ts`(모든 페이지의 기본값), `og-image.test.tsx`(한글 공유 이미지를 네트워크 없이 그림), `src/app/sitemap.test.ts`(이 Starter의 sitemap), `robots.test.ts`(robots.txt), `e2e/seo.spec.ts`(빌드한 앱의 메타데이터, 공유 이미지, sitemap.xml, robots.txt).
+- 테스트: `src/shared/seo/site.test.ts`(사이트 주소와 없을 때의 실패), `page-routes.test.ts`(sitemap에 넣을 페이지 찾기), `metadata.test.ts`(모든 페이지의 기본값), `og-image.test.tsx`(한글 공유 이미지를 네트워크 없이 그림), `src/app/sitemap.test.ts`(이 Starter의 sitemap과 규칙), `robots.test.ts`(robots.txt), `e2e/seo.spec.ts`(빌드한 앱의 메타데이터, 공유 이미지, sitemap.xml의 페이지가 모두 200으로 응답하는지, robots.txt).
