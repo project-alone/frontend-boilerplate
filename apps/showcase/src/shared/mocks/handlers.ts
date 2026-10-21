@@ -1,9 +1,10 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/table/extensions.json
+// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/optimistic-update/extensions.json, recipes/table/extensions.json
 
 import * as generatedMocks from '@/shared/api/generated/index.msw'
 import { authMockHandlers } from '@/shared/auth/auth-mock-handlers'
 import { membersHandlers } from '@/shared/mocks/members'
+import { todosHandlers } from '@/shared/mocks/todos'
 
 // Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
 // MSW가 가로챌 요청과 돌려줄 응답의 목록. Vitest, Playwright, 개발 서버, 목 빌드가 모두 이 목록을 쓴다.
@@ -14,6 +15,7 @@ import { membersHandlers } from '@/shared/mocks/members'
 // 테스트 하나에서만 응답을 바꾸려면 server.use(...)를 쓴다(README의 "API 목킹").
 export const handlers = [
   ...authMockHandlers,
+  ...todosHandlers,
   ...membersHandlers,
   ...Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers()),
 ]

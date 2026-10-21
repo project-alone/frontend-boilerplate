@@ -2,7 +2,7 @@
 >
 > Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe를 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`)나 Recipe(`recipes/<이름>/`)를 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md)).
 >
-> - 켠 Recipe: `auth`, `chart`, `dark-mode`, `i18n`, `multi-step-form`, `route-rendering`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
+> - 켠 Recipe: `auth`, `chart`, `dark-mode`, `i18n`, `multi-step-form`, `optimistic-update`, `route-rendering`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
 > - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`, `src/shared/i18n/en.json`, `src/shared/i18n/ko.json`
 > - 실행: 레포 최상위에서 `npm run showcase:dev`. Showcase를 레포 밖의 디렉터리에 복사해 설치하고 MSW 목으로 개발 서버를 띄웁니다. 아래는 Starter의 README이고, 그 명령은 그 디렉터리에서 실행합니다.
 
@@ -435,6 +435,18 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 다른 다단계 폼 만들기: 명세에 요청 본문이 있는 operation을 더하고 `npm run api:gen`, `npm run g -- mutation <operationId>`를 실행한 뒤, `src/features/partner-application/`을 복사해 `partner-application-steps.tsx`의 단계(제목, `.pick`으로 고른 스키마, 입력 요소, 확인 단계에 보일 값)와 폼의 요청 본문 스키마, 뮤테이션 훅, 저장소 키를 바꿉니다. 단계를 더하거나 순서를 바꿀 때도 단계 목록(`PARTNER_APPLICATION_STEPS`)만 고칩니다.
 - 테스트: `src/features/partner-application/partner-application-form.test.tsx`(단계마다 그 단계만 검증, 첫 오류 필드와 단계 제목으로 포커스, 이전·다음과 수정 뒤에도 값 유지, 한 번에 보내는 요청 본문, 실패, 보내는 동안 끈 버튼, 새로 고침과 맞지 않는 저장 값), `src/shared/multi-step-form/draft-storage.test.ts`(저장소를 읽고 쓰지 못할 때와 모양이 다른 값), `partner-application-form.stories.tsx`(첫 단계, 검증 오류, 확인 단계의 axe 검사. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/multi-step-form.spec.ts`(빌드한 앱에서 끝까지 신청, 검증 오류와 키보드 입력, 이전·다음과 새로 고침, 운영체제가 라이트·다크 모드일 때의 axe 검사).
 - 샘플을 지우려면 `src/app/partners/`, `src/features/partner-application/`, `src/queries/partners/`, `e2e/multi-step-form.spec.ts`와 `openapi.yaml`의 `partners` tag·경로·스키마(`PartnerApplication`, `PartnerCategory`, `PartnerApplicationReceipt`)를 지우고 `npm run api:gen`을 실행합니다. 새 다단계 폼에 쓸 `src/shared/multi-step-form/`은 남겨 둡니다.
+
+## 낙관적 업데이트
+
+`optimistic-update` Recipe로 넣었습니다. `/todos` 페이지의 할 일 목록에서 완료 여부를 바꾸면 서버의 응답을 기다리지 않고 바로 보여 주고(낙관적 업데이트), 서버가 거절하면 이전 상태로 되돌린 뒤 알림(Toast)으로 무엇을 왜 되돌렸는지 알립니다.
+
+- 명세: `openapi.yaml`의 `listTodos`(`GET /todos`)가 할 일 목록을, `updateTodo`(`PATCH /todos/{todoId}`, 본문 `TodoUpdate`의 `done`)가 할 일 하나의 완료 여부를 바꿉니다(tag `todos`). 거절할 때는 이유를 `TodoError`(`message`)로 알립니다.
+- Query Domain: `src/queries/todos/`는 `npm run g -- query listTodos`와 `npm run g -- mutation updateTodo --optimistic listTodos`가 만든 코드에, 응답 전에 보일 값을 만드는 `applyUpdateTodo`만 채운 것입니다. `useUpdateTodoMutation`은 `onMutate`에서 진행 중인 목록 요청을 취소하고 지금 값을 남긴 뒤 `applyUpdateTodo`로 목록 쿼리의 캐시를 고치고, `onError`에서 남긴 값으로 되돌리고, `onSettled`에서 `todosKeys.all`을 무효화해 서버의 값으로 맞춥니다. 다른 뮤테이션에 쓰려면 같은 명령으로 뼈대를 만들고 `apply<OperationId>`를 채웁니다.
+- 화면: `src/features/todo-list/todo-list.tsx`. 할 일마다 뮤테이션 훅을 따로 써서, 저장하는 동안 그 할 일에 "저장 중"을 붙입니다(`aria-busy`). 실패하면 `mutate`의 `onError`에서 `useToast()`로 알립니다. 캐시를 되돌리는 일은 Query Domain이, 알리는 일은 화면이 맡습니다. 뮤테이션은 목록을 다시 가져온 뒤에 끝나므로 "저장 중"과 알림도 그때 바뀝니다. 끝낸 개수는 상태 문구(`role="status"`)로 알립니다.
+- Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고, 할 일은 브라우저가 가져와 고칩니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접).
+- MSW: `src/shared/mocks/todos.ts`의 핸들러가 바뀐 완료 여부를 기억해 돌려줍니다(처음 값은 명세의 `example`). 저장에는 1초 뒤에 답하고, 보안 점검 할 일(4번)은 바꿀 권한이 없다며 늘 403으로 거절합니다. 그래서 개발 서버에서도 응답 전에 바뀌는 모습과 되돌리기를 눈으로 볼 수 있고, E2E가 테스트만을 위한 코드 없이 실패를 재현합니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 바뀐 값은 메모리에만 있어 `server`에서는 서버를 다시 띄울 때, `static-export`에서는 페이지를 새로 불러올 때 처음으로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `todosHandlers`를 지웁니다.
+- 테스트: `src/features/todo-list/todo-list.test.tsx`(응답 전에 화면이 바뀌고 응답 뒤 서버의 값으로 맞춤, 거절하면 목록을 다시 가져오기 전에 되돌리고 알림, 이유 없는 실패, 목록을 못 불러옴), `e2e/optimistic-update.spec.ts`(빌드한 앱에서 응답 전에 바뀜, 거절된 할 일의 되돌리기와 알림, 키보드 조작, 접근성).
+- 샘플을 지우려면 `src/app/todos/`, `src/features/todo-list/`, `src/queries/todos/`, `src/shared/mocks/todos.ts`(와 `src/shared/mocks/handlers.ts`의 `todosHandlers`), `e2e/optimistic-update.spec.ts`를 지우고 `openapi.yaml`에서 `listTodos`, `updateTodo`를 뺀 뒤 `npm run api:gen`을 실행합니다.
 
 ## 라우트별 Rendering Mode
 
