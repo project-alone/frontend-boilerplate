@@ -5,12 +5,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { expect, onTestFinished, test } from 'vitest'
+import { beforeEach, expect, onTestFinished, test } from 'vitest'
+import { signInAsMockUser } from '@/shared/auth/mock-session'
 import { server } from '@/shared/mocks/node'
 import { UserTable } from './user-table'
 
 // 요청은 Vitest의 MSW(@/shared/mocks/node)가 받는다. 목록은 대시보드의 목 백엔드(src/shared/mocks/users.ts)가 처음 사용자
-// 12명을 파라미터대로 거르고 정렬해 돌려준다.
+// 12명을 파라미터대로 거르고 정렬해 돌려준다. 목 백엔드는 실제 백엔드처럼 로그인한 사용자에게만 답하므로 테스트마다 로그인한다
+// (signInAsMockUser가 BFF 프록시 대신 accessToken을 붙이고, 돌려준 함수로 테스트가 끝나면 되돌린다).
+
+beforeEach(() => signInAsMockUser('user@example.com'))
 
 function renderTable({ canEdit = false } = {}) {
   render(
