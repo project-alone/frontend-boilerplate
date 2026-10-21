@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, inject, test } from 'vitest'
+import { dirname, join } from 'node:path'
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, test } from 'vitest'
 import { KEYS, run, runInTerminal } from './run.ts'
 import { readTree } from './starter.ts'
 
@@ -130,6 +130,39 @@ describe('터미널에서 실행한 new', () => {
     expect(await terminal.exited, terminal.output()).toBe(0)
     expect(terminal.output()).not.toContain('Rendering Mode를 고르세요')
     expect(terminal.output()).toContain('Archetype: dashboard')
+  })
+
+  describe('고른 Rendering Mode에서 쓸 수 있는 Archetype이 하나도 없으면', () => {
+    // 담긴 Archetype이 모두 server만 지원하는 Generator. 설치한 Generator를 같은 node_modules 안에 복사해 server만 지원하는
+    // dashboard 말고는 지운다(static-export에서도 쓰는 landing 등). global-setup.ts의 시험용 Generator와 같은 방법이다.
+    let bin: string
+
+    beforeAll(() => {
+      const generatorDir = inject('generatorDir')
+      const copy = join(dirname(generatorDir), 'devc-frontend-generator-server-only-archetypes')
+      cpSync(generatorDir, copy, { recursive: true })
+      for (const name of readdirSync(join(copy, 'archetypes'))) {
+        if (name !== 'dashboard') rmSync(join(copy, 'archetypes', name), { recursive: true })
+      }
+      bin = join(copy, 'dist', 'cli.js')
+    })
+
+    test('Archetype은 묻지 않고 쓸 수 없는 이유만 알린 뒤 Recipe를 묻는다', async () => {
+      const terminal = runInTerminal(bin, ['new', 'my-app', '--skip-install'], workdir)
+
+      await terminal.waitFor('Rendering Mode를 고르세요')
+      terminal.press(KEYS.down) // static-export
+      terminal.press(KEYS.enter)
+      await terminal.waitFor('Rendering Mode static-export에서 쓸 수 있는 Archetype이 없어 Archetype 없이 만듭니다.')
+      await terminal.waitFor('Archetype dashboard은(는) Rendering Mode static-export에서 쓸 수 없습니다')
+      await terminal.waitFor('넣을 Recipe를 고르세요')
+      terminal.press(KEYS.enter)
+
+      expect(await terminal.exited, terminal.output()).toBe(0)
+      expect(terminal.output()).not.toContain('Archetype(완성된 앱 유형)을 고르세요')
+      expect(terminal.output()).toContain('Rendering Mode: static-export')
+      expect(terminal.output()).toContain('Archetype: 없음')
+    })
   })
 })
 
