@@ -566,15 +566,15 @@ SDK는 `NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 �
 
 fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요한 업로드는 `src/shared/upload/api-upload.ts`의 `apiUpload`가 XMLHttpRequest로 보낸다. 보내는 곳과 결과는 Base의 `apiFetch`와 같다. 브라우저의 `apiFetch`처럼 `base-url.ts`의 `browserBaseUrl`(`server`는 BFF 프록시, `static-export`는 백엔드)로 보내고, 2xx가 아니면 `ApiError`로 실패하며, 응답을 명세의 Zod 스키마로 검증한다. Query Domain(`src/queries/files/`)은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꾸고 진행률과 취소(`signal`)를 `mutate`의 값으로 받는다. Base의 BFF 프록시는 multipart를 포함한 본문을 바이트 그대로 넘기므로 고치지 않는다. 다만 본문을 다 받은 뒤 넘기므로, 훨씬 큰 파일을 받게 되면 프록시를 거치지 않는 방식을 검토한다(Recipe의 README 절).
 
-실패와 취소를 E2E와 개발 서버에서 늘 같게 재현하도록, 직접 만든 MSW 핸들러(`src/shared/mocks/files.ts`)가 파일 이름으로 응답을 고른다(`slow`는 늦게 답하고, `flaky`는 그 이름으로 처음 올릴 때 실패한다). table처럼 `src/shared/mocks/handlers.ts`의 패치로 더하되, table의 패치와 함께 적용되도록 목록을 고치지 않고 목록 뒤에서 맨 앞에 넣는다(`handlers.unshift(...filesHandlers)`). 이렇게 둘 이상의 Recipe가 같은 자리에 핸들러를 더하므로 이 자리는 확장 지점으로 바꿀 대상이다(ADR-0010).
+실패와 취소를 E2E와 개발 서버에서 늘 같게 재현하도록, 직접 만든 MSW 핸들러(`src/shared/mocks/files.ts`)가 파일 이름으로 응답을 고른다(`slow`는 늦게 답하고, `flaky`는 그 이름으로 처음 올릴 때 실패한다). table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/files`)가 겹치지 않으므로 `order`는 같은 100이다.
 
 `static-export`에서는 브라우저가 다른 출처의 백엔드를 직접 부르고, XMLHttpRequest에 `upload` 이벤트를 달면 브라우저가 CORS preflight를 먼저 보낸다. 그래서 목 백엔드는 preflight에 답하고 응답에 CORS 헤더를 붙인다(Vitest의 jsdom도 CORS를 검사한다). 브라우저의 MSW(서비스 워커)는 본문을 네트워크로 보내지 않고 받아 진행률이 중간값 없이 끝나므로, E2E는 Chromium의 네트워크 흉내로 업로드를 늦추고 중간값은 요청이 네트워크를 지나는 `server`에서만 본다.
 
 | 선언하는 것    | `recipes/file-upload/`                                                                                                                                                       |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`                                            |
-| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`                                                                   |
-| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                                                                                         |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`. `extensions.json`: MSW 핸들러 `filesHandlers`(100)               |
+| 설정 패치      | 없음                                                                                                                                                                         |
 | npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                                                                         |
 | 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `upload-policy.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `file-uploader.stories.tsx`, `e2e/file-upload.spec.ts` |
 | 필요한 Recipe  | 없음                                                                                                                                                                         |

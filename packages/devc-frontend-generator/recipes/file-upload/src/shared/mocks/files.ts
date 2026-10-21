@@ -3,7 +3,7 @@ import type { UploadedFile, UploadError } from '@/shared/api/generated/model'
 import { findUploadProblem, type UploadProblem } from '@/shared/upload/upload-policy'
 
 // file-upload Recipe: 업로드 operation(uploadFile, POST /files)을 흉내 내는 MSW 핸들러. 명세에서 생성한 핸들러는 example을
-// 그대로 돌려주므로, 이 핸들러가 그보다 앞에서(handlers.ts) 올린 파일을 읽어 백엔드처럼 답한다. Vitest, 개발 서버, E2E가 모두
+// 그대로 돌려주므로, 이 핸들러가 그보다 앞에서(확장 지점 mockHandlers, extensions.json) 올린 파일을 읽어 백엔드처럼 답한다. Vitest, 개발 서버, E2E가 모두
 // 이 핸들러를 쓴다. 실패와 취소를 직접 해 볼 수 있도록 파일 이름으로 응답을 고른다.
 //
 // - 이름에 slow가 들어 있으면 SLOW_RESPONSE_MS 뒤에 답한다. 그동안 취소해 볼 수 있다.
