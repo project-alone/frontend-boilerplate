@@ -130,14 +130,15 @@ const MOCK_BUILD_WARNING = 'API_MOCKING=enabled로 빌드합니다'
 const MISSING_BUILD_API_BASE_URL = 'API_BASE_URL 환경 변수가 없습니다. 빌드할 때 데이터를 가져오는 페이지'
 
 /**
- * 배포용 빌드는 빌드할 때 데이터를 가져오는 페이지(page)를 렌더링하다가, 백엔드 주소가 없다고 알리며 실패한다.
- * 목 빌드로 가는 길(API_MOCKING=enabled)도 함께 알린다.
+ * 배포용 빌드는 빌드할 때 데이터를 가져오는 페이지(pages 가운데 하나. 빌드 워커가 먼저 렌더링한 것)를 렌더링하다가,
+ * 백엔드 주소가 없다고 알리며 실패한다. 목 빌드로 가는 길(API_MOCKING=enabled)도 함께 알린다.
  */
-function expectDeployBuildToRequireApiBaseUrl(starter: Starter, page: string): void {
+function expectDeployBuildToRequireApiBaseUrl(starter: Starter, pages: readonly string[]): void {
   const build = starter.npm(['run', 'build'], DEPLOY_BUILD_ENV)
 
   expect(build.status, build.failureMessage).not.toBe(0)
-  expect(build.output).toContain(`Error occurred prerendering page "${page}"`)
+  const failedPages = pages.filter((page) => build.output.includes(`Error occurred prerendering page "${page}"`))
+  expect(failedPages.length, build.output).toBeGreaterThan(0)
   expect(build.output).toContain(MISSING_BUILD_API_BASE_URL)
   expect(build.output).toContain('API_MOCKING=enabled')
 }
@@ -346,7 +347,7 @@ describe('server Starter', () => {
     ])
 
     // 배포용 빌드는 빌드할 때 상품 목록을 가져오는 SSG·ISR 페이지에서 백엔드 주소가 없다고 알리며 실패한다.
-    expectDeployBuildToRequireApiBaseUrl(starter, '/modes/isr')
+    expectDeployBuildToRequireApiBaseUrl(starter, ['/modes/ssg', '/modes/isr'])
 
     // 목 빌드는 빌드할 때의 요청에 MSW가 응답해 실제 백엔드 없이 빌드된다(GitLab CI의 build 잡과 같다).
     const build = starter.expectNpmSuccess(['run', 'build'], MOCK_BUILD_ENV)
@@ -436,7 +437,7 @@ describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
     expectScreensToPassStarterChecks(starter, ['src/features/catalog/list-products-view.test.tsx'])
 
     // 배포용 빌드는 빌드할 때 상품 목록을 가져오는 SSG 페이지에서 백엔드 주소가 없다고 알리며 실패한다.
-    expectDeployBuildToRequireApiBaseUrl(starter, '/modes/ssg')
+    expectDeployBuildToRequireApiBaseUrl(starter, ['/modes/ssg'])
 
     // 목 빌드(GitLab CI의 build 잡)는 실제 백엔드 없이 빌드되고, SSG 페이지는 MSW가 돌려준 상품 목록을 HTML에 담는다.
     // 브라우저의 MSW는 켜지 않았으므로(.env.production의 NEXT_PUBLIC_API_MOCKING=disabled) out/에 들어가지 않는다.
