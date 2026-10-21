@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDeliveryEvents } from '@/queries/deliveries/deliveries.events'
 import { listDeliveriesQueryOptions } from '@/queries/deliveries/deliveries.queries'
-import type { DeliveryStatus } from '@/shared/api/generated/model'
+import type { Delivery, DeliveryStatus } from '@/shared/api/generated/model'
 import { ConnectionStatus } from '@/shared/realtime/connection-status'
 
 // realtime Recipe: 배송 현황(listDeliveries)을 보여 주고, 배송 이벤트 스트림으로 바뀐 배송을 곧바로 반영한다.
@@ -18,6 +18,16 @@ const STATUS_LABELS: Record<DeliveryStatus, string> = {
   shipping: '배송 중',
   delivered: '배송 완료',
 }
+
+/** 표의 열. 머리글과 배송마다 칸에 보일 글자 */
+const COLUMNS: readonly { header: string; cell: (delivery: Delivery) => string }[] = [
+  { header: '운송장 번호', cell: (delivery) => delivery.id },
+  { header: '받는 사람', cell: (delivery) => delivery.recipient },
+  { header: '상품', cell: (delivery) => delivery.item },
+  { header: '상태', cell: (delivery) => STATUS_LABELS[delivery.status] },
+]
+
+const CELL_CLASS_NAME = 'border-b border-border px-3 py-2'
 
 /** 배송 현황 표와 실시간 연결 상태. 이벤트로 배송이 바뀌거나 더해지면 목록을 다시 요청하지 않고 표가 바뀐다. */
 export function DeliveryBoard() {
@@ -36,8 +46,8 @@ export function DeliveryBoard() {
           <caption className="mb-2 text-left font-semibold">배송 목록</caption>
           <thead>
             <tr>
-              {['운송장 번호', '받는 사람', '상품', '상태'].map((header) => (
-                <th key={header} scope="col" className="border-b border-border px-3 py-2 text-sm font-medium">
+              {COLUMNS.map(({ header }) => (
+                <th key={header} scope="col" className={`${CELL_CLASS_NAME} text-sm font-medium`}>
                   {header}
                 </th>
               ))}
@@ -46,10 +56,11 @@ export function DeliveryBoard() {
           <tbody>
             {deliveries.map((delivery) => (
               <tr key={delivery.id}>
-                <td className="border-b border-border px-3 py-2">{delivery.id}</td>
-                <td className="border-b border-border px-3 py-2">{delivery.recipient}</td>
-                <td className="border-b border-border px-3 py-2">{delivery.item}</td>
-                <td className="border-b border-border px-3 py-2">{STATUS_LABELS[delivery.status]}</td>
+                {COLUMNS.map(({ header, cell }) => (
+                  <td key={header} className={CELL_CLASS_NAME}>
+                    {cell(delivery)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

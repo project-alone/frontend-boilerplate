@@ -17,6 +17,6 @@ export const handlers = [
 ]
 
 // realtime Recipe: 배송 현황 목록과 이벤트 스트림을 흉내 내는 목 백엔드(deliveries.ts). 같은 요청에 명세의 example을
-// 돌려주는 생성된 핸들러보다 먼저 응답하도록 앞에 넣는다. 다른 Recipe(table)의 패치가 위 선언을 고치므로, 선언은 그대로
+// 돌려주는 생성된 핸들러보다 먼저 응답하도록 앞에 넣는다. 다른 Recipe의 패치가 위 선언을 고칠 수 있으므로, 선언은 그대로
 // 두고 뒤에서 넣는다.
 handlers.unshift(...deliveriesHandlers)
