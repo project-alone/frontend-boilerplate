@@ -22,7 +22,7 @@ test('돌아갈 주소가 없으면 홈으로 보낸다', () => {
   expect(returnPathOf(undefined)).toBe('/')
 })
 
-test('sitemap 규칙은 보호된 라우트를 robots.txt로 막고, 로그인·접근 권한 없음 페이지는 sitemap에서만 뺀다', () => {
-  for (const { path } of PROTECTED_ROUTES) expect(authSitemapRules.disallow).toContain(path)
-  expect(authSitemapRules.exclude).toEqual([LOGIN_PATH, FORBIDDEN_PATH])
+test('sitemap 규칙은 보호된 라우트와 로그인·접근 권한 없음 페이지를 sitemap에서 빼고, robots.txt에는 적지 않는다', () => {
+  expect(authSitemapRules.exclude).toEqual([...PROTECTED_ROUTES.map(({ path }) => path), LOGIN_PATH, FORBIDDEN_PATH])
+  expect(authSitemapRules).not.toHaveProperty('disallow')
 })
