@@ -27,7 +27,7 @@ export interface MockEventStream {
 const encoder = new TextEncoder()
 
 /** 이벤트를 text/event-stream 형식으로 쓴다. 여러 줄의 데이터는 줄마다 data 필드가 된다. */
-function format({ event, data, id }: MockServerSentEvent): string {
+function formatEvent({ event, data, id }: MockServerSentEvent): string {
   const fields = [
     ...(id === undefined ? [] : [`id: ${id}`]),
     ...(event === undefined ? [] : [`event: ${event}`]),
@@ -69,7 +69,7 @@ export function createMockEventStream(): MockEventStream {
       },
     }),
     send: (event) => {
-      write(format(event))
+      write(formatEvent(event))
     },
     write,
     close: () => {

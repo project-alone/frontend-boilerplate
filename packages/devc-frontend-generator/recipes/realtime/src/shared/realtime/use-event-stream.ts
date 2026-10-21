@@ -11,8 +11,8 @@ export function useEventStream(
 ): EventStreamStatus {
   const [status, setStatus] = useState<EventStreamStatus>('connecting')
   const handleEvent = useEffectEvent(onEvent)
-  const handleOpen = useEffectEvent((connection: { reconnected: boolean }) => {
-    onOpen?.(connection)
+  const handleOpen = useEffectEvent(() => {
+    onOpen?.()
   })
 
   useEffect(
@@ -22,8 +22,8 @@ export function useEventStream(
         onEvent: (event) => {
           handleEvent(event)
         },
-        onOpen: (connection) => {
-          handleOpen(connection)
+        onOpen: () => {
+          handleOpen()
         },
         onStatusChange: setStatus,
       }),

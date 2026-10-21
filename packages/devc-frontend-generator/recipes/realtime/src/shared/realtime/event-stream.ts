@@ -2,7 +2,7 @@ import { browserBaseUrl } from '@/shared/api/base-url'
 
 // realtime Recipe: 백엔드가 Server-Sent Events(text/event-stream)로 보내는 이벤트를 받는 클라이언트(README의 "실시간 이벤트").
 // 브라우저의 EventSource 대신 fetch로 읽는다. EventSource는 2xx가 아닌 응답을 받으면 다시 연결하지 않고, 다시 연결하는 간격을
-// 정할 수 없고, 처음 연결과 다시 연결을 가려 알려 주지 않으며, Node.js(Vitest)에는 없다.
+// 정할 수 없으며, Node.js(Vitest)에는 없다.
 // 요청은 다른 API 요청과 같은 곳으로 간다(base-url.ts). server는 BFF 프록시(/api/proxy)를 거쳐 백엔드로, static-export는
 // 백엔드로 직접 간다. BFF 프록시는 보통의 HTTP 응답처럼 스트림을 그대로 흘려보내므로 auth Recipe가 붙이는 토큰도 함께 간다.
 
@@ -25,10 +25,10 @@ export interface EventStreamOptions {
   /** 이벤트를 받을 때마다 */
   onEvent: (event: ServerSentEvent) => void
   /**
-   * 연결될 때마다. 다시 연결했으면 reconnected가 true다. 끊긴 동안(처음 연결이면 연결되기 전)의 이벤트는 받지 못하므로,
-   * 받은 이벤트로 고치는 데이터를 여기서 다시 맞춘다(예: 쿼리 무효화).
+   * 연결될 때마다(다시 연결 포함). 끊긴 동안(처음 연결이면 연결되기 전)의 이벤트는 받지 못하므로, 받은 이벤트로 고치는 데이터를
+   * 여기서 다시 맞춘다(예: 쿼리 무효화).
    */
-  onOpen?: (connection: { reconnected: boolean }) => void
+  onOpen?: () => void
   /** 연결 상태가 바뀔 때마다 */
   onStatusChange?: (status: EventStreamStatus) => void
   /** 연달아 attempt번째(1부터) 실패한 뒤 다시 연결하기 전에 기다릴 시간(ms). 기본은 exponentialBackoff다. */
@@ -37,6 +37,9 @@ export interface EventStreamOptions {
 
 const INITIAL_RETRY_DELAY = 1000
 const MAX_RETRY_DELAY = 30_000
+// 이벤트를 하나도 받지 못한 연결이 이보다 일찍 끊기면 실패로 센다. 연결을 받자마자 닫는 백엔드나 프록시에 빠르게 다시 연결해
+// 그때마다 데이터를 다시 맞추는 일(onOpen)이 되풀이되지 않게 한다.
+const HEALTHY_CONNECTION_MS = 30_000
 
 /**
  * 다시 연결하기 전에 기다릴 시간(ms). 연달아 실패할 때마다 두 배로 늘리되(1초, 2초, 4초, … 최대 30초) 그 절반부터 전부까지에서
@@ -49,7 +52,8 @@ export function exponentialBackoff(attempt: number, random: () => number = Math.
 
 /**
  * 이벤트 스트림에 연결한다. 백엔드가 스트림을 닫거나 연결하지 못하면 retryDelay만큼 기다렸다가 다시 연결하고, 마지막으로 받은
- * 이벤트 id를 Last-Event-ID 헤더로 보낸다(백엔드가 이어서 보낼 수 있으면 쓴다). 돌려준 함수를 부르면 연결을 끊고 다시 연결하지 않는다.
+ * 이벤트 id를 Last-Event-ID 헤더로 보낸다(백엔드가 이어서 보낼 수 있으면 쓴다). 이벤트를 받았거나 오래 이어진 연결이 끊기면
+ * 처음 대기 시간부터 다시 세고, 그렇지 않은 연결이 끊기면 실패로 센다. 돌려준 함수를 부르면 연결을 끊고 다시 연결하지 않는다.
  */
 export function connectEventStream({
   path,
@@ -61,7 +65,7 @@ export function connectEventStream({
   const controller = new AbortController()
   const { signal } = controller
   // 기다리는 동안 바뀌므로 signal.aborted를 그때마다 읽는다.
-  const closed = () => signal.aborted
+  const isClosed = () => signal.aborted
   let status: EventStreamStatus | undefined
   const setStatus = (next: EventStreamStatus) => {
     if (next === status) return
@@ -71,11 +75,12 @@ export function connectEventStream({
 
   void (async () => {
     let lastEventId = ''
-    let opened = false
-    // 연달아 실패한 횟수. 연결되면 0으로 돌아간다.
+    // 연달아 실패한 횟수
     let failures = 0
     setStatus('connecting')
     for (;;) {
+      let openedAt: number | undefined
+      let eventsReceived = 0
       try {
         const response = await fetch(`${browserBaseUrl()}${path}`, {
           headers: { accept: 'text/event-stream', ...(lastEventId === '' ? {} : { 'last-event-id': lastEventId }) },
@@ -84,13 +89,13 @@ export function connectEventStream({
         })
         const isEventStream = response.headers.get('content-type')?.startsWith('text/event-stream') ?? false
         if (response.ok && isEventStream && response.body !== null) {
-          failures = 0
+          openedAt = Date.now()
           setStatus('open')
-          onOpen?.({ reconnected: opened })
-          opened = true
+          onOpen?.()
           await readEvents(response.body, (event) => {
+            eventsReceived += 1
             lastEventId = event.lastEventId
-            dispatch(onEvent, event)
+            notifyEvent(onEvent, event)
           })
         } else {
           await response.body?.cancel()
@@ -98,11 +103,12 @@ export function connectEventStream({
       } catch {
         // 네트워크 오류이거나 연결을 끊었다(signal).
       }
-      if (closed()) return
-      failures += 1
+      if (isClosed()) return
+      const healthy = eventsReceived > 0 || (openedAt !== undefined && Date.now() - openedAt >= HEALTHY_CONNECTION_MS)
+      failures = healthy ? 1 : failures + 1
       setStatus('reconnecting')
       await sleep(retryDelay(failures), signal)
-      if (closed()) return
+      if (isClosed()) return
     }
   })()
 
@@ -112,7 +118,7 @@ export function connectEventStream({
 }
 
 /** 이벤트를 알린다. 받는 쪽의 오류는 연결이 끊긴 것으로 보지 않고 따로 던져 드러낸다. */
-function dispatch(onEvent: (event: ServerSentEvent) => void, event: ServerSentEvent) {
+function notifyEvent(onEvent: (event: ServerSentEvent) => void, event: ServerSentEvent) {
   try {
     onEvent(event)
   } catch (error) {

@@ -37,6 +37,13 @@ const INITIAL_DELIVERIES: readonly Delivery[] = [
   },
 ]
 
+/** 목 백엔드에 처음 있는 배송(id)의 상태와 바뀐 시각을 바꾼 배송. 이벤트로 보낼 변경을 만들 때 쓴다. */
+export function changedDelivery(id: string, changes: Pick<Delivery, 'status' | 'updatedAt'>): Delivery {
+  const delivery = INITIAL_DELIVERIES.find((initial) => initial.id === id)
+  if (delivery === undefined) throw new Error(`목 백엔드에 배송 ${id}가 없습니다.`)
+  return { ...delivery, ...changes }
+}
+
 export interface MockDeliveryBackend {
   /** 목록과 이벤트 스트림의 MSW 핸들러 */
   readonly handlers: readonly HttpHandler[]
@@ -50,7 +57,7 @@ export interface MockDeliveryBackend {
   changeSilently: (delivery: Delivery) => void
   /** 백엔드가 연결을 끊은 것처럼 열린 스트림을 모두 닫는다. */
   disconnect: () => void
-  /** 처음 목록으로 되돌리고 열린 스트림을 모두 닫는다. */
+  /** 처음 목록으로 되돌린다. 열린 스트림은 그대로 둔다. */
   reset: () => void
   /**
    * 목록 응답을 붙잡아 둔다. 붙잡힌 응답에는 요청을 받은 때의 목록이 담기므로, 그 뒤에 바뀐 것보다 오래된 응답이 된다.
@@ -64,6 +71,8 @@ export interface MockDeliveryBackend {
 export interface MockDeliveryBackendOptions {
   /** 이벤트 스트림에 새로 연결할 때마다. 다시 연결한 연결이면 lastEventId에 마지막으로 받은 이벤트 id가 온다. */
   onConnect?: (connection: { lastEventId: string | null }) => void
+  /** 목록 요청에 답할 때마다(응답을 붙잡아 두었으면 보낼 때) */
+  onListResponse?: () => void
 }
 
 /** 지나가려는 쪽(요청)을 붙잡아 두는 문. hold가 돌려준 함수를 부르면 붙잡은 쪽을 모두 보내고 다시 열어 둔다. */
@@ -85,10 +94,14 @@ function createGate() {
   }
 }
 
-export function createMockDeliveryBackend({ onConnect }: MockDeliveryBackendOptions = {}): MockDeliveryBackend {
+export function createMockDeliveryBackend({
+  onConnect,
+  onListResponse,
+}: MockDeliveryBackendOptions = {}): MockDeliveryBackend {
   let deliveries = [...INITIAL_DELIVERIES]
   let listRequests = 0
   let nextEventId = 1
+  // 열린 스트림. Node.js의 MSW는 받는 쪽이 끊어도 알리지 않으므로, 이미 끊긴 스트림도 disconnect로 닫을 때까지 남는다.
   let streams: MockEventStream[] = []
   const listGate = createGate()
   const connectionGate = createGate()
@@ -101,10 +114,6 @@ export function createMockDeliveryBackend({ onConnect }: MockDeliveryBackendOpti
   const send = (event: MockServerSentEvent) => {
     for (const stream of streams) stream.send(event)
   }
-  const disconnect = () => {
-    for (const stream of streams) stream.close()
-    streams = []
-  }
 
   return {
     handlers: [
@@ -112,6 +121,7 @@ export function createMockDeliveryBackend({ onConnect }: MockDeliveryBackendOpti
         listRequests += 1
         const snapshot = deliveries
         await listGate.pass()
+        onListResponse?.()
         return HttpResponse.json(snapshot)
       }),
       http.get('*/deliveries/events', async ({ request }) => {
@@ -132,28 +142,30 @@ export function createMockDeliveryBackend({ onConnect }: MockDeliveryBackendOpti
     },
     send,
     changeSilently: upsert,
-    disconnect,
+    disconnect: () => {
+      for (const stream of streams) stream.close()
+      streams = []
+    },
     reset: () => {
       deliveries = [...INITIAL_DELIVERIES]
-      disconnect()
     },
     holdListResponses: listGate.hold,
     holdConnections: connectionGate.hold,
   }
 }
 
-/** 개발 서버와 E2E의 목 백엔드가 새로 연결한 화면에 보내는 순서. after는 연결한 뒤의 시간(ms)이다. */
+/**
+ * 개발 서버와 E2E의 목 백엔드가 새로 연결한 화면에 보내는 순서. after는 그 화면이 연결한 뒤 처음으로 목록을 받은 때(연결된 뒤
+ * 맞추려고 다시 가져온 목록)부터의 시간(ms)이다. 그래서 목록을 받기 전에 이벤트가 먼저 가지 않는다.
+ */
 const DEMO_SCENARIO: readonly { after: number; run: (backend: MockDeliveryBackend) => void }[] = [
   {
     after: 1500,
     run: (backend) => {
-      backend.publish('delivery.updated', {
-        id: 'D-1002',
-        recipient: '이도윤',
-        item: '블루투스 스피커',
-        status: 'shipping',
-        updatedAt: '2026-10-21T09:30:00+09:00',
-      })
+      backend.publish(
+        'delivery.updated',
+        changedDelivery('D-1002', { status: 'shipping', updatedAt: '2026-10-21T09:30:00+09:00' }),
+      )
     },
   },
   {
@@ -172,30 +184,32 @@ const DEMO_SCENARIO: readonly { after: number; run: (backend: MockDeliveryBacken
     // 연결이 끊긴다. 끊기기 직전의 변경은 이벤트로 보내지 못해, 받는 쪽은 다시 연결한 뒤 목록을 다시 가져와야 알 수 있다.
     after: 3500,
     run: (backend) => {
-      backend.changeSilently({
-        id: 'D-1001',
-        recipient: '김하늘',
-        item: '무선 이어폰',
-        status: 'delivered',
-        updatedAt: '2026-10-21T09:50:00+09:00',
-      })
+      backend.changeSilently(changedDelivery('D-1001', { status: 'delivered', updatedAt: '2026-10-21T09:50:00+09:00' }))
       backend.disconnect()
     },
   },
 ]
 
 /**
- * 개발 서버와 E2E가 쓰는 목 백엔드. Last-Event-ID 없이 새로 연결하면(새로 연 화면) 처음 목록으로 되돌리고 DEMO_SCENARIO를
- * 처음부터 보낸다. 다시 연결한 연결(Last-Event-ID가 있음)에는 이어서 보낼 이벤트가 없다. server에서는 Next.js 서버 하나가
- * 모든 화면의 요청을 받으므로, 다른 화면이 새로 연결하면 앞 화면의 순서는 멈추고 그 연결은 닫힌다(그 화면은 다시 연결한다).
+ * 개발 서버와 E2E가 쓰는 목 백엔드. Last-Event-ID 없이 새로 연결하면(새로 연 화면) 처음 목록으로 되돌리고, 그 뒤 처음 목록을
+ * 받으면 DEMO_SCENARIO를 처음부터 보낸다. 다시 연결한 연결(Last-Event-ID가 있음)에는 이어서 보낼 이벤트가 없다. server에서는
+ * Next.js 서버 하나가 모든 화면의 요청을 받으므로, 다른 화면이 새로 연결하면 앞 화면의 순서는 멈추고 열린 화면 모두가 새 순서의
+ * 이벤트를 받는다.
  */
 function createDemoDeliveryBackend(): MockDeliveryBackend {
   let timers: ReturnType<typeof setTimeout>[] = []
+  let waitingForList = false
   const backend = createMockDeliveryBackend({
     onConnect: ({ lastEventId }) => {
       if (lastEventId !== null) return
       for (const timer of timers) clearTimeout(timer)
+      timers = []
       backend.reset()
+      waitingForList = true
+    },
+    onListResponse: () => {
+      if (!waitingForList) return
+      waitingForList = false
       timers = DEMO_SCENARIO.map(({ after, run }) =>
         setTimeout(() => {
           run(backend)

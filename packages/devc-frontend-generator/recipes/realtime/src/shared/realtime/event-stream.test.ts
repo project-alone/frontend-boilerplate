@@ -104,11 +104,13 @@ test('여러 줄 데이터, CRLF·CR 줄 끝, 주석, 여러 조각으로 나뉘
 test('백엔드가 스트림을 닫으면 다시 연결하고, 마지막으로 받은 이벤트 id를 Last-Event-ID로 보낸다', async () => {
   const connections = serveEventStreams()
   const statuses: EventStreamStatus[] = []
-  const opens: boolean[] = []
+  let opens = 0
   connect({
     onEvent: () => undefined,
     onStatusChange: (status) => statuses.push(status),
-    onOpen: ({ reconnected }) => opens.push(reconnected),
+    onOpen: () => {
+      opens += 1
+    },
   })
   const first = await connection(connections, 1)
   await vi.waitFor(() => {
@@ -125,10 +127,10 @@ test('백엔드가 스트림을 닫으면 다시 연결하고, 마지막으로 �
     expect(statuses).toEqual(['connecting', 'open', 'reconnecting', 'open'])
   })
   expect(second.request.headers.get('last-event-id')).toBe('e-42')
-  expect(opens).toEqual([false, true])
+  expect(opens).toBe(2)
 })
 
-test('연결하지 못하면(2xx가 아닌 응답, 이벤트 스트림이 아닌 응답, 네트워크 오류) 실패할 때마다 다음 대기 시간으로 다시 연결하고, 연결되면 처음 대기 시간부터 센다', async () => {
+test('연결하지 못하면(2xx가 아닌 응답, 이벤트 스트림이 아닌 응답, 네트워크 오류) 실패할 때마다 다음 대기 시간으로 다시 연결하고, 이벤트를 받은 연결이 끊기면 처음 대기 시간부터 센다', async () => {
   const failures = [
     () => HttpResponse.json({ message: '점검 중' }, { status: 503 }),
     () => HttpResponse.json({ message: '이벤트 스트림이 아닌 응답' }),
@@ -161,12 +163,43 @@ test('연결하지 못하면(2xx가 아닌 응답, 이벤트 스트림이 아닌
   expect(attempts).toEqual([1, 2, 3])
   expect(statuses).toEqual(['connecting', 'reconnecting', 'open'])
 
+  streams[0]?.send({ data: '받은 이벤트' })
   streams[0]?.close()
 
   await vi.waitFor(() => {
     expect(streams).toHaveLength(2)
   })
   expect(attempts).toEqual([1, 2, 3, 1])
+})
+
+test('연결을 받자마자 이벤트 없이 닫는 백엔드에는 실패한 것으로 세어 대기 시간을 늘린다(목록을 다시 가져오는 일이 잦아지지 않게)', async () => {
+  let accepted = 0
+  server.use(
+    http.get('*/test/events', () => {
+      accepted += 1
+      const stream = createMockEventStream()
+      if (accepted <= 3) stream.close()
+      return stream.response
+    }),
+  )
+  const attempts: number[] = []
+  let opens = 0
+  connect({
+    onEvent: () => undefined,
+    onOpen: () => {
+      opens += 1
+    },
+    retryDelay: (attempt) => {
+      attempts.push(attempt)
+      return 0
+    },
+  })
+
+  await vi.waitFor(() => {
+    expect(accepted).toBe(4)
+  })
+  expect(attempts).toEqual([1, 2, 3])
+  expect(opens).toBe(4)
 })
 
 test('연결을 끊으면 더는 이벤트를 알리지 않고 다시 연결하지 않는다', async () => {

@@ -1,4 +1,4 @@
-import { type QueryClient, type QueryKey, useQueryClient } from '@tanstack/react-query'
+import { hashKey, type QueryClient, type QueryKey, useQueryClient } from '@tanstack/react-query'
 import { getStreamDeliveryEventsUrl } from '@/shared/api/generated'
 import { Delivery } from '@/shared/api/generated/model'
 import type { EventStreamStatus, ServerSentEvent } from '@/shared/realtime/event-stream'
@@ -33,11 +33,37 @@ function upsertDelivery(deliveries: Delivery[], delivery: Delivery): Delivery[] 
 /**
  * queryKey 아래의 쿼리를 지금부터 다시 가져온다. 가져오는 중인 요청은 지금보다 먼저 보냈으므로 그 사이의 변경을 담지 못했을 수 있어
  * 그 응답을 기다리지 않는다. invalidateQueries는 데이터가 있는 쿼리만 가져오던 요청을 취소하고 다시 보내고, 아직 데이터가 없는
- * (처음 가져오는 중인) 쿼리는 그 요청을 기다리므로, 그런 쿼리는 먼저 취소한다.
+ * (처음 가져오는 중인) 쿼리는 그 요청을 기다리므로, 그런 쿼리는 먼저 취소한다. 연결될 때 부른다.
  */
 async function refetchFromNow(queryClient: QueryClient, queryKey: QueryKey): Promise<void> {
   await queryClient.cancelQueries({ queryKey, predicate: (query) => query.state.data === undefined })
   await queryClient.invalidateQueries({ queryKey })
+}
+
+/** 가져오는 중인 요청이 끝나면 다시 가져오기로 한 쿼리 키(hashKey). 이벤트가 몰려도 한 번만 다시 가져온다. */
+const refetchesAfterFetch = new WeakMap<QueryClient, Set<string>>()
+
+/**
+ * queryKey 아래의 쿼리를 이벤트 뒤의 값으로 다시 가져온다. 가져오는 중이면 그 응답은 이벤트보다 먼저 만들어졌을 수 있으므로,
+ * 그 요청이 끝난 뒤에 한 번 더 가져온다. 요청을 취소하고 다시 보내지 않는 것은 이벤트가 요청보다 자주 오면 목록을 끝내 받지
+ * 못하기 때문이다.
+ */
+function refetchAfterEvent(queryClient: QueryClient, queryKey: QueryKey): void {
+  if (queryClient.isFetching({ queryKey }) === 0) {
+    void queryClient.invalidateQueries({ queryKey })
+    return
+  }
+  const queued = refetchesAfterFetch.get(queryClient) ?? new Set<string>()
+  refetchesAfterFetch.set(queryClient, queued)
+  const hash = hashKey(queryKey)
+  if (queued.has(hash)) return
+  queued.add(hash)
+  const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+    if (queryClient.isFetching({ queryKey }) > 0) return
+    unsubscribe()
+    queued.delete(hash)
+    void queryClient.invalidateQueries({ queryKey })
+  })
 }
 
 /** 이벤트 하나를 캐시에 반영한다. */
@@ -46,15 +72,14 @@ function applyDeliveryEvent(queryClient: QueryClient, event: ServerSentEvent): v
   const delivery = parseDelivery(event.data)
   if (delivery === undefined) {
     // 무엇이 바뀌었는지 읽을 수 없으므로 Query Domain 전체를 다시 가져온다.
-    void refetchFromNow(queryClient, deliveriesKeys.all)
+    refetchAfterEvent(queryClient, deliveriesKeys.all)
     return
   }
   const { queryKey } = listDeliveriesQueryOptions()
   // 아직 목록을 받지 않았으면 고칠 것이 없다. 받는 중인 목록은 아래에서 다시 가져온다.
   queryClient.setQueryData(queryKey, (deliveries) => deliveries && upsertDelivery(deliveries, delivery))
-  // 목록을 가져오는 중이면 그 응답은 이 이벤트보다 먼저 만들어졌을 수 있어, 도착하면 방금 고친 캐시를 덮어쓴다.
-  // 그 응답을 버리고 이벤트 뒤의 목록을 다시 가져온다.
-  if (queryClient.isFetching({ queryKey }) > 0) void refetchFromNow(queryClient, queryKey)
+  // 목록을 가져오는 중이면 그 응답이 도착해 방금 고친 캐시를 덮어쓸 수 있으므로, 그 뒤에 다시 가져온다.
+  if (queryClient.isFetching({ queryKey }) > 0) refetchAfterEvent(queryClient, queryKey)
 }
 
 /**

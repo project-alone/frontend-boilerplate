@@ -4,8 +4,54 @@ import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
 
 // realtime Recipe: 빌드한 앱의 /realtime에서 배송 이벤트 스트림의 이벤트가 쿼리 캐시를 고쳐 화면이 바뀌는지 본다. 목록과
 // 이벤트 스트림은 브라우저가 요청하고(server는 BFF 프록시, static-export는 백엔드 주소로 직접), MSW의 목 백엔드
-// (src/shared/mocks/deliveries.ts)가 새로 연결한 화면마다 정해진 순서로 이벤트를 보낸다: 1.5초 뒤 D-1002가 배송 중으로
-// 바뀌고, 2.5초 뒤 D-1004가 접수되고, 3.5초 뒤 D-1001이 배송 완료로 바뀌지만 그 이벤트를 보내기 전에 연결이 끊긴다.
+// (src/shared/mocks/deliveries.ts)가 새로 연결한 화면마다 정해진 순서로 이벤트를 보낸다. 화면이 연결한 뒤 목록을 받고 나서
+// 1.5초 뒤 D-1002가 배송 중으로 바뀌고, 2.5초 뒤 D-1004가 접수되고, 3.5초 뒤 D-1001이 배송 완료로 바뀌지만 그 이벤트를
+// 보내기 전에 연결이 끊긴다.
+
+/** 화면에 보인 연결 상태와 배송 행의 글자 */
+interface Screen {
+  status: string
+  rows: string[]
+}
+
+declare global {
+  interface Window {
+    realtimeScreens?: Screen[]
+  }
+}
+
+/** 이어지는 같은 값을 하나로 줄인다. */
+function withoutRepeats(values: readonly string[]): string[] {
+  return values.filter((value, index) => value !== values[index - 1])
+}
+
+/**
+ * 화면이 바뀔 때마다 연결 상태와 배송 행의 글자를 브라우저 안에서 기록한다. "다시 연결하는 중"처럼 잠깐만 보이는 상태도
+ * 놓치지 않으려고 기다렸다가 확인하는 대신 기록한다. page.goto 전에 부른다.
+ */
+async function recordScreens(page: Page) {
+  await page.addInitScript(() => {
+    const screens: Screen[] = []
+    window.realtimeScreens = screens
+    const record = () => {
+      const status = document.querySelector('main [role="status"]')?.textContent ?? ''
+      const rows = Array.from(document.querySelectorAll('main tbody tr'), (row) => row.textContent)
+      const last = screens.at(-1)
+      if (last?.status === status && last.rows.join('\n') === rows.join('\n')) return
+      screens.push({ status, rows })
+    }
+    new MutationObserver(record).observe(document, { subtree: true, childList: true, characterData: true })
+  })
+  const screens = () => page.evaluate(() => window.realtimeScreens ?? [])
+  return {
+    /** 지금까지 보인 연결 상태 */
+    statuses: async () =>
+      withoutRepeats((await screens()).map(({ status }) => status).filter((status) => status !== '')),
+    /** 운송장 번호가 id인 행이 지금까지 보인 글자 */
+    rowTexts: async (id: string) =>
+      withoutRepeats((await screens()).flatMap(({ rows }) => rows.filter((row) => row.startsWith(id)))),
+  }
+}
 
 /** 브라우저가 보낸 배송 목록(listDeliveries) 요청과 이벤트 스트림 요청을 모은다. */
 function recordRequests(page: Page) {
@@ -44,6 +90,7 @@ test('페이지 뼈대는 배송 없이 오고, 연결되면 실시간 이벤트
 }) => {
   const errors = collectErrors(page)
   const { listRequests } = recordRequests(page)
+  const screens = await recordScreens(page)
 
   const response = await page.goto('/realtime')
 
@@ -51,14 +98,16 @@ test('페이지 뼈대는 배송 없이 오고, 연결되면 실시간 이벤트
   expect(html).toContain('배송 현황을 불러오는 중입니다.')
   expect(html).toContain('실시간 연결 중')
   expect(html).not.toContain('D-1001')
-  await expect(connectionStatus(page)).toHaveText('실시간 연결됨')
-  // 처음 목록을 가져오고, 연결된 뒤 연결되기 전의 변경을 맞추려고 한 번 더 가져온다.
-  await expect.poll(() => listRequests.length).toBe(2)
-  await expect(deliveryRow(page, 'D-1002')).toContainText('상품 준비 중')
-
-  await expect(deliveryRow(page, 'D-1002')).toContainText('배송 중')
   await expect(page.getByRole('table', { name: '배송 목록' }).getByRole('row').nth(1)).toContainText('D-1004')
 
+  // 연결된 뒤 맞춘 목록에서는 상품 준비 중이었다가, 이벤트를 받아 배송 중이 되었다.
+  expect((await screens.rowTexts('D-1002')).slice(-2)).toEqual([
+    expect.stringContaining('상품 준비 중'),
+    expect.stringContaining('배송 중'),
+  ])
+  await expect(deliveryRow(page, 'D-1002')).toContainText('배송 중')
+  expect(await screens.statuses()).toEqual(['실시간 연결 중', '실시간 연결됨'])
+  // 처음 목록을 가져오고, 연결된 뒤 연결되기 전의 변경을 맞추려고 한 번 더 가져왔을 뿐 이벤트로는 가져오지 않았다.
   expect(listRequests).toHaveLength(2)
   expect(errors).toEqual([])
 })
@@ -67,16 +116,18 @@ test('백엔드가 연결을 끊으면 다시 연결하는 중임을 알리고, 
   page,
 }) => {
   const { listRequests, streamRequests } = recordRequests(page)
+  const screens = await recordScreens(page)
+
   await page.goto('/realtime')
-  await expect(connectionStatus(page)).toHaveText('실시간 연결됨')
-  await expect(deliveryRow(page, 'D-1004')).toBeVisible()
-  await expect.poll(() => listRequests.length).toBe(2)
 
-  await expect(connectionStatus(page)).toHaveText('연결이 끊겨 다시 연결하는 중')
-  await expect(deliveryRow(page, 'D-1001')).toContainText('배송 중')
-
-  await expect(connectionStatus(page)).toHaveText('실시간 연결됨')
-  await expect(deliveryRow(page, 'D-1001')).toContainText('배송 완료')
+  // 배송 완료는 이벤트로 오지 않으므로, 다시 연결한 뒤 가져온 목록에서만 볼 수 있다.
+  await expect(deliveryRow(page, 'D-1001')).toContainText('배송 완료', { timeout: 10_000 })
+  expect(await screens.statuses()).toEqual([
+    '실시간 연결 중',
+    '실시간 연결됨',
+    '연결이 끊겨 다시 연결하는 중',
+    '실시간 연결됨',
+  ])
   expect(listRequests).toHaveLength(3)
   // 이벤트로 받은 변경은 다시 가져온 목록에도 그대로 있다.
   await expect(deliveryRow(page, 'D-1002')).toContainText('배송 중')
