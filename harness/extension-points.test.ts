@@ -171,6 +171,23 @@ describe('Provider, 머리글, proxy, next.config, instrumentation의 선언(ext
     },
   )
 
+  test('MSW 핸들러 목록(mockHandlers)은 Recipe가 직접 만든 핸들러를 order 순으로 생성된 핸들러 앞에 두고, 조각이 없어도 Base의 MSW가 쓰므로 늘 만든다', () => {
+    const fixtures = dcgenNew(FIXTURES, 'fixtures')
+    const base = dcgenNew([], 'base')
+    expect(fixtures.status, fixtures.output).toBe(0)
+    expect(base.status, base.output).toBe(0)
+
+    // MSW는 앞의 핸들러가 먼저 응답하므로, b(order 100) → a(order 200) → 명세에서 생성된 핸들러 순으로 놓인다.
+    const spreads = (starter: string) =>
+      [...readFileSync(join(starter, 'src/shared/mocks/handlers.ts'), 'utf8').matchAll(/\.\.\.([\w.]+)/g)].map(
+        ([, name]) => name,
+      )
+    expect(spreads(fixtures.starter)).toEqual(['fixtureBMockHandlers', 'fixtureAMockHandlers', 'Object.values'])
+    expect(readFileSync(join(base.starter, 'src/shared/mocks/handlers.ts'), 'utf8')).toContain(
+      'export const handlers = Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers())',
+    )
+  })
+
   test('고른 순서와 상관없이 같은 Starter를 만든다', () => {
     const forward = dcgenNew(FIXTURES, 'forward')
     const backward = dcgenNew(['--recipe', 'extension-b-fixture', '--recipe', 'extension-a-fixture'], 'backward')
@@ -218,12 +235,13 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 시험
     playwright: true,
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트(서버의 요청이 backendFetch 처리기를 order 순으로 거침)를 통과하고, 병합된 명세로 api:gen을 다시 실행해도 재생성 계층이 바뀌지 않는다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(서버의 요청이 backendFetch 처리기를 order 순으로 거침, 두 Recipe의 MSW 핸들러가 생성된 핸들러 앞에 order 순으로 놓임)를 통과하고, 병합된 명세로 api:gen을 다시 실행해도 재생성 계층이 바뀌지 않는다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
     const report = runVitestScript(starter, ['test'])
     expectFileToPass(report, 'backend-fetch.server.test.ts', 1)
+    expectFileToPass(report, 'mock-handlers.test.ts', 1)
 
     const generated = join(starter.dir, 'src/shared/api/generated')
     const before = readTree(generated)

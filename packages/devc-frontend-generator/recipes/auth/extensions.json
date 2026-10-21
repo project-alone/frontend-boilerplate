@@ -4,5 +4,6 @@
   "instrumentation": [
     { "path": "src/shared/auth/auth-instrumentation.ts", "export": "authInstrumentation", "order": 200 }
   ],
-  "backendFetch": [{ "path": "src/shared/auth/auth-backend-fetch.ts", "export": "authBackendFetch", "order": 100 }]
+  "backendFetch": [{ "path": "src/shared/auth/auth-backend-fetch.ts", "export": "authBackendFetch", "order": 100 }],
+  "mockHandlers": [{ "path": "src/shared/auth/auth-mock-handlers.ts", "export": "authMockHandlers", "order": 100 }]
 }

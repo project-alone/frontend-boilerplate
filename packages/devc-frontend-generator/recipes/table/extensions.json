@@ -1,0 +1,3 @@
+{
+  "mockHandlers": [{ "path": "src/shared/mocks/members.ts", "export": "membersHandlers", "order": 100 }]
+}

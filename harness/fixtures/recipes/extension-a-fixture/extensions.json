@@ -31,5 +31,12 @@
       "export": "fixtureABackendFetch",
       "order": 200
     }
+  ],
+  "mockHandlers": [
+    {
+      "path": "src/shared/extension-a-fixture/fixture-a-mock-handlers.ts",
+      "export": "fixtureAMockHandlers",
+      "order": 200
+    }
   ]
 }

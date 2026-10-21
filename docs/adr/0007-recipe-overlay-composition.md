@@ -12,4 +12,4 @@ Starter는 Base를 복사한 뒤 Rendering Mode(`rendering-modes/<mode>/`)와 Re
 
 - Base나 먼저 덧입힌 overlay가 패치의 맥락 줄을 바꾸면 패치가 적용되지 않고, `dcgen new`는 어느 패치인지 알리며 실패한다. 조용히 어긋나는 대신 시끄럽게 깨지는 쪽을 고른 것이며, 하네스의 조합 매트릭스(Rendering Mode × Recipe)가 머지 전에 잡는다. 기여자는 패치를 다시 만든다(`docs/recipes.md`).
 - 결과는 덧입히는 순서(Base → Rendering Mode → 필요한 Recipe가 먼저 오고 나머지는 이름순인 Recipe)에 따라 정해진다. 패치는 그 시점의 파일에 적용되므로 맥락 줄을 꼭 필요한 만큼만 둔다.
-- 여러 Recipe가 함께 끼어드는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`, instrumentation, 서버가 백엔드로 보내는 요청, OpenAPI 명세, 환경 변수 파일)는 패치 대신 확장 지점에 조각을 더한다(ADR-0010). overlay 형식에는 확장 지점의 선언(`extensions.json`)과 명세 조각(`openapi.yaml`), dotenv 파일의 변수 단위 병합이 더해졌다.
+- 여러 Recipe가 함께 끼어드는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수 파일)는 패치 대신 확장 지점에 조각을 더한다(ADR-0010). overlay 형식에는 확장 지점의 선언(`extensions.json`)과 명세 조각(`openapi.yaml`), dotenv 파일의 변수 단위 병합이 더해졌다.

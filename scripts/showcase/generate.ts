@@ -110,6 +110,7 @@ const EXTENSION_FILES: Record<string, readonly string[]> = {
   'src/instrumentation-client.ts': ['instrumentationClient'],
   'src/proxy.ts': ['proxy'],
   'src/shared/api/backend-fetch.ts': ['backendFetch'],
+  'src/shared/mocks/handlers.ts': ['mockHandlers'],
 }
 
 const OPENAPI_SPEC = 'openapi.yaml'

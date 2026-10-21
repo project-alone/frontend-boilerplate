@@ -3,8 +3,8 @@ import { LoginRequest, LogoutRequest, RefreshRequest, type TokenPair, type User 
 
 // 목 백엔드의 인증(샘플 명세의 auth operation). 생성된 MSW 핸들러(src/shared/api/generated/auth/auth.msw.ts)는 늘 같은
 // example을 돌려주므로, 로그인 실패, accessToken 만료, refreshToken rotation, 로그아웃을 흉내 내려고 발급한 토큰을 기억하는
-// 핸들러를 따로 둔다. MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이 생성된 핸들러보다 앞에 두므로 Vitest, 개발 서버,
-// E2E 대상 서버가 모두 이 핸들러를 쓴다. 실제 백엔드로 바꾸면 쓰이지 않는다.
+// 핸들러를 따로 둔다. 확장 지점 mockHandlers(Recipe의 extensions.json)로 선언해 MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이
+// 생성된 핸들러보다 앞에 두므로 Vitest, 개발 서버, E2E 대상 서버가 모두 이 핸들러를 쓴다. 실제 백엔드로 바꾸면 쓰이지 않는다.
 
 /** 목 백엔드의 사용자. 비밀번호는 모두 MOCK_PASSWORD다. */
 export const MOCK_USERS: readonly User[] = [

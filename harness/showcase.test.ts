@@ -141,6 +141,9 @@ test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패�
     'base/extensions.json, recipes/auth/extensions.json, recipes/dark-mode/extensions.json',
   )
   expect(head(readShowcase('src/shared/api/backend-fetch.ts'))).toContain('원본(packages/devc-frontend-generator/): recipes/auth/extensions.json')
+  // MSW 핸들러 목록은 Base 파일이 아니라 mockHandlers를 선언한 Recipe의 extensions.json으로 조립한다.
+  expect(head(readShowcase('src/shared/mocks/handlers.ts'))).toContain('원본(packages/devc-frontend-generator/): recipes/auth/extensions.json')
+  expect(head(readShowcase('src/shared/mocks/handlers.ts'))).toContain('recipes/table/extensions.json')
   expect(head(readShowcase('src/instrumentation.ts'))).toContain('원본(packages/devc-frontend-generator/): base/extensions.json')
   expect(head(readShowcase('src/features/theme-switcher/theme-switcher.tsx'))).toContain(
     'recipes/dark-mode/src/features/theme-switcher/theme-switcher.tsx',

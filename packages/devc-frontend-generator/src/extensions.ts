@@ -4,8 +4,8 @@ import { formatForStarter } from './format.js'
 import { exists, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
 import type { RenderingMode } from './rendering-mode.js'
 
-// 확장 지점: 여러 Recipe가 같은 Base 파일(루트 레이아웃, proxy, next.config, instrumentation, 서버가 백엔드로 보내는 요청)에
-// 끼어들어야 하는 곳.
+// 확장 지점: 여러 Recipe가 같은 Base 파일(루트 레이아웃, proxy, next.config, instrumentation, 서버가 백엔드로 보내는 요청,
+// MSW 핸들러 목록)에 끼어들어야 하는 곳.
 // Recipe는 그 파일을 패치하지 않고 자기 모듈을 overlay 최상위의 extensions.json에 선언한다. Generator는 모든 overlay를
 // 덧입힌 뒤 Base와 Rendering Mode, Recipe의 선언을 모아 지점마다 조립 파일 하나를 만든다(docs/recipes.md의 "확장 지점").
 
@@ -20,6 +20,7 @@ export const EXTENSION_POINTS = [
   'instrumentation',
   'instrumentationClient',
   'backendFetch',
+  'mockHandlers',
 ] as const
 
 export type ExtensionPoint = (typeof EXTENSION_POINTS)[number]
@@ -86,6 +87,7 @@ export async function readExtensions({ dir, label }: Overlay): Promise<Extension
  * - src/app/app-shell.tsx: 루트 레이아웃이 쓰므로 늘 만든다.
  * - next.config.plugins.ts: next.config.ts가 쓰므로 늘 만든다.
  * - src/shared/api/backend-fetch.ts: Base의 apiFetch와 BFF 프록시가 쓰므로 늘 만든다.
+ * - src/shared/mocks/handlers.ts: Base의 MSW(node.ts, Rendering Mode static-export의 browser.ts)가 쓰므로 늘 만든다.
  * - src/instrumentation.ts, src/instrumentation-client.ts: 조각이 있을 때만 만든다.
  * - src/proxy.ts: 조각이 있고 요청을 받는 서버가 있는(server) Starter에만 만든다. static-export에는 proxy가 없다.
  */
@@ -112,6 +114,11 @@ export const ASSEMBLED_FILES: readonly { path: string; points: readonly Extensio
       path: 'src/shared/api/backend-fetch.ts',
       points: ['backendFetch'],
       reserved: ['BackendFetchHandler', 'handlers', 'backendFetch'],
+    },
+    {
+      path: 'src/shared/mocks/handlers.ts',
+      points: ['mockHandlers'],
+      reserved: ['generatedMocks', 'getMockHandlers', 'handlers'],
     },
   ]
 
@@ -175,6 +182,7 @@ export async function writeExtensionFiles(
     instrumentationClient(at('instrumentationClient')),
     renderingMode === 'server' ? proxy(at('proxy')) : undefined,
     backendFetch(at('backendFetch')),
+    mockHandlers(at('mockHandlers')),
   ]
   for (const file of files) {
     if (file === undefined) continue
@@ -371,6 +379,33 @@ function backendFetch(pieces: readonly ExtensionPiece[]): GeneratedFile {
       '  }',
       '  return run(0, url, init)',
       '}',
+    ].join('\n'),
+  }
+}
+
+function mockHandlers(pieces: readonly ExtensionPiece[]): GeneratedFile {
+  const path = 'src/shared/mocks/handlers.ts'
+  const generated = 'Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers())'
+  return {
+    path,
+    content: [
+      "import * as generatedMocks from '@/shared/api/generated/index.msw'",
+      ...imports(path, pieces),
+      '',
+      GENERATED_NOTICE,
+      '// MSW가 가로챌 요청과 돌려줄 응답의 목록. Vitest, Playwright, 개발 서버, 목 빌드가 모두 이 목록을 쓴다.',
+      '// openapi.yaml에서 생성한 핸들러(src/shared/api/generated/<tag>/<tag>.msw.ts)를 모두 담으므로 명세가 바뀌어도',
+      '// 고칠 필요가 없다. 응답은 명세의 example이고, example이 없으면 faker가 스키마에 맞춰 만든다.',
+      ...(pieces.length === 0
+        ? []
+        : [
+            '// Recipe가 직접 만든 핸들러(예: 파라미터대로 거르는 목록, 발급한 토큰을 기억하는 인증)는 생성된 핸들러보다 앞에 둔다.',
+            '// MSW는 앞의 핸들러가 먼저 응답하므로, 같은 요청이면 생성된 핸들러 대신 Recipe의 핸들러가 받는다.',
+          ]),
+      '// 테스트 하나에서만 응답을 바꾸려면 server.use(...)를 쓴다(README의 "API 목킹").',
+      pieces.length === 0
+        ? `export const handlers = ${generated}`
+        : `export const handlers = [${pieces.map((piece) => `...${piece.export}, `).join('')}...${generated}]`,
     ].join('\n'),
   }
 }
