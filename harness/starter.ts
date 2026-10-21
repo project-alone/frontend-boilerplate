@@ -287,11 +287,13 @@ export const MSW_PROBE_ROUTE = '/harness-msw'
 /** 샘플 API 주소. Starter의 목 백엔드 주소(src/shared/api/base-url.ts의 MOCK_API_BASE_URL)라 MSW가 켜져 있으면 이 주소로 가는 요청을 MSW가 받는다. */
 export const SAMPLE_API_URL = 'https://mock.api.test/products'
 
-/** MSW_PROBE_ROUTE에 탐침 페이지를 만든다. 페이지는 SAMPLE_API_URL의 응답에 담긴 상품 이름을 목록으로 보여 준다. */
-export function writeMswProbePage(starter: Pick<Starter, 'writeFile'>): void {
-  starter.writeFile(
-    `src/app${MSW_PROBE_ROUTE}/page.tsx`,
-    `export default async function HarnessMswPage() {
+/**
+ * MSW_PROBE_ROUTE에 탐침 페이지를 만든다. 페이지는 SAMPLE_API_URL의 응답에 담긴 상품 이름을 목록으로 보여 준다.
+ * label을 주면 그 값을 내보내는 모듈(label.ts)을 페이지 옆에 만들고, 페이지가 그 모듈을 import해 목록의 이름(aria-label)으로 쓴다.
+ * 개발 서버가 떠 있는 동안 페이지가 새 모듈을 import하게 고칠 때 쓴다.
+ */
+export function writeMswProbePage(starter: Pick<Starter, 'writeFile'>, label?: string): void {
+  const page = `export default async function HarnessMswPage() {
   const response = await fetch('${SAMPLE_API_URL}', { cache: 'no-store' })
   const products = (await response.json()) as { id: number; name: string }[]
   return (
@@ -302,6 +304,12 @@ export function writeMswProbePage(starter: Pick<Starter, 'writeFile'>): void {
     </ul>
   )
 }
-`,
-  )
+`
+  const path = `src/app${MSW_PROBE_ROUTE}/page.tsx`
+  if (label === undefined) {
+    starter.writeFile(path, page)
+    return
+  }
+  starter.writeFile(`src/app${MSW_PROBE_ROUTE}/label.ts`, `export const LABEL = ${JSON.stringify(label)}\n`)
+  starter.writeFile(path, `import { LABEL } from './label'\n\n${page.replace('<ul>', '<ul aria-label={LABEL}>')}`)
 }
