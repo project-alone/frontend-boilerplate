@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { addOperations } from './schematic.ts'
@@ -29,10 +30,15 @@ const QUERIES_DIR = 'src/queries'
 //   → 비워 둔 필수 필드는 null로, 비워 둔 선택 필드는 빼고, 기본값이 있는 필드는 기본값으로 보낸다. 체크하지 않은
 //   반드시 true여야 하는 선택 필드(const: true)는 보내지 않는다
 // - 같은 tag에 입력 요소로 만들 수 없는 필수 필드(객체)를 받는 POST → 폼을 만들지 않는다
+// - reviews tag(Query Domain 모듈이 없다)에 상품의 리뷰 목록 GET(경로 파라미터 productId, 선택 쿼리 파라미터)과, 그 목록을
+//   응답 전에 고치는(--optimistic) 뮤테이션 둘 → 뮤테이션 훅이 목록 쿼리의 인자(productId, params)를 받는다.
+//   리뷰 작성(POST)은 경로 파라미터 productId가 훅의 인자와 같고, 리뷰 수정(PATCH)은 경로 파라미터(reviewId)와 훅의 인자가 다르다
 const HARNESS_OPERATIONS = `
 tags:
   - name: members
     description: 회원
+  - name: reviews
+    description: 상품 리뷰
 paths:
   /products/{productId}:
     put:
@@ -225,6 +231,78 @@ paths:
       responses:
         '204':
           description: 등록됨
+  /products/{productId}/reviews:
+    get:
+      operationId: listProductReviews
+      summary: 상품 리뷰 목록
+      tags: [reviews]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [newest, rating]
+      responses:
+        '200':
+          description: 리뷰 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+    post:
+      operationId: createProductReview
+      summary: 리뷰 작성
+      tags: [reviews]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewReview'
+      responses:
+        '201':
+          description: 작성한 리뷰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+  /reviews/{reviewId}:
+    patch:
+      operationId: updateReview
+      summary: 리뷰 수정
+      tags: [reviews]
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewReview'
+      responses:
+        '200':
+          description: 수정한 리뷰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
 components:
   schemas:
     Address:
@@ -233,7 +311,35 @@ components:
       properties:
         city:
           type: string
+    NewReview:
+      type: object
+      required: [rating]
+      properties:
+        rating:
+          type: integer
+          title: 별점
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          title: 리뷰
+          maxLength: 200
+    Review:
+      type: object
+      required: [id, productId, rating, comment]
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        rating:
+          type: integer
+        comment:
+          type: string
 `
+
+// --optimistic 뮤테이션 훅(리뷰 작성, 리뷰 수정)이 응답 전에 고치는 쿼리. 폼보다 먼저 그 queryOptions를 만든다.
+const OPTIMISTIC_QUERY = 'listProductReviews'
 
 /** Starter 안에서 Schematic을 실행하고 성공했는지 확인한다. */
 function generate(starter: Starter, args: readonly string[]): void {
@@ -243,14 +349,32 @@ function generate(starter: Starter, args: readonly string[]): void {
 
 // Starter의 검사를 통과하는지 볼 때 만드는 폼: 응답 본문이 있는 샘플 operation, 경로 파라미터를 받는 operation(같은 Feature),
 // 입력 요소의 종류를 모두 담은 응답 본문이 없는 operation(새 Query Domain, 새 Feature), 선택 필드만 받는 operation,
-// null을 받는 필드가 있는 operation. stem은 만들어지는 세 파일의 확장자를 뺀 경로다.
+// null을 받는 필드가 있는 operation, 뮤테이션 훅을 --optimistic으로 만든 operation(훅이 고칠 쿼리의 인자를 받는다).
+// stem은 만들어지는 세 파일의 확장자를 뺀 경로다.
 const CHECKED_FORMS = [
   { operationId: 'createProduct', feature: 'product-admin', stem: 'src/features/product-admin/create-product-form' },
   { operationId: 'updateProduct', feature: 'product-admin', stem: 'src/features/product-admin/update-product-form' },
   { operationId: 'registerMember', feature: 'members', stem: 'src/features/members/register-member-form' },
   { operationId: 'updateMemberProfile', feature: 'members', stem: 'src/features/members/update-member-profile-form' },
   { operationId: 'updateMemberContact', feature: 'members', stem: 'src/features/members/update-member-contact-form' },
+  {
+    operationId: 'createProductReview',
+    feature: 'product-reviews',
+    stem: 'src/features/product-reviews/create-product-review-form',
+    optimistic: true,
+  },
+  {
+    operationId: 'updateReview',
+    feature: 'product-reviews',
+    stem: 'src/features/product-reviews/update-review-form',
+    optimistic: true,
+  },
 ]
+
+/** operationId의 뮤테이션 훅을 만든다. optimistic이면 OPTIMISTIC_QUERY를 응답 전에 고치는 훅이다(그 queryOptions가 먼저 있어야 한다). */
+function generateMutation(starter: Starter, operationId: string, { optimistic = false } = {}): void {
+  generate(starter, ['mutation', operationId, ...(optimistic ? ['--optimistic', OPTIMISTIC_QUERY] : [])])
+}
 
 /**
  * CHECKED_FORMS를 뮤테이션 훅과 함께 만든 Starter가 생성 직후 그대로 타입 검사, lint, 포맷 검사를 통과하고, 생성된 테스트
@@ -258,8 +382,9 @@ const CHECKED_FORMS = [
  * (dark-mode Recipe는 두 테마에서 한 번씩).
  */
 function expectGeneratedFormsToPassStarterChecks(starter: Starter, { storybookRuns }: { storybookRuns: number }): void {
-  for (const { operationId, feature } of CHECKED_FORMS) {
-    generate(starter, ['mutation', operationId])
+  generate(starter, ['query', OPTIMISTIC_QUERY])
+  for (const { operationId, feature, optimistic } of CHECKED_FORMS) {
+    generateMutation(starter, operationId, { optimistic })
     generate(starter, ['form', operationId, '--feature', feature])
   }
 
@@ -346,6 +471,58 @@ describe('server Starter', () => {
       'update-member-contact-form.tsx',
       'update-member-contact-form.test.tsx',
     ])
+  })
+
+  test('--optimistic으로 만든 뮤테이션 훅이 고칠 쿼리의 인자를 받으면, 폼이 그 인자를 props로 받아 훅에 넘긴다', async () => {
+    generate(starter, ['query', OPTIMISTIC_QUERY])
+    for (const operationId of ['createProductReview', 'updateReview']) {
+      generateMutation(starter, operationId, { optimistic: true })
+    }
+
+    // 리뷰 작성: 훅의 인자 productId는 폼이 이미 받는 경로 파라미터와 같은 값이다.
+    generate(starter, ['form', 'createProductReview', '--feature', 'product-reviews'])
+    // 리뷰 수정: 경로 파라미터(reviewId)와 따로 훅의 인자(productId, 생략할 수 있는 params)를 props로 받는다.
+    const result = dcgen(starter, ['g', 'form', 'updateReview', '--feature', 'product-reviews'])
+
+    expect(result.status, result.output).toBe(0)
+    expect(result.output).toContain('폼은 뮤테이션 훅(useUpdateReviewMutation)의 인자(productId, params)도 props로 받아 훅에 넘깁니다')
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/product-reviews`, [
+      'create-product-review-form.tsx',
+      'update-review-form.tsx',
+      'update-review-form.stories.tsx',
+      'update-review-form.test.tsx',
+    ])
+  })
+
+  test.each([
+    {
+      problem: '생성한 테스트와 스토리가 넘길 값을 정할 수 없는 타입의 필수 인자를 받는 뮤테이션 훅',
+      operationId: 'createProduct',
+      hook: 'useCreateProductMutation',
+      parameters: 'filter: { q: string }',
+      reason: 'useCreateProductMutation의 필수 인자 filter({ q: string })',
+    },
+    {
+      problem: '폼이 받는 경로 파라미터와 이름은 같고 타입은 다른 인자를 받는 뮤테이션 훅',
+      operationId: 'updateProduct',
+      hook: 'useUpdateProductMutation',
+      parameters: 'productId: string',
+      reason: 'useUpdateProductMutation의 인자 productId(string)',
+    },
+  ])('$problem: 이유를 알리고 아무 파일도 만들지 않은 채 실패한다', ({ operationId, hook, parameters, reason }) => {
+    generate(starter, ['mutation', operationId])
+    // 개발자가 뮤테이션 훅이 받는 인자를 고쳤다.
+    const queries = `${QUERIES_DIR}/products/products.queries.ts`
+    const source = readFileSync(join(starter.dir, queries), 'utf8')
+    expect(source).toContain(`export function ${hook}() {`)
+    starter.writeFile(queries, source.replace(`export function ${hook}() {`, `export function ${hook}(${parameters}) {`))
+    const before = featuresTree()
+
+    const result = dcgen(starter, ['g', 'form', operationId, '--feature', 'product-admin'])
+
+    expect(result.status).not.toBe(0)
+    expect(result.output).toContain(reason)
+    expect(featuresTree()).toEqual(before)
   })
 
   test('같은 이름의 파일이 하나라도 있으면 덮어쓰지 않고 겹치는 파일을 알린 뒤 아무 파일도 만들지 않는다', () => {
