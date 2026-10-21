@@ -2,8 +2,8 @@
 >
 > Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe를 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`)나 Recipe(`recipes/<이름>/`)를 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md)).
 >
-> - 켠 Recipe: `analytics`, `chart`, `dark-mode`, `route-rendering`, `sentry`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
-> - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`
+> - 켠 Recipe: `analytics`, `auth`, `chart`, `dark-mode`, `docker`, `i18n`, `infinite-list`, `multi-step-form`, `optimistic-update`, `route-rendering`, `sentry`, `seo`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
+> - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`, `src/shared/i18n/en.json`, `src/shared/i18n/ko.json`, `src/shared/seo/pretendard-bold.woff`, `src/shared/seo/pretendard-license.txt`
 > - 실행: 레포 최상위에서 `npm run showcase:dev`. Showcase를 레포 밖의 디렉터리에 복사해 설치하고 MSW 목으로 개발 서버를 띄웁니다. 아래는 Starter의 README이고, 그 명령은 그 디렉터리에서 실행합니다.
 
 # Starter
@@ -53,13 +53,16 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 
 다음 파일은 Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 쓴 파일입니다. 이제는 이 프로젝트의 코드이므로 Provider나 래퍼를 더하고 뺄 때 직접 고칩니다.
 
-| 파일                            | 내용                                                                                               |
-| ------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/app/app-shell.tsx`         | 루트 레이아웃(`src/app/layout.tsx`)이 모든 페이지를 감싸는 Provider(위에 적힌 것이 바깥)와 머리글  |
-| `next.config.plugins.ts`        | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것이 바깥       |
-| `src/instrumentation.ts`        | 서버가 뜰 때 실행할 코드(API 목킹이나 백엔드 주소 확인 등)와 서버가 요청을 처리하다 난 오류의 처리 |
-| `src/instrumentation-client.ts` | 브라우저에서 앱 코드보다 먼저 실행할 코드와 페이지 이동 알림. 넣은 코드가 있을 때만 있음           |
-| `src/proxy.ts`                  | 페이지 요청이 라우트에 닿기 전에 차례로 실행할 처리기(Next.js Proxy). 넣은 처리기가 있을 때만 있음 |
+| 파일                              | 내용                                                                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/app-shell.tsx`           | 루트 레이아웃(`src/app/layout.tsx`)이 모든 페이지를 감싸는 Provider(위에 적힌 것이 바깥)와 머리글                                |
+| `next.config.plugins.ts`          | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것이 바깥                                     |
+| `src/instrumentation.ts`          | 서버가 뜰 때 실행할 코드(API 목킹이나 백엔드 주소 확인 등)와 서버가 요청을 처리하다 난 오류의 처리                               |
+| `src/instrumentation-client.ts`   | 브라우저에서 앱 코드보다 먼저 실행할 코드와 페이지 이동 알림. 넣은 코드가 있을 때만 있음                                         |
+| `src/proxy.ts`                    | 페이지 요청이 라우트에 닿기 전에 차례로 실행할 처리기(Next.js Proxy). 넣은 처리기가 있을 때만 있음                               |
+| `src/shared/api/backend-fetch.ts` | 서버가 백엔드로 보내는 요청(서버의 `apiFetch`, BFF 프록시)이 차례로 거칠 처리기(예: 토큰 첨부). 처리기가 없으면 그대로 보냄      |
+| `src/shared/mocks/handlers.ts`    | MSW가 쓰는 핸들러 목록. Recipe가 직접 만든 핸들러(위에 적힌 것이 먼저 응답)와 명세에서 생성한 핸들러                             |
+| `src/app/sitemap-rules.ts`        | sitemap과 robots.txt가 따르는 규칙(예: 로그인해야 들어가는 페이지는 알리지 않음). sitemap(`src/app/sitemap.ts`)이 있을 때만 있음 |
 
 ## GitLab CI
 
@@ -84,15 +87,15 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 
 공통 컴포넌트는 `src/shared/ui/`에 있습니다. 키보드 조작과 스크린 리더 지원은 [Base UI](https://base-ui.com)가 맡고, 모양은 디자인 토큰으로 만든 Tailwind CSS 유틸리티가 정합니다. 특정 디자인 시스템의 모양은 담겨 있지 않습니다.
 
-| 컴포넌트                                                | 쓰는 법                                                                                                                            |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                                                | `variant`(`primary`, `secondary`, `danger`), `size`(`sm`, `md`). 링크를 버튼처럼 보이게 할 때는 `<a className={buttonVariants()}>` |
-| `Field`, `FieldLabel`, `FieldDescription`, `FieldError` | 폼 컨트롤 하나에 레이블, 설명, 오류 메시지를 잇습니다.                                                                             |
-| `Input`                                                 | `<Field><FieldLabel>이름</FieldLabel><Input /></Field>`                                                                            |
-| `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                            |
-| `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`                                                            |
-| `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                        |
-| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                        |
+| 컴포넌트                                                | 쓰는 법                                                                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                                                | `variant`(`primary`, `secondary`, `danger`), `size`(`sm`, `md`). 링크를 버튼처럼 보이게 할 때는 `<a className={buttonVariants()}>`                   |
+| `Field`, `FieldLabel`, `FieldDescription`, `FieldError` | 폼 컨트롤 하나에 레이블, 설명, 오류 메시지를 잇습니다.                                                                                               |
+| `Input`                                                 | `<Field><FieldLabel>이름</FieldLabel><Input /></Field>`                                                                                              |
+| `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                                              |
+| `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`. 고른 값을 다시 비울 수 있게 하려면 `clearLabel="선택 안 함"`(비우면 `null`) |
+| `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                                          |
+| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                                          |
 
 컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 훅을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
 
@@ -144,7 +147,8 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 생성된 fetch 함수는 모두 `src/shared/api/api-fetch.ts`의 `apiFetch`를 거칩니다. `apiFetch`는 실행 환경에 따라 주소를 고르고, 응답을 명세의 Zod 스키마로 검증합니다. 2xx가 아닌 응답은 `ApiError`로 던집니다.
 
 - 서버(서버 컴포넌트, Route Handler): `API_BASE_URL`의 백엔드를 직접 부릅니다. MSW를 끈 서버(`API_MOCKING`이 `enabled`가 아님)에 `API_BASE_URL`이 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다. 엉뚱한 주소로 조용히 요청하지 않도록 기본값은 두지 않습니다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 컴포넌트도 같아서, MSW를 끈 빌드에 `API_BASE_URL`이 없으면 빌드가 실패합니다(위 "배포용 빌드와 목 빌드").
-- 브라우저: BFF 프록시 `/api/proxy/*`(`src/app/api/proxy/[...path]/route.ts`)를 부르고, 프록시가 `API_BASE_URL`로 요청을 그대로 전달합니다. 토큰 첨부는 `auth` Recipe가 프록시에 더합니다.
+- 브라우저: BFF 프록시 `/api/proxy/*`(`src/app/api/proxy/[...path]/route.ts`)를 부르고, 프록시가 `API_BASE_URL`로 요청을 그대로 전달합니다.
+- 서버의 요청과 프록시가 전달하는 요청은 `src/shared/api/backend-fetch.ts`의 처리기를 차례로 거쳐 나갑니다. 예를 들어 `auth` Recipe를 넣으면 이 처리기가 로그인 세션의 토큰을 붙입니다.
 - 브라우저가 프록시 대신 백엔드를 직접 불러야 하면(서버가 없는 `static-export` 등) `NEXT_PUBLIC_API_BASE_URL`에 백엔드 주소를 적습니다. 빌드할 때 코드에 박히므로 바꾸면 다시 빌드하고, 백엔드가 그 출처의 CORS 요청을 허용해야 합니다.
 
 | 환경 변수                  | 읽는 곳                                                                              | 값                                                                                                         |
@@ -164,7 +168,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 ## API 목킹(MSW)
 
-MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다.
+MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
 
 - Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
 - 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다.
@@ -189,11 +193,38 @@ const {
   register,
   handleSubmit,
   formState: { errors },
-} = useForm({ resolver: formResolver(CreateProductBody) })
+} = useSchemaForm(CreateProductBody)
 ```
 
-- `src/shared/form/form-resolver.ts`의 `formResolver(schema)`를 `useForm`의 `resolver`로 넘깁니다. 제출 핸들러(`handleSubmit`)는 검증을 통과한 값을 받습니다.
-- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 값을 넣지 않은 것으로 보고 검증 전에 뺍니다. 비워 둔 선택 필드는 요청에 담기지 않고, 비워 둔 필수 필드는 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다. 그 밖의 오류는 Zod의 한국어 메시지입니다.
+- `src/shared/form/use-schema-form.ts`의 `useSchemaForm(schema, { defaultValues })`은 스키마로 검증하는 `useForm`입니다. `src/shared/form/form-resolver.ts`의 `formResolver(schema)`를 `resolver`로 두고, 처음 값(`defaultValues`)을 `useForm`과 `formResolver`에 함께 넘깁니다. `mode` 같은 `useForm`의 다른 옵션도 함께 넘기고, 돌려주는 값은 `useForm`과 같습니다. 제출 핸들러(`handleSubmit`)는 검증을 통과한 값을 받습니다.
+- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 명세에 따라 검증 전에 바꿉니다. "비우기"(`null`)와 "보내지 않기"(키를 뺌)를 이렇게 나눕니다.
+
+  | 비워 둔 필드                                                                                | 요청 본문                                                                                |
+  | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | 선택 필드                                                                                   | 보내지 않습니다                                                                          |
+  | 필수 필드                                                                                   | 보내지 않고 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다                         |
+  | null을 받는 필수 필드(`type: [string, 'null']`, `nullable: true`, `anyOf`의 `type: 'null'`) | `null`을 보냅니다                                                                        |
+  | null을 받는 선택 필드                                                                       | 처음 값이 있던 입력을 비웠으면 `null`(값을 지움), 처음부터 비어 있었으면 보내지 않습니다 |
+
+- 기본값(`default`)이 있는 필드는 필수 필드여도 선택 필드처럼 다룹니다. 보내지 않는 입력에는 재생성 계층의 스키마가 기본값을 넣습니다.
+- null을 받는 선택 필드의 "처음 값"은 `useSchemaForm`의 `defaultValues`입니다. 현재 값을 채운 수정 폼은 그 값을 `useSchemaForm`에 한 번만 넘기면 `useForm`과 `formResolver`가 함께 받습니다. 넘기지 않으면 처음 값이 없는 것으로 보므로 비워 둔 입력을 보내지 않습니다. 사용자가 손대지 않은 필드까지 `null`로 지우지 않도록(PATCH) 이렇게 정했습니다. `reset(values)`로 처음 값을 바꾸면 `formResolver`는 바뀐 값을 모르므로, 새 처음 값으로 폼을 다시 만듭니다(컴포넌트의 `key`를 바꿉니다). `useForm`에 `resolver`를 직접 넘길 때는 같은 값을 `formResolver(schema, { defaultValues })`에도 넘깁니다.
+
+  ```tsx
+  const form = useSchemaForm(UpdateProfileBody, {
+    defaultValues: { nickname: profile.nickname, bio: profile.bio },
+  })
+  ```
+
+- 반드시 체크해야 하는 체크박스(약관 동의 등)는 명세에 `const: true`나 `enum: [true]`로 적습니다. 재생성 계층의 스키마가 `true`만 받으므로, 체크하지 않으면 `MUST_CHECK_MESSAGE`("반드시 체크해야 합니다.")로 알리고 보내지 않습니다. 선택 필드면 체크하지 않았을 때 보내지 않습니다. `type: boolean`만 적은 필드는 체크하지 않으면 `false`를 보내고 검증을 통과합니다.
+
+  ```yaml
+  agreed:
+    type: boolean
+    const: true # 또는 enum: [true]
+    title: 약관에 동의합니다
+  ```
+
+- 그 밖의 오류는 Zod의 한국어 메시지입니다.
 - 숫자 입력은 `register(name, { valueAsNumber: true })`로 숫자로 바꿉니다.
 - 입력 요소는 공통 UI를 씁니다. `Field`에 `invalid`를, `FieldError`에 `match`와 오류 메시지를 넘기면 입력 요소에 `aria-invalid`가 붙고 오류 메시지가 입력 요소의 설명(`aria-describedby`)으로 읽힙니다. `Select`, `Checkbox`처럼 값을 직접 다루는 컴포넌트는 React Hook Form의 `Controller`로 잇습니다.
 - 폼 테스트는 `@testing-library/user-event`로 사람처럼 입력하고, 요청은 MSW가 받습니다.
@@ -260,21 +291,26 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 ```
 
 - JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`), 스토리(`.stories.tsx`), 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
-- 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `formResolver`로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
+- 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `useSchemaForm`으로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
 - 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
 
-  | 명세의 속성                              | 입력 요소                                                                                |
-  | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-  | `string`                                 | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                  |
-  | `string`의 `enum`                        | `Select`(선택지의 레이블은 enum 값)                                                      |
-  | `integer`, `number`                      | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                  |
-  | `boolean`                                | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                           |
-  | 그 밖(배열, 객체, null 허용, `oneOf` 등) | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다 |
+  | 명세의 속성                               | 입력 요소                                                                                                                                     |
+  | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `string`                                  | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                                                                       |
+  | `string`의 `enum`                         | `Select`(선택지의 레이블은 enum 값)                                                                                                           |
+  | `integer`, `number`                       | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                                                                       |
+  | `boolean`                                 | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                                                                                |
+  | `boolean`의 `const: true`, `enum: [true]` | `Checkbox`. 체크하지 않으면 보내지 않고 `MUST_CHECK_MESSAGE`로 알립니다(필수 필드)                                                            |
+  | 위 타입에 null을 더한 것                  | 같은 입력 요소. 비워 두면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. `enum`의 `null`은 선택지 대신 값을 비우는 "선택 안 함"이 됩니다 |
+  | 그 밖(배열, 객체, `oneOf` 등)             | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다                                                      |
+
+- null을 더하는 방법은 3.1의 `type: [string, 'null']`, 3.0의 `nullable: true`, 스키마 하나와 `{ type: 'null' }`을 묶은 `anyOf`·`oneOf`, `enum`에 넣은 `null`을 모두 받습니다. 체크박스는 null을 받는 필드여도 늘 `true`나 `false`를 보냅니다. null을 받는 필드의 `Select`는 목록 맨 앞에 "선택 안 함"(`clearLabel`)을 두어 고른 값을 다시 비울 수 있고, 비우면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. 그 밖의 `Select`는 고른 값을 다시 비울 수 없으므로, 비울 수 있어야 하면 `clearLabel`을 더합니다.
 
 - 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
 - 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.
-- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
-- 검증 실패는 비워 둔 필수 입력으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
+- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드(null을 받는 필드는 빼고)는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
+- null을 받는 입력(체크박스와 기본값이 있는 필드는 빼고)이 있으면 필수 입력만 채워 제출했을 때 비워 둔 입력이 `null`로 가거나 빠지는지도 봅니다. 폼은 처음 값 없이 시작하므로, 처음 값이 있던 선택 필드를 비우는 경우(`useSchemaForm`의 `defaultValues`)는 `form-resolver.test.ts`와 `use-schema-form.test.ts`가 확인합니다. 수정 폼으로 쓰려면 현재 값을 `useSchemaForm`의 `defaultValues`에 더합니다.
+- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
 - 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 
@@ -366,6 +402,46 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 
 - 테스트: `src/shared/analytics/analytics.test.ts`(개발 서버에서 콘솔에 남기는 페이지뷰와 이벤트, 배포용 빌드와 테스트에서는 아무것도 하지 않음), `e2e/analytics.spec.ts`(공급자를 붙이지 않은 앱은 페이지를 열고 옮겨도 앱 밖으로 요청을 보내지 않고 콘솔에도 남기지 않음). 공급자를 바꾸면 `analytics.test.ts`의 기본 구현 테스트도 그 공급자에 맞게 고칩니다.
 
+## 인증
+
+`auth` Recipe로 넣었습니다. 백엔드가 발급한 accessToken·refreshToken으로 로그인하고, 토큰은 서버만 읽는 암호화한 httpOnly 쿠키에 보관합니다(ADR-0006). 프론트엔드는 DB를 쓰지 않고, Auth.js·Better Auth도 쓰지 않습니다. 백엔드에는 쿠키 기반 refresh 같은 추가 기능을 요구하지 않습니다.
+
+| 요청                                 | 하는 곳                                                   | 토큰                                                                                     |
+| ------------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 로그인·로그아웃(`/api/session`)      | Route Handler(`src/shared/auth/session-routes.ts`)        | 백엔드에 중계하고 받은 토큰을 세션 쿠키에 담거나 지운다. 브라우저에는 사용자 정보만 준다 |
+| 브라우저의 API 요청(`/api/proxy/*`)  | BFF 프록시 + backendFetch 처리기(`auth-backend-fetch.ts`) | 쿠키의 accessToken을 붙이고, 401이면 refresh한 뒤 다시 보내고 새 쿠키를 싣는다           |
+| 서버 컴포넌트의 API 요청(`apiFetch`) | backendFetch 처리기                                       | `getServerSession()`으로 읽은 세션의 accessToken을 붙인다                                |
+| 페이지 요청                          | proxy(`auth-proxy.ts`, `src/proxy.ts`)                    | accessToken이 곧 만료되면 미리 refresh한다. 보호된 라우트와 역할을 거른다                |
+
+- 세션(`src/shared/auth/session.ts`): 두 토큰, accessToken의 만료 시각, 사용자(역할 포함)를 [iron-session](https://github.com/vvo/iron-session)으로 암호화해 쿠키 `auth_session` 하나에 담습니다. 쿠키는 `HttpOnly`, `SameSite=Lax`, 배포한 서버에서는 `Secure`입니다. 브라우저는 쿠키 하나에 4KB까지만 담으므로, 세션이 그보다 커지면 로그인이 실패합니다. 토큰이 길면 세션에 담는 사용자 정보를 줄입니다.
+- 보호된 라우트와 역할(`src/shared/auth/access-rules.ts`): `PROTECTED_ROUTES`에 경로와 역할을 적습니다. 로그인하지 않았으면 돌아올 주소를 담아 `/login?next=...`로 보내고, 역할이 맞지 않으면 주소는 그대로 둔 채 `/forbidden`을 403으로 보여 줍니다. 샘플은 로그인한 사용자의 `/account`와 `admin` 역할의 `/admin`입니다. 역할은 세션의 사용자 정보를 보고, 사용자 정보는 로그인하거나 refresh할 때마다 백엔드(`getMe`)에서 다시 받습니다. 돌아올 주소는 이 앱 안의 경로만 받습니다.
+- 서버 컴포넌트에서 인증이 필요한 API를 부르려면 데이터를 가져오기 전에 `getServerSession()`이나 `requireServerSession()`(`src/shared/auth/server-session.ts`)을 먼저 부릅니다. 그 렌더링의 `apiFetch` 요청에만 accessToken이 붙습니다. 모든 서버 요청이 쿠키를 읽으면 SSG·ISR 페이지까지 요청마다 렌더링되기 때문입니다. 서버 컴포넌트는 쿠키를 고칠 수 없어 refresh하지 않고, 대신 proxy가 페이지를 렌더링하기 전에 refresh해 둡니다. 예: `src/app/account/page.tsx`.
+- Route Handler나 Server Action은 렌더링이 아니라서 토큰이 저절로 붙지 않습니다. `sessionOf(await cookies())`(`session.ts`)로 읽은 세션의 accessToken을 생성된 fetch 함수의 옵션으로 넘깁니다(``{ headers: { authorization: `Bearer ${session.accessToken}` } }``).
+- 응답에 토큰이 담기는 `login`, `refreshTokens`는 BFF(`src/shared/auth/auth-backend.ts`)만 부릅니다. BFF 프록시는 백엔드의 응답을 그대로 돌려주므로, 브라우저가 `/api/proxy/*`로 이 둘을 부르면(브라우저에서 생성된 `login`을 부르는 등) 백엔드로 보내지 않고 무엇을 쓰면 되는지 알리는 403으로 답합니다. 경로의 대소문자, 끝의 슬래시, 퍼센트 인코딩이 달라도 막습니다(`src/shared/auth/token-operations.ts`). 로그인은 `/api/session`으로 합니다(`src/shared/auth/auth-client.ts`). 백엔드에 토큰을 발급하는 operation을 더하면 `token-operations.ts`의 목록에 더합니다.
+- refresh(`src/shared/auth/refresh-session.ts`): 동시에 여러 요청이 401을 받아도 같은 refreshToken의 refresh는 백엔드에 한 번만 보내고 결과를 나눠 씁니다. 백엔드가 쓴 refreshToken을 다시 받지 않는(rotation) 경우에도 로그아웃되지 않도록, 끝난 refresh의 결과도 10초 동안 남겨 이전 쿠키로 늦게 온 요청에 줍니다. 묶는 범위는 서버 프로세스 하나라서, 서버를 여러 대 띄우면 백엔드가 같은 refreshToken을 잠시 다시 받아 주게 하거나(reuse interval) 같은 사용자의 요청을 한 서버로 보냅니다.
+- 머리글의 사용자 메뉴(`src/features/user-menu`)는 로그인했으면 이름과 로그아웃 버튼을, 아니면 로그인 링크를 보여 줍니다. 로그인 여부는 브라우저가 `/api/session`에 물어봅니다. 루트 레이아웃이 쿠키를 읽으면 모든 페이지가 요청마다 렌더링되기 때문입니다. 로그인 폼은 `src/features/login-form`, 로그인 페이지는 `src/app/login/page.tsx`입니다.
+- 다른 사이트에서 보낸 POST·DELETE 요청에는 세션 쿠키가 실리지 않으므로(`SameSite=Lax`) 다른 사이트가 BFF 프록시와 로그아웃을 대신 보낼 수 없습니다. 쿠키가 필요 없는 로그인(`POST /api/session`)은 JSON 본문만 받아, 다른 사이트의 HTML 폼(JSON을 보낼 수 없음)이나 fetch(CORS 사전 요청에서 막힘)가 공격자의 계정으로 로그인시키지 못하게 합니다. 상태를 바꾸는 API를 GET으로 만들지 않습니다. 같은 사이트(하위 도메인)의 다른 앱은 막지 못하므로 그런 앱과 도메인을 나눠 쓰면 따로 막습니다.
+- 검색 엔진: 로그인, 내 정보, 관리자, 접근 권한 없음 페이지는 metadata의 `robots: { index: false }`로 검색 결과에서 뺍니다. 새 보호된 라우트의 페이지에도 적습니다. sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `PROTECTED_ROUTES`의 경로는 robots.txt가 막고(`Disallow`, 공개된 내용 없이 로그인 페이지로 보냄), 로그인·접근 권한 없음 페이지는 sitemap에서만 뺍니다. 두 페이지는 검색 엔진이 읽어 `noindex`를 따르도록 막지 않습니다(`access-rules.ts`의 `authSitemapRules`, 확장 지점 sitemap 규칙).
+- 로그아웃하면 백엔드에 로그아웃을 중계하고 세션 쿠키를 지웁니다. accessToken이 만료되어 백엔드가 받지 않으면 refresh한 뒤 다시 중계해 refreshToken까지 끝냅니다.
+
+### 환경 변수
+
+| 환경 변수        | 읽는 곳                                       | 값                                                                                                                                                                                                         |
+| ---------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET` | 서버(`src/shared/auth/session.ts`, 실행할 때) | 세션 쿠키를 암호화하는 32자 이상의 비밀 값(예: `openssl rand -base64 32`의 출력). 배포하는 서버에는 꼭 넣고, 서버가 여러 대면 같은 값을 넣습니다. 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다 |
+
+개발 서버는 `.env.development`의 값을, E2E 대상 서버는 `playwright.config.ts`의 값을 씁니다. 둘 다 배포 환경에 쓰지 않습니다. 값을 바꾸면 로그인한 사용자가 모두 로그아웃됩니다.
+
+### 목 백엔드와 실제 백엔드
+
+- 샘플 명세(`openapi.yaml`)에 `auth` tag의 `login`, `refreshTokens`, `getMe`, `logout`이 있습니다. 서버(BFF)만 이 operation을 부릅니다(`src/shared/auth/auth-backend.ts`).
+- MSW를 켜면(`API_MOCKING=enabled`) 발급한 토큰을 기억하는 목 백엔드(`src/shared/auth/auth-mock-handlers.ts`)가 받습니다. 계정은 `user@example.com`(사용자)과 `admin@example.com`(관리자), 비밀번호는 모두 `password`입니다. accessToken은 10초 뒤에 만료되어 refresh가 일어나는 것을 볼 수 있고, refreshToken은 한 번만 쓸 수 있습니다.
+- 실제 백엔드로 바꿀 때는 백엔드의 명세로 `openapi.yaml`의 auth operation을 바꾸고 `npm run api:gen`을 실행한 뒤, 경로나 응답 모양이 다르면 `src/shared/auth/auth-backend.ts`를 맞춥니다. 백엔드가 accessToken의 수명(`expiresIn`)을 주지 않으면 proxy가 미리 refresh하지 못하므로 `createSession`(`session.ts`)에서 정합니다.
+
+### 테스트
+
+`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
+
 ## 차트
 
 `chart` Recipe로 넣었습니다. [Recharts](https://recharts.github.io/)로 대시보드용 차트를 그리는 패턴입니다. `/charts` 페이지가 샘플 통계로 시계열 차트(일별 방문 수, 선 차트)와 비교 차트(판매 채널별 이번 달·지난달 매출, 막대 차트)를 보여 줍니다.
@@ -395,6 +471,151 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 첫 화면이 다른 테마로 깜빡이지 않도록 `<body>` 맨 앞의 inline script(`ThemeScript`)가 페이지 내용과 React보다 먼저 테마를 적용합니다. 앱 전체를 가장 바깥에서 감싸는 `ThemeProvider`(`src/shared/theme/theme-provider.tsx`, `src/app/app-shell.tsx`)가 이 스크립트를 둡니다. 스크립트가 `<html>`의 속성을 바꾸므로 루트 레이아웃의 `<html>`에는 `suppressHydrationWarning`이 있습니다. Content-Security-Policy를 도입하면 이 스크립트에 nonce나 hash를 허용해야 합니다.
 - Storybook 툴바의 "테마"로 스토리를 테마별로 볼 수 있습니다. `npm run test:storybook`은 모든 스토리를 라이트 모드 브라우저와 다크 모드 브라우저(`storybook (chromium, dark)`)에서 한 번씩 실행해 두 테마 모두 접근성 검사를 합니다.
 - 테스트: `src/shared/theme/theme.test.ts`(테마 선택과 적용), `src/features/theme-switcher/theme-switcher.stories.tsx`(전환 UI), `e2e/dark-mode.spec.ts`(운영체제 설정, 저장한 선택, 깜빡임 없음, 두 테마의 접근성).
+
+## 컨테이너 이미지(Docker)
+
+`docker` Recipe로 넣었습니다. `Dockerfile`이 `standalone` 출력(`next.config.ts`의 `output: 'standalone'`)으로 Next.js 서버만 담은 이미지를 만듭니다. 배포 대상(Kubernetes, 사내 컨테이너 플랫폼 등)이 정해지면 이 이미지를 레지스트리에 올려 띄웁니다.
+
+```sh
+docker build -t my-app .                                              # 배포용 이미지(목을 끈 빌드)
+docker run -p 3000:3000 -e API_BASE_URL=https://<백엔드 주소> my-app  # 실행할 때 백엔드 주소를 넣는다
+curl http://localhost:3000/api/health                                 # {"status":"ok"}
+```
+
+- 단계: `deps`(`package.json`과 `package-lock.json`으로 `npm ci`. 두 파일이 그대로면 캐시를 씀) → `build`(배포용 빌드) → `runtime`(실행). 실행 이미지에는 빌드 도구와 소스 없이 `.next/standalone`, `.next/static`, `public`만 들어갑니다.
+- 실행 사용자: node 이미지에 있는 `node`(uid 1000)입니다. Kubernetes의 `runAsNonRoot`가 root가 아닌지 확인할 수 있도록 `USER 1000:1000`처럼 숫자로 적었습니다. 서버가 ISR 페이지와 캐시를 `.next` 아래에 다시 쓰므로 앱 파일은 이 사용자가 소유합니다.
+- Node: `ARG NODE_IMAGE`가 `.nvmrc`와 같은 메이저 버전의 이미지를 정확한 버전으로 고정합니다. `.nvmrc`를 바꾸면 함께 바꿉니다. 사내 레지스트리의 사본을 쓰려면 `--build-arg NODE_IMAGE=<레지스트리>/node:<버전>`으로 바꿉니다.
+- 상태 확인: `GET /api/health`(`src/app/api/health/route.ts`)가 `{"status":"ok"}`를 캐시하지 않고 돌려줍니다. 이미지의 `HEALTHCHECK`가 30초마다 부르고, Kubernetes의 liveness·readiness probe에도 같은 주소를 씁니다. 백엔드를 부르지 않으므로 백엔드가 잠시 응답하지 않아도 컨테이너를 다시 시작하지 않습니다. `API_BASE_URL`이 빠진 서버는 모든 요청에 500으로 응답하므로 상태 확인도 실패합니다.
+- 여러 컨테이너: ISR이 다시 렌더링한 페이지와 Next.js의 데이터 캐시는 컨테이너마다 따로 남습니다. 컨테이너를 여러 개 띄우면 공유 캐시(`next.config.ts`의 `cacheHandler`)를 배포 대상과 함께 정합니다.
+
+### 빌드 인자와 환경 변수
+
+| 이름                       | 넣는 곳                                                 | 값                                                                                                                                                                                                                                            |
+| -------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_BASE_URL`             | 실행(`docker run -e`), 빌드(`docker build --build-arg`) | 서버가 부르는 백엔드 주소. 실행할 때는 꼭 넣습니다. 빌드할 때는 데이터를 가져오는 SSG·ISR 페이지가 있을 때만 필요하고, 그런 페이지가 있는데 빠지면 빌드가 실패합니다.                                                                         |
+| `NEXT_PUBLIC_SITE_URL`     | 빌드(`--build-arg`)                                     | 사이트의 공개 주소(`seo` Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). `seo` Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 실패합니다. 페이지와 번들에 박히므로 바꾸면 이미지를 다시 만듭니다. 그 Recipe가 없으면 쓰이지 않습니다. |
+| `NEXT_PUBLIC_API_BASE_URL` | 빌드(`--build-arg`)                                     | 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만듭니다.                                                                                                                                     |
+| `API_MOCKING`              | 빌드(`--build-arg`)                                     | `disabled`(기본값)만 됩니다. 다른 값이면 빌드를 거부합니다(아래 "목 이미지").                                                                                                                                                                 |
+| `NODE_IMAGE`               | 빌드(`--build-arg`)                                     | 기반 Node 이미지. 기본값은 `Dockerfile`에 고정한 버전입니다.                                                                                                                                                                                  |
+| `PORT`                     | 실행(`docker run -e`)                                   | 서버의 포트(기본 `3000`). 서버는 `HOSTNAME=0.0.0.0`으로 모든 주소에서 받고, `HEALTHCHECK`가 `127.0.0.1`로 부르므로 `HOSTNAME`은 바꾸지 않습니다.                                                                                              |
+
+- 비밀 값은 `ARG`나 `ENV`로 이미지에 넣지 않습니다. 그 값은 이미지의 설정과 빌드 기록에 남습니다. 실행할 때 쓰는 비밀 값은 배포 환경이 컨테이너의 환경 변수로 넣고(Kubernetes Secret 등), 빌드할 때 필요한 비밀 값(사내 npm 레지스트리의 토큰 등)은 `docker build --secret id=npmrc,src=$HOME/.npmrc`로 넘깁니다. 이 파일은 `npm ci`를 실행하는 동안에만 마운트되고 이미지에는 남지 않습니다.
+- `.dockerignore`가 `node_modules`, 빌드 결과, 로컬 환경 변수 파일(`.env*.local`), 프로젝트의 `.npmrc`(토큰이 있을 수 있음)를 빌드 컨텍스트에서 뺍니다. 로컬 파일을 받으면 `next build`가 그 값을 읽어 브라우저 번들(`NEXT_PUBLIC_*`)과 미리 렌더링한 페이지에 담을 수 있고, 빌드 단계의 층(빌드 캐시)에도 남기 때문입니다. standalone 출력은 커밋하는 `.env.production`을 이미지에 함께 복사하므로 그 파일에도 비밀 값을 적지 않습니다.
+
+### 목 이미지
+
+배포용 이미지는 목을 끈 빌드로만 만들고(위 "배포용 빌드와 목 빌드"), `--build-arg API_MOCKING=enabled`는 거부합니다. 백엔드 없이 컨테이너를 띄워 보려면 로컬에서 목 이미지를 따로 만듭니다.
+
+```sh
+docker build --target mock -t my-app:mock .
+docker run -p 3000:3000 my-app:mock  # 빌드와 서버의 API 요청을 MSW가 받는다
+```
+
+목 이미지는 미리 렌더링한 페이지에 목 응답이 담기고 서버도 MSW로 응답하므로 레지스트리에 올리거나 배포하지 않습니다. 이미지의 `org.opencontainers.image.description` 라벨에도 목 이미지라고 적혀 있습니다.
+
+### GitLab CI에서 이미지 만들기
+
+`.gitlab-ci.yml`에는 이미지를 만드는 잡을 넣지 않았습니다. 이미지를 만들려면 privileged 러너(Docker-in-Docker)나 Buildah 같은 도구가 필요하고, 이미지를 올릴 레지스트리와 배포 방식은 아직 정하지 않았기 때문입니다. 정해지면 다음과 같은 잡을 더합니다. GitLab Container Registry에 올리는 예이고, 러너 설정은 GitLab 문서의 "Use Docker to build Docker images"를 따릅니다. Buildah로 만들 때는 `--format docker`를 붙입니다. 기본 형식(OCI)은 `HEALTHCHECK`를 담지 않습니다. `API_BASE_URL`과 `NEXT_PUBLIC_SITE_URL`(`seo` Recipe)은 CI/CD 변수로 넣습니다.
+
+```yaml
+docker:
+  stage: build
+  image: docker:29-cli
+  services:
+    - docker:29-dind
+  variables:
+    DOCKER_TLS_CERTDIR: /certs
+  # 이 잡은 npm을 쓰지 않으므로 default의 npm 캐시를 끈다. default의 npm ci는 아래 before_script가 대신한다.
+  cache: []
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build --build-arg API_BASE_URL="$API_BASE_URL" --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
+### 테스트
+
+- `e2e/health.spec.ts`: 빌드한 앱에서 상태 확인 주소가 캐시하지 않는 200 응답을 돌려준다.
+- 이미지 자체(빌드, root가 아닌 사용자, `HEALTHCHECK`, 정적 파일과 `public`, 목을 켠 빌드의 거부, 목 이미지)는 Docker가 필요해 이 프로젝트의 스크립트로는 검사하지 않습니다. Generator를 배포하기 전에 Generator의 하네스가 같은 `Dockerfile`로 검사했습니다. `Dockerfile`을 고친 뒤에는 위의 `docker build`와 `docker run`으로 이미지를 만들어 띄우고 `/api/health`와 페이지가 응답하는지 확인합니다.
+
+## 다국어(i18n)
+
+`i18n` Recipe로 넣었습니다. [next-intl](https://next-intl.dev)로 한국어(기본 locale `ko`)와 영어(`en`)를 지원합니다.
+
+- 번역한 페이지는 `src/app/[locale]/` 아래에 둡니다. 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), 페이지는 locale마다 빌드할 때 렌더링합니다(`src/app/[locale]/layout.tsx`의 `generateStaticParams`). 지원하지 않는 locale의 주소(`/fr`)는 404입니다. 예로 홈(`/ko`, `/en`, 화면은 `src/features/home`)과 다국어 예시(`/ko/i18n`, `/en/i18n`: 날짜·통화 형식, 복수형, 클라이언트 컴포넌트의 번역)가 있습니다. 예시는 지워도 됩니다(`src/app/[locale]/i18n/`, `src/features/i18n-example/`, 카탈로그의 `I18nExample`과 `CartCounter`, `e2e/i18n.spec.ts`의 해당 테스트).
+- `[locale]` 밖의 페이지(`/products`, 다른 Recipe가 더한 페이지)는 번역하지 않은 페이지로, 주소와 화면이 그대로이고 locale 전환 UI에는 기본 locale로 보입니다. 번역하려면 페이지를 `src/app/[locale]/` 아래로 옮기고 문장을 메시지 카탈로그로 옮깁니다.
+- 메시지 카탈로그는 `src/shared/i18n/ko.json`(키의 기준)과 `en.json`이고, 메시지는 ICU 형식(`{count, plural, ...}`, `{date, date, full}`)으로 씁니다. 메시지 키는 `ko.json`의 타입으로 검사하므로(`src/shared/i18n/messages.ts`) 없는 키를 쓰면 `npm run typecheck`가 실패합니다. `en.json`에 키가 빠지면 타입 오류가 나고, 남는 키는 `npm test`(`messages.test.tsx`)가 잡습니다.
+- 서버 컴포넌트는 params의 locale을 넘겨 번역합니다: `const locale = await requireLocale(props)`(`src/shared/i18n/require-locale.ts`, 지원하지 않는 locale이면 404) 다음에 `getTranslations({ locale, namespace })`, `getFormatter({ locale })`. 루트 레이아웃(`src/app/layout.tsx`)이 `[locale]` 밖에 있어 next-intl이 요청의 locale을 스스로 알 수 없기 때문입니다. locale 없이 부르면 기본 locale로 조용히 그리지 않고 오류로 알립니다(`src/shared/i18n/request.ts`). params만 읽으므로 페이지는 빌드할 때 렌더링할 수 있습니다. 모든 페이지를 `[locale]` 아래로 옮겨 `src/app/[locale]/layout.tsx`가 루트 레이아웃이 되면 next-intl 문서의 `next/root-params` 방식으로 바꿀 수 있습니다.
+- 클라이언트 컴포넌트는 `useTranslations`, `useFormatter`를 씁니다. 앱 전체를 감싼 `I18nProvider`(`src/shared/i18n/i18n-provider.tsx`, `src/app/app-shell.tsx`)가 주소의 locale과 그 카탈로그를 넘깁니다. 어느 페이지가 올지 모르는 루트 레이아웃에서 넘기므로 모든 locale의 카탈로그가 브라우저 번들에 들어갑니다. 카탈로그가 커지면 클라이언트 컴포넌트가 쓰는 namespace만 넘기도록 나눕니다.
+- 링크와 이동은 `@/shared/i18n/navigation`의 `Link`, `useRouter`, `usePathname`을 씁니다. 지금 locale을 주소 앞에 붙입니다(`<Link href="/i18n">` → `/en/i18n`). 이 `Link`는 서버 컴포넌트에서도 씁니다.
+- 머리글의 locale 전환 UI(`src/features/locale-switcher`)는 번역한 페이지에서는 같은 페이지의 다른 locale 주소로 가고(`/ko/i18n` → `/en/i18n`), 번역하지 않은 페이지에서는 고른 locale의 홈으로 갑니다. 고른 locale은 `NEXT_LOCALE` 쿠키(브라우저를 닫으면 지워짐)에 저장됩니다.
+- 홈(`/`): server Starter에서는 proxy 처리기(`src/shared/i18n/i18n-proxy.ts`, `src/proxy.ts`)가 저장한 locale, 브라우저 언어(`Accept-Language`), 기본 locale 순으로 고른 locale의 홈으로 보냅니다. 브라우저 언어를 따르지 않으려면 `src/shared/i18n/routing.ts`에 `localeDetection: false`를 적습니다. static-export Starter에는 요청을 받는 서버가 없어 `/`가 기본 locale의 홈을 보여 줍니다(`src/app/page.tsx`).
+- 문서의 언어: 루트 레이아웃은 locale을 모르므로 `<html lang="ko">`로 그리고, `[locale]` 레이아웃이 페이지 내용을 `<div lang>`으로 감싸며, `I18nProvider`가 브라우저에서 `<html lang>`을 지금 locale로 바꿉니다. 기본 locale을 바꾸면 루트 레이아웃의 `lang`도 함께 바꿉니다.
+- 검색 엔진: 번역한 페이지는 metadata에 `alternates: localeAlternates('<locale을 뺀 주소>')`(`src/shared/i18n/locale-alternates.ts`)를 적어 자기 주소를 canonical로, 같은 페이지의 locale별 주소를 hreflang(`<link rel="alternate" hreflang>`)으로 알립니다. 새 번역 페이지에도 적습니다. 주소는 사이트 주소(metadataBase, 예: `seo` Recipe)가 있으면 절대 주소가 됩니다. next-intl proxy가 응답 헤더로 보내는 hreflang 링크는 locale이 없는 주소도 가리키므로 끕니다(`routing.ts`의 `alternateLinks: false`).
+- sitemap: sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `[locale]` 아래 페이지가 locale마다 sitemap에 들어가 서로를 언어별 주소로 알리고, locale을 골라 보내는 홈(`/`)은 빠집니다(`routing.ts`의 `i18nSitemapRules`, 확장 지점 sitemap 규칙).
+- 날짜·시각은 `Asia/Seoul` 시간대로 보여 줍니다(`src/shared/i18n/messages.ts`의 `TIME_ZONE`). locale을 더하려면 `routing.ts`의 `locales`와 `LOCALE_NAMES`, 카탈로그(`<locale>.json`)와 `messages.ts`의 `MESSAGES`에 더합니다.
+- 다른 Recipe가 더한 화면(예: 머리글의 테마 전환)은 번역하지 않았습니다.
+- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `locale-alternates.test.ts`(번역한 페이지의 locale별 주소), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `src/features/locale-switcher/locale-switcher.stories.tsx`(locale 전환), `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, canonical과 hreflang, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).
+
+## 무한 스크롤과 페이지네이션
+
+`infinite-list` Recipe로 넣었습니다. 긴 목록을 나눠 불러오는 두 가지 패턴을 같은 게시글로 보여 줍니다. `/articles`는 목록 끝까지 스크롤하면 다음 페이지를 불러와 이어 붙이는 무한 스크롤 목록이고, `/articles/pagination`은 쪽 번호로 넘겨 보는 번호형 페이지네이션입니다.
+
+| 위치                           | 내용                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `src/shared/paging/`           | 어느 목록에나 쓰는 무한 스크롤 목록(`infinite-list.tsx`)과 번호형 페이지네이션(`pagination.tsx`)         |
+| `src/features/article-list/`   | 게시글 목록 두 가지(`article-infinite-list.tsx`, `article-paged-list.tsx`)와 게시글 항목, 보기 방식 링크 |
+| `src/queries/articles/`        | `articles` Query Domain(`listArticles`의 infiniteQueryOptions·queryOptions, `countArticles`)             |
+| `src/shared/mocks/articles.ts` | 게시글 46개를 페이지 번호대로 나눠 돌려주는 MSW 핸들러                                                   |
+| `src/app/articles/`            | `/articles`, `/articles/pagination` 라우트                                                               |
+
+- 명세: `openapi.yaml`의 `listArticles`(`GET /articles`, tag `articles`)는 `page`(1부터)와 `pageSize`(기본 10)를 받아 게시글 한 페이지를 배열로 돌려주고, 마지막 페이지 뒤의 페이지는 빈 배열입니다. `countArticles`(`GET /articles/count`)는 전체 게시글 수(`total`)를 돌려줍니다.
+- Query Domain: `src/queries/articles/`는 `npm run g -- query listArticles --infinite`, `npm run g -- query listArticles`, `npm run g -- query countArticles`가 만든 코드 그대로입니다. infiniteQueryOptions는 첫 페이지(`page=1`)부터 페이지 번호를 하나씩 늘려 가져오고, 빈 페이지를 받으면 다음 페이지가 없다고 봅니다(`getNextPageParam`). 그래서 마지막 페이지 뒤의 빈 페이지를 한 번 더 요청합니다. 백엔드가 다음 페이지가 있는지(`hasNext`)나 다음 커서를 함께 주면 `getNextPageParam`을 그 값으로 고칩니다. 무한 스크롤의 쿼리 키(`['articles', 'listArticles', 'infinite', { pageSize }]`)는 쪽마다 가져오는 쿼리 키(`['articles', 'listArticles', { page, pageSize }]`)와 달라 캐시가 섞이지 않습니다.
+- 무한 스크롤 목록(`InfiniteList`): 목록 끝 바로 아래의 빈 요소를 `IntersectionObserver`로 지켜보다가 화면 아래 200px 안에 들어오면 `fetchNextPage`를 부릅니다. 불러오는 동안과 실패한 뒤에는 지켜보지 않으므로 같은 페이지를 두 번 요청하지 않고, 실패한 페이지를 계속 다시 요청하지도 않습니다. 목록이 화면보다 짧으면 화면이 찰 때까지 이어서 불러옵니다.
+- 키보드와 스크린 리더: 목록 끝에 더 보기 버튼이 있어 스크롤하지 않아도 다음 페이지를 불러옵니다. 버튼으로 불러오면 새로 불러온 첫 게시글로 포커스를 옮겨 이어서 읽게 하고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않습니다. 불러온 개수, 불러오는 중, 모두 불러옴은 목록 끝의 상태 문구(`role="status"`)로, 첫 페이지나 다음 페이지를 받지 못하면 `role="alert"`로 알리고 같은 자리의 버튼이 다시 시도 버튼이 됩니다(받아 둔 페이지를 창에 돌아왔을 때 다시 가져오다 실패한 것은 목록을 그대로 둡니다). 번호형 페이지네이션은 지금 쪽을 `aria-current="page"`로 알리고, 쪽 번호 버튼은 "3 쪽"으로 읽힙니다.
+- 번호형 페이지네이션(`Pagination`): 첫 쪽, 마지막 쪽, 지금 쪽과 앞뒤 쪽을 보여 주고 나머지는 줄임표로 줄입니다. 쪽 수는 `countArticles`로 정하고, 쪽을 바꾸면 다음 쪽을 받는 동안 지금 쪽을 그대로 보여 줍니다(`keepPreviousData`). 쪽은 컴포넌트 상태로 들고 있으므로, 주소(`?page=3`)로 공유하거나 뒤로 가기로 돌아오게 하려면 `useSearchParams`로 읽고 쪽 버튼을 `next/link`로 바꿉니다.
+- 다른 목록에 쓰려면: `src/features/article-list/`의 두 컴포넌트를 복사해, 쓰는 queryOptions와 항목 컴포넌트(`ArticleSummary`)를 바꿉니다. `InfiniteList`와 `Pagination`은 그대로 씁니다. 백엔드가 배열 대신 `{ items, total }` 같은 객체를 돌려주면 infiniteQueryOptions의 `getNextPageParam`과 `pages.flat()`을 그 모양에 맞게 고칩니다.
+- Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고 게시글은 브라우저가 가져옵니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 서버에서 첫 페이지를 미리 가져오려면(`server`만) Base의 `src/app/products/page.tsx`처럼 페이지에서 `getQueryClient().infiniteQuery(listArticlesInfiniteQueryOptions({ pageSize: 10 }))`로 가져와 `HydrationBoundary`로 넘깁니다. Feature가 같은 infiniteQueryOptions를 쓰므로 브라우저는 둘째 페이지부터 요청합니다.
+- MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/articles.ts`의 핸들러가 고정된 규칙으로 만든 게시글 46개(한 페이지 10개씩 다섯 페이지, 마지막 페이지는 6개)를 페이지 번호대로 나눠 돌려줍니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `articlesHandlers`를 지웁니다.
+- 테스트: `src/features/article-list/article-infinite-list.test.tsx`(스크롤로 다음 페이지, 빈 페이지에서 멈춤, 더 보기 버튼과 포커스, 버튼에 포커스가 있을 때 멈춤, 첫 페이지·다음 페이지 실패와 다시 시도, 받아 둔 페이지를 다시 가져오다 실패해도 목록 유지, 빈 목록), `article-paged-list.test.tsx`(쪽 수, 쪽 번호·이전·다음과 요청 파라미터, 한 쪽이 실패해도 다른 쪽으로 이동, 게시글 수 실패와 다시 시도), `src/shared/paging/pagination.test.tsx`(줄임표로 줄이는 쪽 번호), `infinite-list.stories.tsx`·`pagination.stories.tsx`(실제 브라우저의 IntersectionObserver, 키보드, 상태마다 axe 검사. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/infinite-list.spec.ts`(빌드한 앱에서 스크롤로 마지막 페이지까지, 키보드로 더 보기, 브라우저의 fetch를 감싸 둘째 페이지를 실패시킨 뒤 다시 시도, 번호형 페이지네이션, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 샘플을 지우려면 `src/app/articles/`, `src/features/article-list/`, `src/queries/articles/`, `src/shared/mocks/articles.ts`(와 `src/shared/mocks/handlers.ts`의 `articlesHandlers`), `e2e/infinite-list.spec.ts`를 지우고 `openapi.yaml`에서 `articles` tag·경로·스키마(`Article`, `ArticleCount`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 목록에 쓸 `src/shared/paging/`은 남겨 둡니다.
+
+## 다단계 폼
+
+`multi-step-form` Recipe로 넣었습니다. `/partners/apply` 페이지가 입점 신청서를 사업자 정보 → 담당자 정보 → 판매 계획 → 신청 내용 확인의 네 단계로 나눠 입력받고, 확인 단계에서 모든 입력을 한 번에 보냅니다. 가입, 주문서처럼 긴 입력을 나눠 받는 화면의 틀로 씁니다.
+
+| 위치                                | 내용                                                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `src/shared/multi-step-form/`       | 다른 다단계 폼에도 쓰는 부품: 단계 상태(`use-form-steps.ts`), 단계 폼(`step-form.tsx`), 단계 표시, 저장소 |
+| `src/features/partner-application/` | 샘플 입점 신청서. 단계(`partner-application-steps.tsx`), 확인 단계, 단계를 잇는 폼                        |
+| `src/queries/partners/`             | `partners` Query Domain(`npm run g -- mutation submitPartnerApplication`이 만든 코드 그대로)              |
+| `src/app/partners/apply/`           | `/partners/apply` 라우트                                                                                  |
+
+- 명세: `openapi.yaml`의 `submitPartnerApplication`(`POST /partner-applications`, tag `partners`)이 세 단계의 입력을 요청 본문(`PartnerApplication`) 하나로 받습니다. MSW 목은 명세의 `example`(접수 번호 `PA-0001`)을 돌려줍니다.
+- 단계마다 검증: 단계마다 재생성 계층의 요청 본문 스키마(`SubmitPartnerApplicationBody`)에서 그 단계의 필드만 고른 스키마(`.pick({ ... })`)로 검증합니다. 그래서 검증 규칙은 명세에서만 오고, 아직 입력하지 않은 다음 단계의 필드는 오류로 알리지 않습니다. 단계마다 `StepForm`이 React Hook Form 폼을 하나씩 만들고, 입력 요소와 오류 표시는 `npm run g -- form`이 만드는 폼을 따릅니다(Base의 "폼"). 다만 판매 분야의 선택지는 enum 값 대신 화면에 보일 이름(`CATEGORY_LABELS`)으로 보입니다. 약관 동의는 명세에 `const: true`로 적어 체크하지 않으면 `formResolver`가 다른 폼처럼 `MUST_CHECK_MESSAGE`("반드시 체크해야 합니다.")로 알립니다. 단계 폼은 앞뒤 단계에서 입력한 값을 `useSchemaForm`의 처음 값으로 넘깁니다.
+- 값 유지: "다음"은 그 단계의 검증을 통과한 뒤, "이전"은 검증하지 않고 지금 입력한 그대로를 모든 단계의 값(`useFormSteps`의 `draft`)에 담습니다. 단계를 오가도 입력한 값이 남습니다. 확인 단계의 "수정"은 그 단계로 돌아가고, "다음"으로 뒤 단계를 차례로 지나(값은 남아 있습니다) 다시 확인 단계로 옵니다.
+- 한 번에 제출: 확인 단계의 "신청하기"가 모든 단계의 값을 요청 본문 스키마 전체로 한 번 더 검증한 뒤 `useSubmitPartnerApplicationMutation`으로 한 번 보냅니다. 성공하든 실패하든 알림(토스트)으로 알리고, 성공하면 처음 단계로 돌아가 비웁니다. 실패하면 확인 단계에 값을 그대로 둬 다시 신청할 수 있습니다. 보내는 동안에는 "이전", "수정", "신청하기"를 끕니다(돌아가 고친 값은 보낸 요청에 담기지 않으므로). 성공한 뒤의 동작(완료 페이지로 이동 등)은 화면에 맞게 고칩니다.
+- 새로 고침: 단계와 입력한 값을 `sessionStorage`(`partner-application-draft`)에 둬, 페이지를 새로 고치면 이어서 입력합니다. 탭을 닫거나 신청에 성공하면 지워지고, 다른 탭과는 나누지 않습니다. 저장한 값은 그린 뒤에 읽으므로 서버가 보낸 첫 단계가 잠깐 보였다가 이어 갑니다. 저장한 값은 지금 명세의 규칙에 맞지 않을 수 있으므로(다른 버전의 앱이 저장 등) 신청할 때 맞지 않는 값이 있는 첫 단계로 돌아가 오류를 알립니다. 비밀번호, 카드 번호 같은 비밀 값을 받는 폼에서는 그 값을 저장하지 않도록 `useFormSteps`의 `save`, `next`, `back`에 넘기기 전에 빼거나 저장을 끕니다.
+- 접근성: 단계 표시(`StepIndicator`)는 지금 단계를 `aria-current="step"`으로, 끝낸 단계를 "(완료)"로 알립니다. 단계를 옮기면 포커스가 그 단계의 제목("담당자 정보 (4단계 중 2단계)")으로 가서 스크린 리더가 지금 단계를 읽고, 검증에 실패하면 첫 오류 필드로 갑니다. 처음 열 때와 새로 고쳐 이어 갈 때는 포커스를 옮기지 않습니다. 브라우저의 뒤로 가기는 단계가 아니라 이전 페이지로 갑니다.
+- Rendering Mode: 페이지 뼈대(첫 단계)는 빌드할 때 미리 만들고, 단계와 값은 브라우저가 들고 있다가 신청할 때만 요청합니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 그래서 두 Rendering Mode에서 같은 코드로 동작합니다.
+- 다른 다단계 폼 만들기: 명세에 요청 본문이 있는 operation을 더하고 `npm run api:gen`, `npm run g -- mutation <operationId>`를 실행한 뒤, `src/features/partner-application/`을 복사해 `partner-application-steps.tsx`의 단계(제목, `.pick`으로 고른 스키마, 입력 요소, 확인 단계에 보일 값)와 폼의 요청 본문 스키마, 뮤테이션 훅, 저장소 키를 바꿉니다. 단계를 더하거나 순서를 바꿀 때도 단계 목록(`PARTNER_APPLICATION_STEPS`)만 고칩니다.
+- 테스트: `src/features/partner-application/partner-application-form.test.tsx`(단계마다 그 단계만 검증, 첫 오류 필드와 단계 제목으로 포커스, 이전·다음과 수정 뒤에도 값 유지, 한 번에 보내는 요청 본문, 실패, 보내는 동안 끈 버튼, 새로 고침과 맞지 않는 저장 값), `src/shared/multi-step-form/draft-storage.test.ts`(저장소를 읽고 쓰지 못할 때와 모양이 다른 값), `partner-application-form.stories.tsx`(첫 단계, 검증 오류, 확인 단계의 axe 검사. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/multi-step-form.spec.ts`(빌드한 앱에서 끝까지 신청, 검증 오류와 키보드 입력, 이전·다음과 새로 고침, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 샘플을 지우려면 `src/app/partners/`, `src/features/partner-application/`, `src/queries/partners/`, `e2e/multi-step-form.spec.ts`와 `openapi.yaml`의 `partners` tag·경로·스키마(`PartnerApplication`, `PartnerCategory`, `PartnerApplicationReceipt`)를 지우고 `npm run api:gen`을 실행합니다. 새 다단계 폼에 쓸 `src/shared/multi-step-form/`은 남겨 둡니다.
+
+## 낙관적 업데이트
+
+`optimistic-update` Recipe로 넣었습니다. `/todos` 페이지의 할 일 목록에서 완료 여부를 바꾸면 서버의 응답을 기다리지 않고 바로 보여 주고(낙관적 업데이트), 서버가 거절하면 이전 상태로 되돌린 뒤 알림(Toast)으로 무엇을 왜 되돌렸는지 알립니다.
+
+- 명세: `openapi.yaml`의 `listTodos`(`GET /todos`)가 할 일 목록을, `updateTodo`(`PATCH /todos/{todoId}`, 본문 `TodoUpdate`의 `done`)가 할 일 하나의 완료 여부를 바꿉니다(tag `todos`). 거절할 때는 이유를 `TodoError`(`message`)로 알립니다.
+- Query Domain: `src/queries/todos/`는 `npm run g -- query listTodos`와 `npm run g -- mutation updateTodo --optimistic listTodos`가 만든 코드에, 응답 전에 보일 값을 만드는 `applyUpdateTodo`만 채운 것입니다. `useUpdateTodoMutation`은 `onMutate`에서 진행 중인 목록 요청을 취소하고 지금 값을 남긴 뒤 `applyUpdateTodo`로 목록 쿼리의 캐시를 고치고, `onError`에서 남긴 값으로 되돌리고, `onSettled`에서 `todosKeys.all`을 무효화해 서버의 값으로 맞춥니다. 다른 뮤테이션에 쓰려면 같은 명령으로 뼈대를 만들고 `apply<OperationId>`를 채웁니다.
+- 화면: `src/features/todo-list/todo-list.tsx`. 할 일마다 뮤테이션 훅을 따로 써서, 저장하는 동안 그 할 일에 "저장 중"을 붙입니다(`aria-busy`). 실패하면 `mutate`의 `onError`에서 `useToast()`로 알립니다. 캐시를 되돌리는 일은 Query Domain이, 알리는 일은 화면이 맡습니다. 뮤테이션은 목록을 다시 가져온 뒤에 끝나므로 "저장 중"과 알림도 그때 바뀝니다. 끝낸 개수는 상태 문구(`role="status"`)로 알립니다.
+- Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고, 할 일은 브라우저가 가져와 고칩니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접).
+- MSW: `src/shared/mocks/todos.ts`의 핸들러가 바뀐 완료 여부를 기억해 돌려줍니다(처음 값은 명세의 `example`). 저장에는 1초 뒤에 답하고, 보안 점검 할 일(4번)은 바꿀 권한이 없다며 늘 403으로 거절합니다. 그래서 개발 서버에서도 응답 전에 바뀌는 모습과 되돌리기를 눈으로 볼 수 있고, E2E가 테스트만을 위한 코드 없이 실패를 재현합니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 바뀐 값은 메모리에만 있어 `server`에서는 서버를 다시 띄울 때, `static-export`에서는 페이지를 새로 불러올 때 처음으로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `todosHandlers`를 지웁니다.
+- 테스트: `src/features/todo-list/todo-list.test.tsx`(응답 전에 화면이 바뀌고 응답 뒤 서버의 값으로 맞춤, 거절하면 목록을 다시 가져오기 전에 되돌리고 알림, 이유 없는 실패, 목록을 못 불러옴), `e2e/optimistic-update.spec.ts`(빌드한 앱에서 응답 전에 바뀜, 거절된 할 일의 되돌리기와 알림, 키보드 조작, 접근성).
+- 샘플을 지우려면 `src/app/todos/`, `src/features/todo-list/`, `src/queries/todos/`, `src/shared/mocks/todos.ts`(와 `src/shared/mocks/handlers.ts`의 `todosHandlers`), `e2e/optimistic-update.spec.ts`를 지우고 `openapi.yaml`에서 `listTodos`, `updateTodo`를 뺀 뒤 `npm run api:gen`을 실행합니다.
 
 ## 라우트별 Rendering Mode
 
@@ -435,6 +656,59 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 테스트: `src/shared/sentry/sentry.test.ts`(개발·테스트 환경, 목 빌드이거나 DSN이 없으면 브라우저와 서버의 조각이 SDK를 초기화하지 않음), `sentry-instrumentation.test.ts`(DSN이 있으면 서버가 요청을 처리하다 난 오류를 그 DSN으로 보냄. 요청은 MSW가 받아 밖으로 나가지 않음), `e2e/sentry.spec.ts`(DSN 없이 빌드한 앱은 브라우저에서 오류가 나도 앱 밖으로 요청을 보내지 않음).
 - 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을 지웁니다.
 
+## 검색 노출(SEO)
+
+`seo` Recipe로 넣었습니다. 검색 엔진과 메신저·SNS의 공유 카드에 보이는 정보(메타데이터, 공유 이미지, `/sitemap.xml`, `/robots.txt`)를 만듭니다.
+
+| 위치                                      | 내용                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/shared/seo/site.ts`                  | 사이트 이름·설명·locale과 사이트 주소(`NEXT_PUBLIC_SITE_URL`)                                        |
+| `src/shared/seo/metadata.ts`              | 모든 페이지가 물려받는 메타데이터의 기본값(`siteMetadata`). 루트 레이아웃(`src/app/layout.tsx`)이 씀 |
+| `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                            |
+| `src/shared/seo/pretendard-license.txt`   | 글꼴의 저작권 표시와 SIL Open Font License 1.1 전문                                                  |
+| `src/shared/seo/next-config.ts`           | 빌드 결과에 글꼴의 라이선스를 함께 담는 next.config 래퍼(`withSeo`, `next.config.plugins.ts`가 씀)   |
+| `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                          |
+| `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                        |
+| `src/app/sitemap-rules.ts`                | 다른 Recipe가 자기 페이지에 대해 알린 sitemap·robots.txt의 규칙(Generator가 조립)                    |
+| `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예        |
+
+- **사이트 주소**: `NEXT_PUBLIC_SITE_URL`(예: `https://www.example.com`)로 sitemap, robots.txt, canonical, og:url, 공유 이미지의 절대 주소를 만듭니다. 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다(`.env.example`). 없으면 엉뚱한 주소가 검색 엔진에 알려지지 않도록 빌드가 실패합니다. 개발 서버는 `.env.development`의 `http://localhost:3000`을 쓰고, 배포하지 않는 목 빌드(`API_MOCKING=enabled`. GitLab CI의 `build` 잡과 E2E)는 값이 없으면 같은 주소를 씁니다.
+
+  ```sh
+  NEXT_PUBLIC_SITE_URL=https://www.example.com API_BASE_URL=https://<백엔드 주소> npm run build  # 배포용 빌드
+  docker build --build-arg NEXT_PUBLIC_SITE_URL=https://www.example.com -t my-app .           # 컨테이너 이미지(docker Recipe)
+  ```
+
+- **페이지의 메타데이터**: 루트 레이아웃의 `siteMetadata()`가 모든 페이지의 기본값을 정하므로, 페이지는 `metadata`에 `title`과 `description`만 적습니다.
+
+  ```ts
+  export const metadata: Metadata = {
+    title: '주문', // <title>주문 | Starter</title>, og:title
+    description: '주문 내역과 배송 상태를 확인합니다.', // description, og:description
+  }
+  ```
+
+  - 제목 뒤에 사이트 이름이 붙고(`주문 | Starter`), 제목을 적지 않은 페이지(홈)는 사이트 이름이 제목입니다. 설명을 적지 않으면 사이트 설명을 씁니다.
+  - canonical과 og:url은 페이지마다 그 페이지의 주소(쿼리 문자열 제외)입니다.
+  - og:title·og:description과 Twitter 카드(`summary_large_image`)의 제목·설명·이미지는 Next.js가 페이지의 `title`·`description`과 공유 이미지로 채웁니다.
+  - Next.js는 레이아웃과 페이지의 metadata를 항목 단위로 덮어씁니다. 페이지가 `openGraph`, `twitter`, `alternates`를 적으면 그 항목의 기본값(og:url, 공유 이미지, canonical)이 사라지므로, 꼭 적어야 하면 `alternates: { canonical: './', ... }`처럼 `siteMetadata()`의 기본값을 함께 적습니다.
+  - 검색에 노출하지 않을 페이지(로그인, 내 정보 등)는 `robots: { index: false }`를 적고 `src/app/sitemap.ts`의 `EXCLUDED_ROUTES`에도 적습니다.
+
+- **공유 이미지(OG 이미지)**: 페이지 폴더에 `opengraph-image.tsx`를 두면 그 페이지(와 아래 페이지)의 공유 이미지가 되고, 없으면 가장 가까운 위 폴더의 이미지, 끝내 사이트의 기본 이미지(`src/app/opengraph-image.tsx`)를 씁니다. 새 페이지의 이미지는 `src/app/products/opengraph-image.tsx`를 그 페이지 폴더에 복사해 제목을 바꿉니다.
+  - 빌드할 때 한 번 그려 PNG로 둡니다(`dynamic = 'force-static'`). 주소에 확장자가 붙어(`/products/opengraph-image/image.png`) static-export의 정적 파일도 서버가 `image/png`로 응답합니다(`ogImageMetadata`).
+  - 모양은 `ogImage`(`src/shared/seo/og-image.tsx`)가 정합니다. next/og는 CSS 변수를 읽지 못하므로 색은 디자인 토큰 파일(`src/shared/ui/tokens.css`)의 값을 읽어 씁니다.
+  - 글꼴은 함께 넣은 Pretendard Bold(한글 11,172자, SIL Open Font License 1.1. `src/shared/seo/pretendard-license.txt`)입니다. next/og는 글꼴에 없는 글자를 만나면 빌드 중에 Google Fonts에서 글꼴을 받으므로, 네트워크가 막힌 CI에서도 같은 이미지가 나오도록 글꼴을 함께 둡니다. 한자, 일본어, 이모지는 이 글꼴에 없어 받으러 가므로 공유 이미지의 글에 쓰지 않습니다. 라이선스는 글꼴을 나눠 줄 때 저작권 표시와 라이선스를 함께 담게 하므로, 글꼴 옆에 둔 라이선스 파일(`pretendard-license.txt`)을 지우지 않습니다. server Starter의 빌드 결과(`.next/standalone`, 그것으로 만든 컨테이너 이미지)에도 글꼴이 담기므로 `withSeo`가 라이선스 파일을 함께 담습니다(`outputFileTracingIncludes`). 글꼴을 바꾸면 라이선스 파일과 `next-config.ts`의 경로도 함께 바꿉니다.
+- **sitemap**: 빌드할 때 `src/app`의 페이지를 찾아 `/sitemap.xml`에 넣습니다. 다른 Recipe나 `npm run g -- page`가 더한 페이지도 `sitemap.ts`를 고치지 않고 들어갑니다.
+  - 경로 그룹(`(admin)`)은 주소에서 빠집니다. 동적 세그먼트가 있는 페이지(`products/[productId]`)는 빌드할 때 주소를 알 수 없어 빠지므로, `sitemap.ts`에서 데이터를 가져와 주소를 더합니다(예: `listProducts`의 상품마다 `/products/<id>`).
+  - 다른 Recipe가 더한 페이지의 규칙은 `src/app/sitemap-rules.ts`의 `sitemapRules`에 있습니다(Starter를 만들 때 Generator가 Recipe의 선언을 모아 씀). 규칙이 뺀 주소(`exclude`)와 robots.txt가 막는 주소(`disallow`)는 그 아래 주소까지 sitemap에 넣지 않고, locale을 받는 세그먼트(`locales`) 아래 페이지는 locale마다 넣어 같은 페이지의 locale별 주소를 서로 알립니다(`<xhtml:link rel="alternate" hreflang>`). 이 프로젝트의 규칙은 `sitemap.ts`의 `EXCLUDED_ROUTES`에 적거나 이 파일을 직접 고칩니다.
+  - sitemap에는 다른 주소로 보내지 않고 200으로 응답하는 페이지만 넣습니다(`e2e/seo.spec.ts`가 하나씩 받아 봅니다). 로그인 페이지로 보내는 페이지나 다른 주소로 보내는 페이지는 규칙으로 뺍니다.
+  - 빌드할 때 만들어 두므로 페이지를 더하거나 지우면 다시 빌드해야 반영됩니다.
+- **robots.txt**: 모든 검색 엔진에 사이트를 열고 sitemap의 주소를 알립니다. 다른 Recipe가 규칙으로 막은 주소(`sitemapRules`의 `disallow`)만 `Disallow`로 막습니다. 스테이징처럼 검색에 노출하지 않을 배포라면 `src/app/robots.ts`의 `rules`를 `{ userAgent: '*', disallow: '/' }`로 바꿉니다.
+- Rendering Mode `server`와 `static-export` 모두에서 sitemap.xml, robots.txt, 공유 이미지를 빌드할 때 만듭니다. static-export는 `out/sitemap.xml`, `out/robots.txt`, `out/**/opengraph-image/image.png`로 내보냅니다.
+- 사이트 이름, 설명, locale은 `src/shared/seo/site.ts`에서 바꿉니다. 루트 레이아웃의 `<html lang>`과 locale을 맞춥니다.
+- `/products` 샘플을 지우면(위 "샘플 명세 바꾸기") `src/app/sitemap.test.ts`와 `e2e/seo.spec.ts`에서 `/products`를 확인하는 부분도 지웁니다.
+- 테스트: `src/shared/seo/site.test.ts`(사이트 주소와 없을 때의 실패), `page-routes.test.ts`(sitemap에 넣을 페이지 찾기), `metadata.test.ts`(모든 페이지의 기본값), `og-image.test.tsx`(한글 공유 이미지를 네트워크 없이 그림), `src/app/sitemap.test.ts`(이 Starter의 sitemap과 규칙), `robots.test.ts`(robots.txt), `e2e/seo.spec.ts`(빌드한 앱의 메타데이터, 공유 이미지, sitemap.xml의 페이지가 모두 200으로 응답하는지, robots.txt).
+
 ## 테이블
 
 `table` Recipe로 넣었습니다. `/members` 페이지가 [TanStack Table](https://tanstack.com/table)로 회원 목록을 보여 주고, 열 머리글로 정렬하고, 검색어와 역할로 거르고, 페이지를 넘깁니다. 정렬·필터·페이지는 백엔드가 처리합니다. 테이블은 그 상태만 들고 있다가 쿼리 파라미터로 바꿔 보내므로, 목록이 길어져도 브라우저가 모든 행을 받지 않습니다.
@@ -444,6 +718,6 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 테이블: `src/features/member-table/member-table.tsx`. 행을 정렬·필터·페이지로 나누는 일은 백엔드에 맡기고(`manualSorting`, `manualFiltering`, `manualPagination`), 정렬(`sorting`), 역할 열 필터(`columnFilters`), 검색어(`globalFilter`), 페이지(`pagination`) 상태를 `toListMembersParams`가 쿼리 파라미터로 바꿉니다. 정렬이나 필터를 바꾸면 첫 페이지로 돌아갑니다. 다른 목록에 쓰려면 이 파일을 복사해 열 정의(`columns`)와 이 함수, 쓰는 queryOptions를 바꿉니다.
 - 키보드와 스크린 리더: 정렬은 열 머리글 안의 버튼(Enter·Space, 오름차순 → 내림차순 → 정렬 없음)이고, 정렬한 열의 머리글에 `aria-sort`가 붙습니다. 검색어는 입력한 뒤 Enter로 보내고, 역할은 공통 `Select`(화살표 키)로 고릅니다. 결과("회원 24명 중 1–10번째")는 상태 문구(`role="status"`)로 알립니다.
 - Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고 목록은 브라우저가 가져옵니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 정렬·필터를 바꿀 때마다 브라우저가 다시 요청하므로 서버에서 미리 가져오지(prefetch) 않습니다.
-- MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/members.ts`의 핸들러가 고정된 회원 24명을 파라미터대로 거르고 정렬해 돌려줍니다. `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 둡니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `membersHandlers`를 지웁니다.
+- MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/members.ts`의 핸들러가 고정된 회원 24명을 파라미터대로 거르고 정렬해 돌려줍니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `membersHandlers`를 지웁니다.
 - 테스트: `src/features/member-table/member-table.test.tsx`(정렬·검색·역할 필터·페이지가 요청 파라미터와 쿼리 키로 이어짐, `aria-sort`, 키보드 정렬, 빈 결과, 실패), `e2e/table.spec.ts`(빌드한 앱에서 키보드로 정렬·검색·필터, 페이지 이동, 접근성).
 - 샘플을 지우려면 `src/app/members/`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts`(와 `handlers.ts`의 `membersHandlers`), `e2e/table.spec.ts`를 지우고 `openapi.yaml`에서 `listMembers`를 뺀 뒤 `npm run api:gen`을 실행합니다.
