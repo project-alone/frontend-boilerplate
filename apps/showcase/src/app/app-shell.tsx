@@ -1,9 +1,10 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/dark-mode/extensions.json, recipes/i18n/extensions.json, archetypes/dashboard/extensions.json
+// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/dark-mode/extensions.json, recipes/i18n/extensions.json, archetypes/commerce/extensions.json, archetypes/dashboard/extensions.json
 
 import type { ReactNode } from 'react'
 import { DashboardLink } from '@/features/dashboard-nav/dashboard-link'
 import { LocaleSwitcher } from '@/features/locale-switcher/locale-switcher'
+import { ShopLink } from '@/features/shop-nav/shop-link'
 import { ThemeSwitcher } from '@/features/theme-switcher/theme-switcher'
 import { UserMenu } from '@/features/user-menu/user-menu'
 import { I18nProvider } from '@/shared/i18n/i18n-provider'
@@ -23,6 +24,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           <ToastProvider>
             <header className="flex justify-end gap-4 p-4">
               <DashboardLink />
+              <ShopLink />
               <ThemeSwitcher />
               <UserMenu />
               <LocaleSwitcher />
