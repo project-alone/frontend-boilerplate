@@ -43,6 +43,9 @@ export interface FormResolverOptions<Input extends FieldValues> {
  * - 그 밖의 선택 필드는 보내지 않는다. 그 밖의 필수 필드는 REQUIRED_MESSAGE로, 반드시 true여야 하는 필드는
  *   MUST_CHECK_MESSAGE로 알린다.
  * - 기본값(default)이 있는 필드는 선택 필드처럼 다룬다. 보내지 않으면 스키마가 기본값을 넣는다.
+ *
+ * 필드마다의 규칙은 객체 스키마(z.object. 단계별 폼이 쓰는 .pick() 결과 포함)의 필드를 보고 정한다. 객체 스키마가 아니면
+ * (.refine, .pipe 등으로 감싼 스키마) 필드를 볼 수 없으므로 비워 둔 입력을 모두 보내지 않는다.
  */
 export function formResolver<Input extends FieldValues, Output>(
   schema: z.ZodType<Output, Input>,
@@ -57,7 +60,8 @@ export function formResolver<Input extends FieldValues, Output>(
       const field = fields[name]
       if (!isEmpty(value, field)) return [[name, value]]
       if (!field?.safeParse(null).success) return []
-      // optin이 없으면 키가 꼭 있어야 하는 필수 필드다. 선택 필드('optional')와 기본값이 있는 필드('defaulted')는 키를 빼도 된다.
+      // optin은 Zod가 객체의 키를 빼도 되는지 적어 두는 값이다. 없으면 키가 꼭 있어야 하는 필수 필드이고, 선택 필드('optional')와
+      // 기본값이 있는 필드('defaulted')는 키를 빼도 된다. Zod를 올리면 form-resolver.test.ts가 이 규칙을 확인한다.
       return field._zod.optin === undefined || hadValue(name) ? [[name, null]] : []
     })
     return resolve(Object.fromEntries(entries) as FormDraft<Input>, context, options)

@@ -22,7 +22,7 @@ const regionOptions = [
  * 검증하고, 제출하면 members Query Domain의 useUpdateMemberContactMutation으로 보낸다. 성공하든 실패하든 알림(토스트)으로 알린다.
  * 레이블은 명세의 title(없으면 필드 이름)이다. 문구와 성공한 뒤의 동작(지금은 폼을 비운다)은 화면에 맞게 고친다.
  * null을 받는 필수 필드(phone, floor, region)는 비워 두면 null을 보낸다.
- * null을 받는 선택 필드(memo, homepage)는 처음 값이 있던 입력을 비웠을 때만 null을 보내고(값을 지운다), 처음부터 비어 있으면 보내지 않는다.
+ * null을 받는 선택 필드(memo, homepage, fax)는 처음 값이 있던 입력을 비웠을 때만 null을 보내고(값을 지운다), 처음부터 비어 있으면 보내지 않는다.
  * 현재 값을 채워 수정 폼으로 쓰려면 그 값을 useForm과 formResolver에 defaultValues로 함께 넘긴다.
  */
 export function UpdateMemberContactForm() {
@@ -35,7 +35,7 @@ export function UpdateMemberContactForm() {
   } = useForm({
     resolver: formResolver(UpdateMemberContactBody),
     // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 명세에 따라 빼거나 null로 보낸다.
-    defaultValues: { sms: false },
+    defaultValues: { sms: false, shared: false },
   })
   const mutation = useUpdateMemberContactMutation()
   const toast = useToast()
@@ -90,6 +90,16 @@ export function UpdateMemberContactForm() {
         <Input type="url" {...register('homepage')} />
         <FieldError match={errors.homepage !== undefined}>{errors.homepage?.message}</FieldError>
       </Field>
+      <Field invalid={errors.fax !== undefined}>
+        <FieldLabel>팩스</FieldLabel>
+        <Input {...register('fax')} />
+        <FieldError match={errors.fax !== undefined}>{errors.fax?.message}</FieldError>
+      </Field>
+      <Field invalid={errors.greeting !== undefined}>
+        <FieldLabel>인사말</FieldLabel>
+        <Input {...register('greeting')} />
+        <FieldError match={errors.greeting !== undefined}>{errors.greeting?.message}</FieldError>
+      </Field>
       <Field invalid={errors.extension !== undefined}>
         <FieldLabel>내선 번호</FieldLabel>
         <Input {...register('extension')} />
@@ -105,6 +115,19 @@ export function UpdateMemberContactForm() {
               문자를 받습니다
             </FieldLabel>
             <FieldError match={errors.sms !== undefined}>{errors.sms?.message}</FieldError>
+          </Field>
+        )}
+      />
+      <Controller
+        control={control}
+        name="shared"
+        render={({ field }) => (
+          <Field invalid={errors.shared !== undefined}>
+            <FieldLabel>
+              <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />
+              연락처 공개에 동의합니다
+            </FieldLabel>
+            <FieldError match={errors.shared !== undefined}>{errors.shared?.message}</FieldError>
           </Field>
         )}
       />

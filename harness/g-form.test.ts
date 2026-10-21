@@ -25,8 +25,9 @@ const QUERIES_DIR = 'src/queries'
 //   모두 담은 인라인 요청 본문의 POST → 응답 본문이 없는(204) 뮤테이션, title·description으로 정한 레이블과 설명,
 //   입력 요소로 만들 수 없는 선택 필드(배열), 체크해야 보낼 수 있는 체크박스(const: true, enum: [true])
 // - 같은 tag에 선택 필드만 받는 PATCH → 비워 두고 제출해도 검증에 실패하지 않는 폼(길이 규칙으로 검증 실패를 보인다)
-// - 같은 tag에 null을 받는 필드(3.1의 type: [..., 'null'], 3.0의 nullable: true, anyOf의 null)를 필수·선택으로 받는 PUT
-//   → 비워 둔 필수 필드는 null로, 비워 둔 선택 필드는 빼고 보낸다
+// - 같은 tag에 null을 받는 필드(3.1의 type: [..., 'null'], 3.0의 nullable: true, anyOf·oneOf의 null)를 필수·선택으로 받는 PUT
+//   → 비워 둔 필수 필드는 null로, 비워 둔 선택 필드는 빼고, 기본값이 있는 필드는 기본값으로 보낸다. 체크하지 않은
+//   반드시 true여야 하는 선택 필드(const: true)는 보내지 않는다
 // - 같은 tag에 입력 요소로 만들 수 없는 필수 필드(객체)를 받는 POST → 폼을 만들지 않는다
 const HARNESS_OPERATIONS = `
 tags:
@@ -182,12 +183,25 @@ paths:
                     - type: string
                       format: uri
                     - type: 'null'
+                fax:
+                  title: 팩스
+                  oneOf:
+                    - type: string
+                    - type: 'null'
+                greeting:
+                  type: [string, 'null']
+                  title: 인사말
+                  default: 안녕하세요
                 extension:
                   type: string
                   title: 내선 번호
                 sms:
                   type: [boolean, 'null']
                   title: 문자를 받습니다
+                shared:
+                  type: boolean
+                  const: true
+                  title: 연락처 공개에 동의합니다
       responses:
         '204':
           description: 수정됨

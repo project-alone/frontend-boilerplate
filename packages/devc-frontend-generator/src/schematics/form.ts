@@ -12,9 +12,20 @@ import {
   type TypeImport,
 } from './starter-project.js'
 
-// 폼이 쓰는 Base의 모듈. formResolver는 Zod 스키마로 폼 값을 검증하고, 비워 둔 필수 입력을 REQUIRED_MESSAGE로,
-// 체크하지 않은 반드시 true여야 하는 체크박스를 MUST_CHECK_MESSAGE로 알린다. 비워 둔 null을 받는 필수 입력은 null로 보낸다.
+// 폼이 쓰는 Base의 모듈. Zod 스키마로 폼 값을 검증하는 formResolver와 그 오류 메시지(REQUIRED_MESSAGE 등)를 내보낸다.
 const FORM_RESOLVER_IMPORT = '@/shared/form/form-resolver'
+
+// 비워 두면 실패하는 필수 입력의 오류 메시지(formResolver가 내보내는 상수)마다 생성한 테스트가 쓰는 이름과 설명
+const BLANK_ERRORS = {
+  REQUIRED_MESSAGE: { variable: 'requiredError', unfilled: '비워 둔', comment: '' },
+  MUST_CHECK_MESSAGE: {
+    variable: 'mustCheckError',
+    unfilled: '체크하지 않은',
+    comment: '\n  // 반드시 true여야 하는 체크박스(명세의 const: true, enum: [true])는 체크하라고 알린다.',
+  },
+}
+
+type BlankMessage = keyof typeof BLANK_ERRORS
 
 // JSON 요청 본문의 미디어 타입(application/json, application/merge-patch+json 등)
 const JSON_MEDIA_TYPE = /^application\/([\w.-]+\+)?json\s*(;.*)?$/i
@@ -467,9 +478,20 @@ function validationCheckOf(fields: readonly FormField[]): ValidationCheck {
   return field?.invalidInput === undefined ? undefined : { kind: 'invalid', field, input: field.invalidInput }
 }
 
-/** 비워 두면 실패하는 필수 입력(requiredInput)이 알리는 오류 메시지. formResolver가 내보내는 상수의 이름이다. */
-function blankMessageOf(field: FormField): 'REQUIRED_MESSAGE' | 'MUST_CHECK_MESSAGE' {
+/**
+ * 비워 두면 실패하는 필수 입력(requiredInput)이 알리는 오류 메시지. formResolver가 내보내는 상수의 이름이다.
+ * requiredInput인 체크박스는 반드시 true여야 하는 체크박스뿐이다.
+ */
+function blankMessageOf(field: FormField): BlankMessage {
   return field.control.kind === 'checkbox' ? 'MUST_CHECK_MESSAGE' : 'REQUIRED_MESSAGE'
+}
+
+/**
+ * 비워 두면 null을 보낼 수 있는 입력. 체크박스(늘 true나 false다)와 기본값이 있는 필드(비워 두면 기본값이 간다)는 빠진다.
+ * 필수 필드는 늘 null을, 선택 필드는 처음 값이 있던 입력을 비웠을 때만 null을 보낸다(formResolver).
+ */
+function clearableFields(fields: readonly FormField[]): FormField[] {
+  return fields.filter((field) => field.nullable && field.control.kind !== 'checkbox' && field.defaultValue === undefined)
 }
 
 /**
@@ -634,27 +656,21 @@ ${fields.map((field) => fieldSource(field)).join('\n')}
 `
 }
 
-/**
- * 폼 컴포넌트의 설명에 더할, 비워 둔 null을 받는 입력을 보내는 방법. 체크박스(늘 true나 false다)와 기본값이 있는 필드
- * (비워 두면 기본값이 간다)는 빠진다. 그런 입력이 없으면 빈 문자열이다.
- */
+/** 폼 컴포넌트의 설명에 더할, 비워 둔 null을 받는 입력(clearableFields)을 보내는 방법. 그런 입력이 없으면 빈 문자열이다. */
 function nullableNote(fields: readonly FormField[]): string {
-  const clearable = fields.filter(
-    (field) => field.nullable && field.control.kind !== 'checkbox' && field.defaultValue === undefined,
-  )
-  const names = (required: boolean) =>
-    clearable
+  const namesOf = (required: boolean) =>
+    clearableFields(fields)
       .filter((field) => field.required === required)
       .map((field) => field.name)
       .join(', ')
-  const required = names(true)
-  const optional = names(false)
+  const requiredNames = namesOf(true)
+  const optionalNames = namesOf(false)
   return [
-    ...(required === '' ? [] : [`\n * null을 받는 필수 필드(${required})는 비워 두면 null을 보낸다.`]),
-    ...(optional === ''
+    ...(requiredNames === '' ? [] : [`\n * null을 받는 필수 필드(${requiredNames})는 비워 두면 null을 보낸다.`]),
+    ...(optionalNames === ''
       ? []
       : [
-          `\n * null을 받는 선택 필드(${optional})는 처음 값이 있던 입력을 비웠을 때만 null을 보내고(값을 지운다), 처음부터 비어 있으면 보내지 않는다.
+          `\n * null을 받는 선택 필드(${optionalNames})는 처음 값이 있던 입력을 비웠을 때만 null을 보내고(값을 지운다), 처음부터 비어 있으면 보내지 않는다.
  * 현재 값을 채워 수정 폼으로 쓰려면 그 값을 useForm과 formResolver에 defaultValues로 함께 넘긴다.`,
         ]),
   ].join('')
@@ -767,7 +783,8 @@ ${validationStory}`
 
 /**
  * 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 오류를 알리고 보내지 않는지 본다.
- * null을 받는 필드가 있으면 필수 입력만 채워 보냈을 때 비워 둔 입력이 어떻게 가는지(null이나 생략)도 본다.
+ * 비워 두면 null을 보낼 수 있는 입력(clearableFields)이 있으면 필수 입력만 채워 보냈을 때 비워 둔 입력이 어떻게 가는지
+ * (null이나 생략)도 본다.
  */
 function testSource(form: FormModel): string {
   const check = form.validationCheck
@@ -789,9 +806,16 @@ function testSource(form: FormModel): string {
   expect(bodies).toEqual([${JSON.stringify(expectedBodyOf(form.fields, inputs))}])
 })
 `
-  const blankTest = form.fields.some((field) => field.nullable)
-    ? `\n${submitTest('비워 둔 입력은 보내지 않고, null을 받는 필수 필드는 null로 보낸다', requiredInputs)}`
-    : ''
+  const clearable = clearableFields(form.fields)
+  const blankTest =
+    clearable.length === 0
+      ? ''
+      : `\n${submitTest(
+          clearable.some((field) => field.required)
+            ? '비워 둔 입력은 보내지 않고, null을 받는 필수 필드는 null로 보낸다'
+            : '비워 둔 입력은 보내지 않는다',
+          requiredInputs,
+        )}`
   const blankFields = check?.kind === 'blank' ? check.fields : []
   const blankMessages = [...new Set(blankFields.map((field) => blankMessageOf(field)))]
   const validationTest = (() => {
@@ -799,11 +823,7 @@ function testSource(form: FormModel): string {
     if (check.kind === 'blank') {
       const errorChecks = blankMessages.map((message) => {
         const fields = blankFields.filter((field) => blankMessageOf(field) === message)
-        const variable = message === 'REQUIRED_MESSAGE' ? 'requiredError' : 'mustCheckError'
-        const comment =
-          message === 'REQUIRED_MESSAGE'
-            ? ''
-            : '\n  // 반드시 true여야 하는 체크박스(명세의 const: true, enum: [true])는 체크하라고 알린다.'
+        const { variable, comment } = BLANK_ERRORS[message]
         return `${comment}
   const ${variable} = new RegExp(RegExp.escape(${message}))
   for (const control of [
@@ -813,8 +833,8 @@ function testSource(form: FormModel): string {
     expect(control).toHaveAccessibleDescription(${variable})
   }`
       })
-      const unfilled = { REQUIRED_MESSAGE: '비워 둔', MUST_CHECK_MESSAGE: '체크하지 않은' }
-      const name = blankMessages.length === 2 ? '비워 두거나 체크하지 않은' : unfilled[blankMessages[0] ?? 'REQUIRED_MESSAGE']
+      const [only] = blankMessages
+      const name = blankMessages.length > 1 || only === undefined ? '비워 두거나 체크하지 않은' : BLANK_ERRORS[only].unfilled
       return `
 test('${name} 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
   const user = userEvent.setup()
