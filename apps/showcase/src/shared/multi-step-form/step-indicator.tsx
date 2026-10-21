@@ -36,7 +36,7 @@ export function StepIndicator({ label, steps, current }: StepIndicatorProps) {
             <span
               aria-hidden="true"
               className={cx(
-                'flex size-6 shrink-0 items-center justify-center rounded-full border text-xs',
+                'flex size-6 shrink-0 items-center justify-center rounded-sm border',
                 done || active ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
               )}
             >

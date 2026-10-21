@@ -51,6 +51,7 @@ components:
           pattern: '^\d{3}-\d{2}-\d{5}$'
         category:
           $ref: '#/components/schemas/PartnerCategory'
+          title: 판매 분야
         # 2단계: 담당자 정보
         contactName:
           type: string

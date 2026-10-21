@@ -81,10 +81,9 @@ export function StepForm<Input extends FieldValues, Output>({
   }, [subscribe, onValuesChange])
 
   useEffect(() => {
-    // 처음 그릴 때 한 번만 검증한다. 폼은 key가 바뀔 때마다 새로 만들어진다.
+    // 처음 그릴 때 검증한다. validateOnMount는 단계 폼(key)마다 정해지므로 같은 폼에서 다시 검증하지 않는다.
     if (validateOnMount) void trigger(undefined, { shouldFocus: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계 폼을 처음 그릴 때의 값만 본다.
-  }, [])
+  }, [validateOnMount, trigger])
 
   const onSubmit = form.handleSubmit((output) => {
     onNext(output, form.getValues())

@@ -271,6 +271,34 @@ test('신청이 실패하면 실패를 알리고, 확인 단계에 입력한 값
   expect(bodies).toHaveLength(1)
 })
 
+test('신청하는 동안에는 다른 단계로 가거나 다시 신청할 수 없다(돌아가 고친 값은 보낸 요청에 담기지 않는다)', async () => {
+  const user = userEvent.setup()
+  // 응답을 붙잡아 둔다. release를 부르면 응답한다.
+  const { promise: responded, resolve: release } = Promise.withResolvers<undefined>()
+  server.use(
+    http.post('*/partner-applications', async () => {
+      await responded
+      return HttpResponse.json({ id: 'PA-0001' }, { status: 201 })
+    }),
+  )
+  renderForm()
+  await fillUntilReview(user)
+
+  await user.click(screen.getByRole('button', { name: '신청하기' }))
+
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: '신청하기' })).toBeDisabled()
+  })
+  expect(screen.getByRole('button', { name: '이전' })).toBeDisabled()
+  for (const title of ['사업자 정보', '담당자 정보', '판매 계획']) {
+    expect(screen.getByRole('button', { name: `${title} 수정` })).toBeDisabled()
+  }
+
+  release(undefined)
+
+  expect(await screen.findByText('입점 신청 완료')).toBeInTheDocument()
+})
+
 test('페이지를 새로 고쳐도(sessionStorage) 입력하던 단계와 값을 이어서 보여 주고, 신청에 성공하면 저장한 값을 지운다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()

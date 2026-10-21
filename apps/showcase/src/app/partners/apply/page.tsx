@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 // 동작한다(server는 BFF 프록시, static-export는 백엔드를 직접 부른다).
 export default function PartnerApplicationPage() {
   return (
-    <main className="flex max-w-xl flex-col gap-6 p-4">
+    <main className="flex flex-col gap-6 p-4">
       <h1 className="text-lg font-semibold">입점 신청</h1>
       <PartnerApplicationForm />
     </main>

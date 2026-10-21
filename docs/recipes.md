@@ -419,7 +419,7 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 ## 예: multi-step-form
 
-입점 신청서(`/partners/apply`)를 사업자 정보 → 담당자 정보 → 판매 계획 → 신청 내용 확인의 네 단계로 나눠 입력받고, 확인 단계에서 한 번에 보내는 Recipe다. table처럼 명세 조각으로 요청 본문이 큰 operation `submitPartnerApplication`(tag `partners`)을 더하고, Query Domain(`src/queries/partners/`)은 `npm run g -- mutation submitPartnerApplication`이 만든 뮤테이션 훅을 그대로 담는다. 검증 규칙을 명세에서만 가져오도록(ADR-0003) 단계마다 재생성 계층의 요청 본문 스키마에서 그 단계의 필드만 고른 스키마(`.pick`)로 검증하고, 확인 단계에서 요청 본문 스키마 전체로 한 번 더 검증한 뒤 보낸다. 입력 요소와 오류 표시, 알림은 `form` Schematic이 만드는 폼과 같다.
+입점 신청서(`/partners/apply`)를 사업자 정보 → 담당자 정보 → 판매 계획 → 신청 내용 확인의 네 단계로 나눠 입력받고, 확인 단계에서 한 번에 보내는 Recipe다. table처럼 명세 조각으로 요청 본문이 큰 operation `submitPartnerApplication`(tag `partners`)을 더하고, Query Domain(`src/queries/partners/`)은 `npm run g -- mutation submitPartnerApplication`이 만든 뮤테이션 훅을 그대로 담는다. 검증 규칙을 명세에서만 가져오도록(ADR-0003) 단계마다 재생성 계층의 요청 본문 스키마에서 그 단계의 필드만 고른 스키마(`.pick`)로 검증하고, 확인 단계에서 요청 본문 스키마 전체로 한 번 더 검증한 뒤 보낸다. 입력 요소와 오류 표시, 알림은 `form` Schematic이 만드는 폼을 따른다(선택지의 이름과 약관 동의의 오류 문구만 화면에 맞게 적는다). 단계마다의 제목, 스키마, 입력 요소, 확인 단계에 보일 값은 `partner-application-steps.tsx`의 단계 목록 한 곳에 모아, 단계를 더하거나 순서를 바꿀 때 그 목록만 고친다.
 
 다른 다단계 폼에도 쓸 부품은 `src/shared/multi-step-form/`에 둔다. `useFormSteps`가 단계와 모든 단계의 값(검증하기 전의 값)을 들고 단계를 옮길 때 포커스를 단계 제목으로 옮기며, `StepForm`이 단계마다 React Hook Form 폼을 하나씩 만들어 "다음"은 그 단계의 스키마로 검증하고 "이전"은 검증 없이 값을 넘긴다. 단계와 값은 `sessionStorage`에 둬 새로 고쳐도 이어 가고, 그린 뒤에 읽으므로 hydration이 어긋나지 않는다. 페이지 뼈대는 미리 렌더링하고 값은 브라우저가 들고 있다가 신청할 때만 요청하므로 두 Rendering Mode에서 같은 코드로 동작한다. MSW 목은 명세의 `example`만으로 충분해 직접 만든 핸들러가 없다.
 
