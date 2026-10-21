@@ -25,7 +25,7 @@ export const getListProductsMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/products',
+    'https://mock.api.test/products',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -45,7 +45,7 @@ export const getCreateProductMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.post(
-    '*/products',
+    'https://mock.api.test/products',
     async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined

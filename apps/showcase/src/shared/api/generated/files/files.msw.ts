@@ -25,7 +25,7 @@ export const getUploadFileMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.post(
-    '*/files',
+    'https://mock.api.test/files',
     async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined

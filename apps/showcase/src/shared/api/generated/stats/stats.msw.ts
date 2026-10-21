@@ -42,7 +42,7 @@ export const getListDailyVisitsMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/stats/daily-visits',
+    'https://mock.api.test/stats/daily-visits',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -64,7 +64,7 @@ export const getListChannelSalesMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/stats/channel-sales',
+    'https://mock.api.test/stats/channel-sales',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined

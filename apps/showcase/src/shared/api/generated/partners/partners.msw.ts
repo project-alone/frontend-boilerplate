@@ -23,7 +23,7 @@ export const getSubmitPartnerApplicationMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.post(
-    '*/partner-applications',
+    'https://mock.api.test/partner-applications',
     async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined

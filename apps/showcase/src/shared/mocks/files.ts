@@ -2,6 +2,7 @@
 // 원본(packages/devc-frontend-generator/): recipes/file-upload/src/shared/mocks/files.ts
 
 import { delay, http, HttpResponse, type JsonBodyType } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import type { UploadedFile, UploadError } from '@/shared/api/generated/model'
 import { findUploadProblem, type UploadProblem } from '@/shared/upload/upload-policy'
 
@@ -43,14 +44,14 @@ const PROBLEM_STATUS = { 'too-large': 413, 'unsupported-type': 415 } as const sa
 
 export const filesHandlers = [
   http.options(
-    '*/files',
+    `${MOCK_API_BASE_URL}/files`,
     () =>
       new HttpResponse(null, {
         status: 204,
         headers: { ...CORS_HEADERS, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Max-Age': '600' },
       }),
   ),
-  http.post('*/files', async ({ request }) => {
+  http.post(`${MOCK_API_BASE_URL}/files`, async ({ request }) => {
     const file = await readFileField(request)
     if (file === undefined) return refuse(400, 'multipart/form-data의 file 필드에 파일을 담아 보내 주세요.')
     const problem = findUploadProblem(file)

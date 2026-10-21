@@ -28,7 +28,7 @@ export const getListMembersMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/members',
+    'https://mock.api.test/members',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined

@@ -35,7 +35,7 @@ export const getListArticlesMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/articles',
+    'https://mock.api.test/articles',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -56,7 +56,7 @@ export const getCountArticlesMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/articles/count',
+    'https://mock.api.test/articles/count',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
