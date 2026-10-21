@@ -79,15 +79,15 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 
 공통 컴포넌트는 `src/shared/ui/`에 있습니다. 키보드 조작과 스크린 리더 지원은 [Base UI](https://base-ui.com)가 맡고, 모양은 디자인 토큰으로 만든 Tailwind CSS 유틸리티가 정합니다. 특정 디자인 시스템의 모양은 담겨 있지 않습니다.
 
-| 컴포넌트                                                | 쓰는 법                                                                                                                            |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                                                | `variant`(`primary`, `secondary`, `danger`), `size`(`sm`, `md`). 링크를 버튼처럼 보이게 할 때는 `<a className={buttonVariants()}>` |
-| `Field`, `FieldLabel`, `FieldDescription`, `FieldError` | 폼 컨트롤 하나에 레이블, 설명, 오류 메시지를 잇습니다.                                                                             |
-| `Input`                                                 | `<Field><FieldLabel>이름</FieldLabel><Input /></Field>`                                                                            |
-| `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                            |
-| `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`                                                            |
-| `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                        |
-| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                        |
+| 컴포넌트                                                | 쓰는 법                                                                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                                                | `variant`(`primary`, `secondary`, `danger`), `size`(`sm`, `md`). 링크를 버튼처럼 보이게 할 때는 `<a className={buttonVariants()}>`                   |
+| `Field`, `FieldLabel`, `FieldDescription`, `FieldError` | 폼 컨트롤 하나에 레이블, 설명, 오류 메시지를 잇습니다.                                                                                               |
+| `Input`                                                 | `<Field><FieldLabel>이름</FieldLabel><Input /></Field>`                                                                                              |
+| `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                                              |
+| `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`. 고른 값을 다시 비울 수 있게 하려면 `clearLabel="선택 안 함"`(비우면 `null`) |
+| `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                                          |
+| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                                          |
 
 컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 훅을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
 
@@ -286,17 +286,17 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 - 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `useSchemaForm`으로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
 - 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
 
-  | 명세의 속성                               | 입력 요소                                                                                                                |
-  | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-  | `string`                                  | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                                                  |
-  | `string`의 `enum`                         | `Select`(선택지의 레이블은 enum 값)                                                                                      |
-  | `integer`, `number`                       | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                                                  |
-  | `boolean`                                 | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                                                           |
-  | `boolean`의 `const: true`, `enum: [true]` | `Checkbox`. 체크하지 않으면 보내지 않고 `MUST_CHECK_MESSAGE`로 알립니다(필수 필드)                                       |
-  | 위 타입에 null을 더한 것                  | 같은 입력 요소. 비워 두면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. `enum`의 `null`은 선택지로 만들지 않습니다 |
-  | 그 밖(배열, 객체, `oneOf` 등)             | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다                                 |
+  | 명세의 속성                               | 입력 요소                                                                                                                                     |
+  | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `string`                                  | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                                                                       |
+  | `string`의 `enum`                         | `Select`(선택지의 레이블은 enum 값)                                                                                                           |
+  | `integer`, `number`                       | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                                                                       |
+  | `boolean`                                 | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                                                                                |
+  | `boolean`의 `const: true`, `enum: [true]` | `Checkbox`. 체크하지 않으면 보내지 않고 `MUST_CHECK_MESSAGE`로 알립니다(필수 필드)                                                            |
+  | 위 타입에 null을 더한 것                  | 같은 입력 요소. 비워 두면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. `enum`의 `null`은 선택지 대신 값을 비우는 "선택 안 함"이 됩니다 |
+  | 그 밖(배열, 객체, `oneOf` 등)             | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다                                                      |
 
-- null을 더하는 방법은 3.1의 `type: [string, 'null']`, 3.0의 `nullable: true`, 스키마 하나와 `{ type: 'null' }`을 묶은 `anyOf`·`oneOf`, `enum`에 넣은 `null`을 모두 받습니다. 체크박스는 null을 받는 필드여도 늘 `true`나 `false`를 보냅니다. `Select`는 고른 값을 다시 비울 수 없으므로, 비울 수 있어야 하면 비우는 동작(예: `setValue(name, null)`)을 직접 더합니다.
+- null을 더하는 방법은 3.1의 `type: [string, 'null']`, 3.0의 `nullable: true`, 스키마 하나와 `{ type: 'null' }`을 묶은 `anyOf`·`oneOf`, `enum`에 넣은 `null`을 모두 받습니다. 체크박스는 null을 받는 필드여도 늘 `true`나 `false`를 보냅니다. null을 받는 필드의 `Select`는 목록 맨 앞에 "선택 안 함"(`clearLabel`)을 두어 고른 값을 다시 비울 수 있고, 비우면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. 그 밖의 `Select`는 고른 값을 다시 비울 수 없으므로, 비울 수 있어야 하면 `clearLabel`을 더합니다.
 
 - 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
 - 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.

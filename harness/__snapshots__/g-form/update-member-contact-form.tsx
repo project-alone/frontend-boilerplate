@@ -70,6 +70,7 @@ export function UpdateMemberContactForm() {
           <Field invalid={errors.region !== undefined}>
             <Select
               label="지역"
+              clearLabel="선택 안 함"
               options={regionOptions}
               value={field.value ?? null}
               onValueChange={field.onChange}

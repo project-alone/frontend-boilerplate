@@ -36,6 +36,9 @@ const JSON_MEDIA_TYPE = /^application\/([\w.-]+\+)?json\s*(;.*)?$/i
 const FIELD_NAME = /^[A-Za-z_$][\w$-]*$/
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
 
+// null을 받는 필드의 Select에서 고른 값을 비우는 선택지의 문구(Select의 clearLabel)
+const CLEAR_SELECT_LABEL = '선택 안 함'
+
 // 문자열 format마다 Input의 type. 나머지 format은 type="text"다.
 const INPUT_TYPES = new Map([
   ['email', 'email'],
@@ -702,10 +705,13 @@ function fieldSource(field: FormField): string {
       const step = field.control.integer ? '' : ' step="any"'
       return inField([label, `<Input type="number"${step} {...register(${name}, { valueAsNumber: true })} />`])
     }
-    case 'select':
+    case 'select': {
+      // null을 받는 필드는 고른 값을 다시 비울 수 있게 맨 앞에 값을 비우는 선택지를 둔다. 고르면 null이 되어 formResolver가 명세대로 보낸다.
+      const clear = field.nullable ? ` clearLabel=${jsxAttribute(CLEAR_SELECT_LABEL)}` : ''
       return controller([
-        `<Select label=${jsxAttribute(field.label)} options={${optionsName(field)}} value={field.value ?? null} onValueChange={field.onChange} inputRef={field.ref} />`,
+        `<Select label=${jsxAttribute(field.label)}${clear} options={${optionsName(field)}} value={field.value ?? null} onValueChange={field.onChange} inputRef={field.ref} />`,
       ])
+    }
     case 'checkbox':
       return controller([
         `<FieldLabel>\n<Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />\n${jsxText(field.label)}\n</FieldLabel>`,
