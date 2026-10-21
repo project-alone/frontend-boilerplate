@@ -59,6 +59,7 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
       'auth-backend-fetch.test.ts',
       'auth-proxy.test.ts',
       'session-routes.test.ts',
+      'access-rules.test.ts',
       'login-form.test.tsx',
     ]) {
       expectFileToPass(report, file, 1)
@@ -67,7 +68,15 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
   })
 
   test('빌드를 통과하고, 빌드한 앱에서 E2E(로그인, 보호된 라우트와 역할, 토큰 만료 뒤 자동 refresh, 로그아웃)가 통과한다', async () => {
-    starter.expectNpmSuccess(['run', 'build'])
+    const build = starter.expectNpmSuccess(['run', 'build'])
+
+    // 머리글의 사용자 메뉴와 proxy가 있어도 세션을 읽지 않는 페이지는 미리 렌더링한다(○ Static). 세션을 읽는 페이지는
+    // 요청마다 렌더링한다(ƒ Dynamic). next build는 라우트마다 그 표를 보여 준다.
+    const routeLine = (route: string) =>
+      build.output.split('\n').find((line) => line.trimEnd().endsWith(` ${route}`)) ?? ''
+    expect(routeLine('/'), build.output).toContain('○')
+    expect(routeLine('/forbidden'), build.output).toContain('○')
+    expect(routeLine('/account'), build.output).toContain('ƒ')
 
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
   })

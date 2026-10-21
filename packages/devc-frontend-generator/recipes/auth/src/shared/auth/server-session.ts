@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { LOGIN_PATH } from './access-rules'
-import { type Session, SESSION_COOKIE, unsealSession } from './session'
+import { type Session, sessionOf } from './session'
 import { rememberSessionForRender } from './session-scope'
 
 /**
@@ -13,7 +13,7 @@ import { rememberSessionForRender } from './session-scope'
  * (서버 컴포넌트는 쿠키를 고칠 수 없다).
  */
 export async function getServerSession(): Promise<Session | undefined> {
-  const session = await unsealSession((await cookies()).get(SESSION_COOKIE)?.value)
+  const session = await sessionOf(await cookies())
   rememberSessionForRender(session)
   return session
 }

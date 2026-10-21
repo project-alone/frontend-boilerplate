@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMe } from '@/shared/api/generated'
-import { fetchSessionUser, loginWithCredentials, logoutSession } from '@/shared/auth/auth-client'
+import { endSession, fetchSessionUser, startSession } from '@/shared/auth/auth-client'
 import { authKeys } from './auth.keys'
 
 // auth Query Domain의 queryOptions와 뮤테이션 훅. queryOptions는 서버 컴포넌트의 prefetch와 클라이언트 컴포넌트의 쿼리 훅(useSuspenseQuery 등)이 함께 쓴다.
@@ -30,7 +30,7 @@ export function sessionQueryOptions() {
 export function useLoginMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: loginWithCredentials,
+    mutationFn: startSession,
     onSuccess: () => {
       queryClient.clear()
     },
@@ -40,7 +40,7 @@ export function useLoginMutation() {
 export function useLogoutMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: logoutSession,
+    mutationFn: endSession,
     onSuccess: () => {
       queryClient.clear()
     },

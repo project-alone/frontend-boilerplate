@@ -24,7 +24,7 @@ export async function fetchSessionUser({ signal }: { signal?: AbortSignal } = {}
 }
 
 /** 이메일과 비밀번호로 로그인한다. 맞지 않으면 LoginFailedError를 던진다. */
-export async function loginWithCredentials(credentials: LoginBody): Promise<User> {
+export async function startSession(credentials: LoginBody): Promise<User> {
   const response = await fetch(SESSION_API_PATH, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -38,7 +38,7 @@ export async function loginWithCredentials(credentials: LoginBody): Promise<User
 }
 
 /** 로그아웃한다. 서버가 백엔드에 로그아웃을 알리고 세션 쿠키를 지운다. */
-export async function logoutSession(): Promise<void> {
+export async function endSession(): Promise<void> {
   const response = await fetch(SESSION_API_PATH, { method: 'DELETE' })
   if (!response.ok) throw new Error(`로그아웃하지 못했습니다(${String(response.status)}).`)
 }

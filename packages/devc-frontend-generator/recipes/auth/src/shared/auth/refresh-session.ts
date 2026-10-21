@@ -9,7 +9,8 @@ import type { Session } from './session'
 // 묶는 범위는 서버 프로세스 하나다. 서버를 여러 대 띄우면 같은 사용자의 요청이 서로 다른 서버에서 동시에 refresh할 수 있으므로,
 // 백엔드가 같은 refreshToken을 잠시 다시 받아 주게 하거나(reuse interval) 같은 사용자의 요청을 한 서버로 보낸다(README의 "인증").
 
-const REUSE_MS = 30_000
+// 새 쿠키가 브라우저에 닿기 전에 이전 쿠키로 보낸 요청이 도착할 만큼만 남긴다. 길수록 이전 쿠키로 새 토큰을 받을 수 있는 시간도 길어진다.
+const REUSE_MS = 10_000
 
 interface Flight {
   readonly result: Promise<Session | undefined>

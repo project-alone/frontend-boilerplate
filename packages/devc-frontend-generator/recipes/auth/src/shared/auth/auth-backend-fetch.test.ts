@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { forwardToBackend } from '@/shared/api/bff-proxy'
 import { server } from '@/shared/mocks/node'
-import { loginWithPassword } from './auth-backend'
+import { loginAtBackend } from './auth-backend'
 import { MOCK_PASSWORD, MOCK_USERS } from './auth-mock-handlers'
 import { type Session, SESSION_COOKIE, sealSession, unsealSession } from './session'
 
@@ -26,7 +26,7 @@ afterEach(() => {
 
 /** 목 백엔드에 로그인해 받은 세션. overrides로 토큰을 바꿔 만료된 토큰을 흉내 낸다. */
 async function loggedIn(overrides: Partial<Session> = {}): Promise<Session> {
-  const session = await loginWithPassword({ email: USER?.email ?? '', password: MOCK_PASSWORD })
+  const session = await loginAtBackend({ email: USER?.email ?? '', password: MOCK_PASSWORD })
   if (session === undefined) throw new Error('목 백엔드에 로그인하지 못했습니다.')
   return { ...session, ...overrides }
 }
@@ -72,6 +72,24 @@ test('브라우저의 요청에 세션 쿠키의 accessToken을 붙여 전달하
   expect(await response.json()).toEqual(USER)
   expect(forwardedCookies).toEqual(['theme=dark'])
   expect(sessionCookieOf(response)).toBeUndefined()
+})
+
+test('브라우저가 Authorization 헤더를 직접 실었으면 그 헤더를 쓰고, 이때도 세션 쿠키는 백엔드로 넘기지 않는다', async () => {
+  const request = await browserRequest('/auth-headers', await loggedIn(), {
+    headers: { authorization: 'Bearer token-from-browser' },
+  })
+  server.use(
+    http.get('*/auth-headers', ({ request: forwarded }) =>
+      HttpResponse.json({
+        authorization: forwarded.headers.get('authorization'),
+        cookie: forwarded.headers.get('cookie'),
+      }),
+    ),
+  )
+
+  const response = await forwardToBackend(request)
+
+  expect(await response.json()).toEqual({ authorization: 'Bearer token-from-browser', cookie: 'theme=dark' })
 })
 
 test('로그인하지 않은 브라우저의 요청은 토큰 없이 그대로 전달한다', async () => {

@@ -34,9 +34,13 @@ function issueTokens(userId: number): TokenPair {
   return { accessToken, refreshToken, expiresIn: MOCK_ACCESS_TOKEN_TTL_SECONDS }
 }
 
+function accessTokenOf(request: Request): string | undefined {
+  return /^Bearer (.+)$/.exec(request.headers.get('authorization') ?? '')?.[1]
+}
+
 /** Authorization 헤더의 accessToken이 가리키는 사용자. 없거나 만료된 토큰이면 undefined */
 function userOf(request: Request): User | undefined {
-  const token = /^Bearer (.+)$/.exec(request.headers.get('authorization') ?? '')?.[1]
+  const token = accessTokenOf(request)
   const grant = token === undefined ? undefined : accessTokens.get(token)
   if (grant === undefined || grant.expiresAt <= Date.now()) return undefined
   return MOCK_USERS.find((user) => user.id === grant.userId)
@@ -74,10 +78,12 @@ export const authMockHandlers = [
     return user === undefined ? unauthorized('accessToken이 없거나 만료되었습니다.') : HttpResponse.json(user)
   }),
 
+  // 명세처럼 유효한 accessToken이 있어야 로그아웃을 받는다(bearerAuth).
   http.post('*/auth/logout', async ({ request }) => {
+    if (userOf(request) === undefined) return unauthorized('accessToken이 없거나 만료되었습니다.')
     const body = LogoutRequest.safeParse(await jsonBody(request))
     if (body.success) refreshTokens.delete(body.data.refreshToken)
-    const token = /^Bearer (.+)$/.exec(request.headers.get('authorization') ?? '')?.[1]
+    const token = accessTokenOf(request)
     if (token !== undefined) accessTokens.delete(token)
     return new HttpResponse(null, { status: 204 })
   }),
