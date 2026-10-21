@@ -60,6 +60,7 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
       'auth-proxy.test.ts',
       'session-routes.test.ts',
       'access-rules.test.ts',
+      'mock-session.test.ts',
       'login-form.test.tsx',
     ]) {
       expectFileToPass(report, file, 1)

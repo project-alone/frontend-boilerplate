@@ -13,7 +13,10 @@ export const FORBIDDEN_PATH = '/forbidden'
 export const ACCOUNT_PATH = '/account'
 
 export interface ProtectedRoute {
-  /** 이 경로와 그 아래 경로(예: /admin, /admin/users)를 보호한다. */
+  /**
+   * 이 경로와 그 아래 경로(예: /admin, /admin/users)를 보호한다. `/teams/[teamId]/settings`처럼 대괄호로 감싼 단계는
+   * 라우트의 동적 세그먼트처럼 비지 않은 단계 하나와 맞는다.
+   */
   path: string
   /** 있으면 이 역할 가운데 하나를 가진 사용자만 들어간다. 없으면 로그인한 사용자는 모두 들어간다. */
   roles?: readonly Role[]
@@ -36,10 +39,22 @@ export const authSitemapRules = {
   exclude: [...PROTECTED_ROUTES.map(({ path }) => path), LOGIN_PATH, FORBIDDEN_PATH],
 }
 
-/** pathname을 보호하는 규칙. 보호하지 않는 경로면 undefined */
-export function protectedRouteOf(pathname: string): ProtectedRoute | undefined {
-  return PROTECTED_ROUTES.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`))
+/** pathname을 보호하는 규칙(routes 가운데 맞는 첫 규칙). 보호하지 않는 경로면 undefined */
+export function protectedRouteOf(
+  pathname: string,
+  routes: readonly ProtectedRoute[] = PROTECTED_ROUTES,
+): ProtectedRoute | undefined {
+  const segments = pathname.split('/')
+  return routes.find(({ path }) =>
+    path.split('/').every((segment, index) => {
+      const actual = segments[index]
+      return DYNAMIC_SEGMENT.test(segment) ? actual !== undefined && actual !== '' : actual === segment
+    }),
+  )
 }
+
+// 규칙의 경로에서 아무 단계 하나와 맞는 단계(예: [teamId])
+const DYNAMIC_SEGMENT = /^\[[^\]/]+\]$/
 
 /** 사용자가 이 규칙의 라우트에 들어갈 수 있는가 */
 export function canEnter(route: ProtectedRoute, user: User): boolean {

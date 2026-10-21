@@ -1,0 +1,1 @@
+server-only-archetype-fixture가 더한 파일

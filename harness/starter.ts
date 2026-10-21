@@ -94,9 +94,11 @@ export interface StarterOptions {
   renderingMode?: RenderingMode
   /** `dcgen new --recipe`로 넣을 Recipe */
   recipes?: readonly string[]
+  /** `dcgen new --archetype`으로 넣을 Archetype */
+  archetypes?: readonly string[]
   /**
    * `dcgen new` 대신 Starter를 만드는 방법. 임시 디렉터리를 받아 그 안에 만든 Starter의 경로를 돌려준다(예: Showcase 생성 스크립트).
-   * 있으면 renderingMode와 recipes는 쓰지 않는다.
+   * 있으면 renderingMode, recipes, archetypes는 쓰지 않는다.
    */
   create?: (workdir: string) => string
   /**
@@ -148,6 +150,7 @@ export function useStarter(options: StarterOptions): Starter {
     const args = [
       ...(options.renderingMode === undefined ? [] : ['--rendering-mode', options.renderingMode]),
       ...(options.recipes ?? []).flatMap((recipe) => ['--recipe', recipe]),
+      ...(options.archetypes ?? []).flatMap((archetype) => ['--archetype', archetype]),
       '--skip-install',
     ]
     created = { workdir, dir: options.create?.(workdir) ?? newStarter(workdir, args) }

@@ -1,0 +1,5 @@
+{
+  "header": [{ "path": "src/features/shop-nav/shop-link.tsx", "export": "ShopLink", "order": 60 }],
+  "mockHandlers": [{ "path": "src/shared/mocks/shop.ts", "export": "shopHandlers", "order": 100 }],
+  "sitemap": [{ "path": "src/shared/shop/shop-routes.ts", "export": "shopSitemapRules", "order": 100 }]
+}

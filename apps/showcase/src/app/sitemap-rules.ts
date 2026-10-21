@@ -1,8 +1,9 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/i18n/extensions.json
+// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/i18n/extensions.json, archetypes/commerce/extensions.json
 
 import { authSitemapRules } from '@/shared/auth/access-rules'
 import { i18nSitemapRules } from '@/shared/i18n/routing'
+import { shopSitemapRules } from '@/shared/shop/shop-routes'
 
 // Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
 // sitemap(src/app/sitemap.ts)과 robots.txt(src/app/robots.ts)가 따르는 규칙. 페이지를 더한 Recipe가 자기 페이지를 어떻게
@@ -20,4 +21,4 @@ export interface SitemapRules {
   locales?: { param: string; values: readonly string[]; defaultValue?: string }
 }
 
-export const sitemapRules: readonly SitemapRules[] = [authSitemapRules, i18nSitemapRules]
+export const sitemapRules: readonly SitemapRules[] = [authSitemapRules, shopSitemapRules, i18nSitemapRules]

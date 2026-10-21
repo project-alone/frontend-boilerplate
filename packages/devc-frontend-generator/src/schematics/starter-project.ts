@@ -146,14 +146,7 @@ export class StarterProject {
       if (!Node.isFunctionLikeDeclaration(fn)) continue
 
       const parameters = fn.getParameters().filter((parameter) => parameter.getName() !== REQUEST_OPTIONS_ARGUMENT)
-      const typeImportsOf = (typeNodes: readonly TypeNode[]): TypeImport[] => {
-        const references = typeNodes.flatMap((typeNode) => [typeNode, ...typeNode.getDescendants()])
-        const typeNames = references.filter(Node.isTypeReference).map((reference) => reference.getTypeName().getText())
-        return [...new Set(typeNames)].flatMap((typeName) => {
-          const moduleSpecifier = this.importOf(file, typeName)
-          return moduleSpecifier === undefined ? [] : [{ name: typeName, moduleSpecifier }]
-        })
-      }
+      const typeImportsOf = (typeNodes: readonly TypeNode[]) => this.typeImportsOf(file, typeNodes)
       // orval은 fetch 함수의 반환 타입을 Promise<T>로 적는다. 적지 않았으면 함수에서 타입을 끌어낸다.
       const returnType = fn.getReturnTypeNode()
       const dataType = Node.isTypeReference(returnType) && returnType.getTypeName().getText() === 'Promise'
@@ -176,6 +169,19 @@ export class StarterProject {
     throw new SchematicError(
       `${GENERATED_API_DIR}에 ${operation.operationId}의 fetch 함수(${name})가 없습니다. ${SPEC_FILE}을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
     )
+  }
+
+  /**
+   * file 안의 타입(typeNodes)이 쓰는 타입 이름을 file이 가져오는 곳(Starter 안의 import 경로)과 함께 돌려준다. 다른 파일에서
+   * 같은 타입을 적을 때 import로 쓴다. file이 import하지 않은 이름(내장 타입 등)은 빠진다.
+   */
+  typeImportsOf(file: SourceFile, typeNodes: readonly TypeNode[]): TypeImport[] {
+    const references = typeNodes.flatMap((typeNode) => [typeNode, ...typeNode.getDescendants()])
+    const typeNames = references.filter(Node.isTypeReference).map((reference) => reference.getTypeName().getText())
+    return [...new Set(typeNames)].flatMap((typeName) => {
+      const moduleSpecifier = this.importOf(file, typeName)
+      return moduleSpecifier === undefined ? [] : [{ name: typeName, moduleSpecifier }]
+    })
   }
 
   /** Starter 최상위 기준 src 아래 파일(확장자는 있어도 되고 없어도 된다)의 Starter 안 import 경로(`@/...`) */

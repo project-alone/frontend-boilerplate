@@ -5,18 +5,26 @@ import { isDotenvFile, mergeDotenv } from './dotenv.js'
 import { mergeMarkdownSections } from './markdown-sections.js'
 import { mergePackageJson, type PackageJson, updatePackageJson } from './package-json.js'
 
-// Base와 달라지는 부분을 담아 Starter에 덧입히는 디렉터리를 overlay라 부른다. Rendering Mode(`rendering-modes/<mode>/`)와
-// Recipe(`recipes/<name>/`)가 같은 형식을 쓴다. overlay 안의 경로는 Starter 최상위 기준이다.
+// Base와 달라지는 부분을 담아 Starter에 덧입히는 디렉터리를 overlay라 부른다. Rendering Mode(`rendering-modes/<mode>/`),
+// Recipe(`recipes/<name>/`), Archetype(`archetypes/<name>/`)이 같은 형식을 쓴다. overlay 안의 경로는 Starter 최상위 기준이다.
 
 /** Recipe의 선언 파일. overlay 최상위에 있어도 Starter에 덧입히지 않는다(Rendering Mode overlay에는 없다). */
 export const RECIPE_MANIFEST = 'recipe.json'
+
+/** Archetype의 선언 파일. Recipe의 선언 파일처럼 Starter에 덧입히지 않는다. */
+export const ARCHETYPE_MANIFEST = 'archetype.json'
+
+const MANIFESTS = [RECIPE_MANIFEST, ARCHETYPE_MANIFEST]
 // 지울 Base의 경로 목록. 덧입히는 파일이 아니라 지울 경로를 적는다.
 const REMOVE_LIST = 'remove.txt'
 const PACKAGE_JSON = 'package.json'
 const README = 'README.md'
 const PATCH_SUFFIX = '.patch'
 
-/** Starter에 덧입힐 overlay 디렉터리와 오류 메시지에 쓸 이름(예: 'Recipe dark-mode', 'Rendering Mode static-export') */
+/**
+ * Starter에 덧입힐 overlay 디렉터리와 오류 메시지에 쓸 이름(예: 'Recipe dark-mode', 'Rendering Mode static-export',
+ * 'Archetype dashboard')
+ */
 export interface Overlay {
   label: string
   dir: string
@@ -31,6 +39,7 @@ export class OverlayError extends Error {
 
 /**
  * overlay 디렉터리를 Starter에 덧입힌다. label은 오류 메시지에 쓸 overlay 이름이다(예: 'Recipe dark-mode').
+ * 최상위의 선언 파일(recipe.json, archetype.json)은 덧입히지 않는다.
  *
  * - `remove.txt`: 한 줄에 하나씩 적은 Starter 안의 경로(파일이나 디렉터리)를 지운다. `#`으로 시작하는 줄은 주석이다.
  *   그 경로가 Starter에 없으면 목록이 낡은 것이므로 실패한다. 다른 파일보다 먼저 처리한다.
@@ -51,7 +60,7 @@ export async function applyOverlay(
   const paths = entries
     .filter((entry) => entry.isFile())
     .map((entry) => relative(overlay, join(entry.parentPath, entry.name)))
-    .filter((path) => path !== RECIPE_MANIFEST && !skip.includes(path))
+    .filter((path) => !MANIFESTS.includes(path) && !skip.includes(path))
     .sort()
   if (paths.includes(REMOVE_LIST)) {
     await removePaths(target, await readFile(join(overlay, REMOVE_LIST), 'utf8'), label)

@@ -1,0 +1,6 @@
+{
+  "description": "시험용: 쓰는 Recipe는 static-export도 지원하지만 스스로 server만 지원하는 Archetype",
+  "recipes": ["dark-mode"],
+  "renderingModes": ["server"],
+  "renderingModesReason": "요청마다 다시 만드는 화면이 있는 시험용 Archetype입니다."
+}

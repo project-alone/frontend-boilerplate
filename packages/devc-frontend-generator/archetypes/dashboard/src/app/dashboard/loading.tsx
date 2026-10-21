@@ -1,0 +1,8 @@
+// /dashboard 아래 페이지의 로딩 상태. 페이지가 서버에서 데이터를 기다리는 동안과 이 페이지로 옮겨 가는 동안 페이지 대신 보인다.
+export default function DashboardLoading() {
+  return (
+    <main className="flex flex-col gap-4 p-4">
+      <p role="status">불러오는 중입니다.</p>
+    </main>
+  )
+}
