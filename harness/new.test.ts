@@ -106,7 +106,9 @@ describe('터미널에서 실행한 new', () => {
     terminal.press(KEYS.enter)
     await terminal.waitFor(RECIPE_PROMPT)
     await terminal.waitFor('dark-mode')
-    // Recipe는 이름순이고, 고른 Rendering Mode에서 쓸 수 없는 Recipe는 커서가 건너뛴다. 처음 커서는 chart에 있다.
+    // Recipe는 이름순이고, 고른 Rendering Mode에서 쓸 수 없는 Recipe는 커서가 건너뛴다. 처음 커서는 analytics에 있고
+    // chart를 지나 dark-mode로 옮긴다.
+    terminal.press(KEYS.down)
     terminal.press(KEYS.down)
     terminal.press(KEYS.space)
     terminal.press(KEYS.enter)

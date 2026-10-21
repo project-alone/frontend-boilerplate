@@ -1,0 +1,98 @@
+# file-upload Recipe가 Base 명세에 더하는 명세 조각(docs/recipes.md의 "OpenAPI 명세 조각"). 파일 하나를
+# multipart/form-data로 받는 업로드 operation이다. 업로더(src/features/file-uploader)는 받는 크기·형식
+# (src/shared/upload/upload-policy.ts)을 올리기 전에 검사하고, 진행률을 알 수 있도록 XMLHttpRequest로 보낸다.
+tags:
+  - name: files
+    description: 파일
+paths:
+  /files:
+    post:
+      operationId: uploadFile
+      summary: 파일 업로드
+      description: >-
+        파일 하나를 multipart/form-data의 file 필드로 받는다. 5MB(5,242,880바이트) 이하의 PNG, JPEG, PDF,
+        텍스트 파일만 받고, 더 크면 413, 다른 형식이면 415로 거절한다.
+      tags: [files]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+            encoding:
+              file:
+                # 받는 형식. 업로더의 기준(src/shared/upload/upload-policy.ts)과 같아야 한다(upload-policy.test.ts).
+                contentType: image/png, image/jpeg, application/pdf, text/plain
+      responses:
+        '201':
+          description: 받은 파일
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFile'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 file-upload Recipe의 핸들러(src/shared/mocks/files.ts)가
+              # 올린 파일의 이름·크기·형식을 담아 대신 답한다.
+              example:
+                id: file-1
+                name: report.pdf
+                size: 1024
+                contentType: application/pdf
+        '400':
+          description: file 필드에 파일이 없다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: multipart/form-data의 file 필드에 파일을 담아 보내 주세요.
+        '413':
+          description: 파일이 5MB보다 크다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: 5MB 이하의 파일만 올릴 수 있습니다.
+        '415':
+          description: 받지 않는 형식이다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: PNG, JPEG, PDF, 텍스트 파일만 올릴 수 있습니다.
+components:
+  schemas:
+    FileUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: 올릴 파일. 5MB(5,242,880바이트)까지 받는다.
+          # 받는 가장 큰 크기(바이트). OpenAPI에는 파일 크기를 적는 표기가 없어 확장 필드로 적는다(maxLength는 글자 수이고,
+          # orval이 파일 스키마에 맞지 않는 Zod 검사를 만든다). 업로더의 기준과 같아야 한다(upload-policy.test.ts).
+          x-max-bytes: 5242880
+    UploadedFile:
+      type: object
+      required: [id, name, size, contentType]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 올린 파일의 이름
+        size:
+          type: integer
+          description: 바이트 단위 크기
+        contentType:
+          type: string
+          description: 파일의 형식(MIME 타입)
+    UploadError:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: 사용자에게 보여 줄 거절 이유

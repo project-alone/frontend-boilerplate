@@ -12,8 +12,22 @@ import {
   type TypeImport,
 } from './starter-project.js'
 
-// 폼이 쓰는 Base의 모듈. formResolver는 Zod 스키마로 폼 값을 검증하고, 비워 둔 필수 입력을 REQUIRED_MESSAGE로 알린다.
+// 폼이 쓰는 Base의 모듈. Zod 스키마로 폼 값을 검증하는 formResolver와 그 오류 메시지(REQUIRED_MESSAGE 등)를 내보낸다.
 const FORM_RESOLVER_IMPORT = '@/shared/form/form-resolver'
+// 폼을 만드는 Base의 훅(useSchemaForm). useForm에 formResolver를 잇고, 처음 값을 useForm과 formResolver에 함께 넘긴다.
+const SCHEMA_FORM_IMPORT = '@/shared/form/use-schema-form'
+
+// 비워 두면 실패하는 필수 입력의 오류 메시지(formResolver가 내보내는 상수)마다 생성한 테스트가 쓰는 이름과 설명
+const BLANK_ERRORS = {
+  REQUIRED_MESSAGE: { variable: 'requiredError', unfilled: '비워 둔', comment: '' },
+  MUST_CHECK_MESSAGE: {
+    variable: 'mustCheckError',
+    unfilled: '체크하지 않은',
+    comment: '\n  // 반드시 true여야 하는 체크박스(명세의 const: true, enum: [true])는 체크하라고 알린다.',
+  },
+}
+
+type BlankMessage = keyof typeof BLANK_ERRORS
 
 // JSON 요청 본문의 미디어 타입(application/json, application/merge-patch+json 등)
 const JSON_MEDIA_TYPE = /^application\/([\w.-]+\+)?json\s*(;.*)?$/i
@@ -21,6 +35,9 @@ const JSON_MEDIA_TYPE = /^application\/([\w.-]+\+)?json\s*(;.*)?$/i
 // React Hook Form의 필드 이름으로 쓸 수 있는 속성 이름. 점(.)과 대괄호는 중첩 경로로 읽히므로 받지 않는다.
 const FIELD_NAME = /^[A-Za-z_$][\w$-]*$/
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
+
+// null을 받는 필드의 Select에서 고른 값을 비우는 선택지의 문구(Select의 clearLabel)
+const CLEAR_SELECT_LABEL = '선택 안 함'
 
 // 문자열 format마다 Input의 type. 나머지 format은 type="text"다.
 const INPUT_TYPES = new Map([
@@ -96,12 +113,15 @@ interface JsonSchema {
   not?: unknown
 }
 
-/** 필드 하나를 입력받는 공통 UI 컴포넌트 */
+/**
+ * 필드 하나를 입력받는 공통 UI 컴포넌트. mustCheck는 반드시 true여야 하는 불리언(const: true, enum: [true])의 체크박스로,
+ * 체크하지 않으면 formResolver가 값을 넣지 않은 것으로 본다.
+ */
 type Control =
   | { kind: 'text'; inputType: string }
   | { kind: 'number'; integer: boolean }
   | { kind: 'select'; options: string[] }
-  | { kind: 'checkbox' }
+  | { kind: 'checkbox'; mustCheck: boolean }
 
 /** 요청 본문의 속성 하나를 입력받는 폼 필드 */
 interface FormField {
@@ -111,7 +131,16 @@ interface FormField {
   label: string
   description: string | undefined
   control: Control
-  /** 비워 두고 제출하면 검증에 실패하는가. 기본값(default)이 없는 필수 필드이고, 체크박스는 체크하지 않은 값(false)이 있으므로 빠진다. */
+  /** 요청 본문의 필수(required) 필드인가 */
+  required: boolean
+  /** null을 받는가(3.0의 nullable, 3.1의 type: [..., 'null'], null과 묶은 anyOf·oneOf) */
+  nullable: boolean
+  /** 명세의 기본값(default). 비워 두면 재생성 계층의 스키마가 이 값을 넣는다. */
+  defaultValue: unknown
+  /**
+   * 비워 두고 제출하면 검증에 실패하는가. null을 받지 않고 기본값(default)이 없는 필수 필드다. 체크박스는 체크하지 않은 값(false)이
+   * 있으므로 빠지고, 반드시 true여야 하는 체크박스만 체크하지 않으면 실패한다.
+   */
   requiredInput: boolean
   /** 생성한 테스트가 입력할 값. undefined면 비워 둔다(만들 수 없는 선택 필드). */
   sample: string | number | boolean | undefined
@@ -125,8 +154,8 @@ interface Unsupported {
 }
 
 /**
- * 생성한 테스트와 스토리가 검증 실패를 보이는 방법. 기본값 없는 필수 입력이 있으면 모두 비워 두고 제출하고(blank),
- * 없으면 규칙에 맞지 않는 값을 필드 하나에 입력해 제출한다(invalid). 둘 다 할 수 없으면 undefined다.
+ * 생성한 테스트와 스토리가 검증 실패를 보이는 방법. 비워 두면 실패하는 필수 입력(requiredInput)이 있으면 모두 비워 두고
+ * 제출하고(blank), 없으면 규칙에 맞지 않는 값을 필드 하나에 입력해 제출한다(invalid). 둘 다 할 수 없으면 undefined다.
  */
 type ValidationCheck =
   | { kind: 'blank'; fields: [FormField, ...FormField[]] }
@@ -265,7 +294,7 @@ function requestBodySchema(operation: Operation): JsonSchema {
 }
 
 /**
- * 요청 본문의 속성마다 폼 필드를 정한다. 입력 요소로 만들 수 없는 속성(배열, 객체, null 허용 등)이 선택 필드면 빼고 알리고,
+ * 요청 본문의 속성마다 폼 필드를 정한다. 입력 요소로 만들 수 없는 속성(배열, 객체, 스키마 조합 등)이 선택 필드면 빼고 알리고,
  * 필수 필드면 폼을 만들지 않는다. 생성한 테스트가 입력할 값을 정할 수 없는 필수 필드도 폼을 만들지 않는다.
  */
 function formFields(operationId: string, body: JsonSchema): { fields: FormField[]; skippedFields: string[] } {
@@ -280,7 +309,8 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
   const skippedFields: string[] = []
   const unsupported: string[] = []
   const withoutSample: string[] = []
-  for (const [name, schema] of Object.entries(properties)) {
+  for (const [name, property] of Object.entries(properties)) {
+    const schema = withoutNullUnion(property)
     // 응답에만 담기는 속성(readOnly)은 보내지 않는다.
     if (schema.readOnly === true) continue
     const control = controlOf(name, schema)
@@ -288,7 +318,12 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
       ;(required.has(name) ? unsupported : skippedFields).push(`${name}(${control.unsupported})`)
       continue
     }
-    const requiredInput = required.has(name) && control.kind !== 'checkbox' && schema.default === undefined
+    const { nullable } = typesOf(schema)
+    const requiredInput =
+      required.has(name) &&
+      !nullable &&
+      schema.default === undefined &&
+      (control.kind !== 'checkbox' || control.mustCheck)
     const sample = sampleOf(schema, control)
     if (requiredInput && sample === undefined) withoutSample.push(name)
     const description = schema.description?.trim()
@@ -297,6 +332,9 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
       label: schema.title?.trim() || name,
       description: description === '' ? undefined : description,
       control,
+      required: required.has(name),
+      nullable,
+      defaultValue: schema.default,
       requiredInput,
       sample,
       invalidInput: invalidInputOf(schema, control),
@@ -304,7 +342,7 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
   }
   if (unsupported.length > 0) {
     throw new SchematicError(
-      `${operationId}의 요청 본문에 입력 요소로 만들 수 없는 필수 필드가 있어 폼을 만들지 않았습니다. 폼은 문자열(enum은 Select), 정수·숫자, 불리언 필드만 입력받습니다.\n${unsupported.map((field) => `  ${field}`).join('\n')}`,
+      `${operationId}의 요청 본문에 입력 요소로 만들 수 없는 필수 필드가 있어 폼을 만들지 않았습니다. 폼은 문자열(enum은 Select), 정수·숫자, 불리언 필드와 그 필드에 null을 더한 필드만 입력받습니다.\n${unsupported.map((field) => `  ${field}`).join('\n')}`,
     )
   }
   if (withoutSample.length > 0) {
@@ -318,6 +356,21 @@ function formFields(operationId: string, body: JsonSchema): { fields: FormField[
   return { fields, skippedFields }
 }
 
+/**
+ * 스키마 하나와 { type: 'null' }을 묶은 anyOf·oneOf(3.1에서 null을 더하는 흔한 방법)를 그 스키마에 null을 더한 것으로 푼다.
+ * title, description 같은 바깥의 설명은 그대로 쓴다. 그 밖의 스키마는 그대로 돌려준다.
+ */
+function withoutNullUnion(schema: JsonSchema): JsonSchema {
+  const { anyOf, oneOf, ...outer } = schema
+  const members = anyOf ?? oneOf
+  if (anyOf !== undefined && oneOf !== undefined) return schema
+  if (!Array.isArray(members) || members.length !== 2) return schema
+  const isNull = (member: JsonSchema) => [member.type].flat().join() === 'null'
+  const [first, second] = members as [JsonSchema, JsonSchema]
+  if (isNull(first) === isNull(second)) return schema
+  return { ...(isNull(first) ? second : first), ...outer, nullable: true }
+}
+
 /** 속성을 입력받을 공통 UI 컴포넌트. 입력 요소로 만들 수 없으면 그 이유(속성의 모양)를 돌려준다. */
 function controlOf(name: string, schema: JsonSchema): Control | Unsupported {
   const unsupported = (reason: string): Unsupported => ({ unsupported: reason })
@@ -325,24 +378,29 @@ function controlOf(name: string, schema: JsonSchema): Control | Unsupported {
   if (schema.oneOf !== undefined || schema.anyOf !== undefined || schema.allOf !== undefined || schema.not !== undefined) {
     return unsupported('스키마 조합')
   }
+  const { types } = typesOf(schema)
+  // null을 받는 필드도 같은 입력 요소로 받는다. 비워 두면 formResolver가 null을 보낸다. enum의 null은 선택지로 만들지 않는다.
+  const values = schema.enum?.filter((value) => value !== null)
+  if (types.every((type) => type === 'boolean') && (schema.const === true || (values?.length === 1 && values[0] === true))) {
+    return { kind: 'checkbox', mustCheck: true }
+  }
   if ('const' in schema) return unsupported('상수')
-  const { types, nullable } = typesOf(schema)
-  if (nullable) return unsupported('null 허용')
   if (types.length > 1) return unsupported('여러 타입')
-  const strings = schema.enum?.every((value) => typeof value === 'string') === true
+  if (values?.length === 0) return unsupported('enum')
+  const strings = values?.every((value) => typeof value === 'string') === true
   const type = types[0] ?? (strings ? 'string' : undefined)
   switch (type) {
     case 'string':
-      if (schema.enum !== undefined) {
-        return strings ? { kind: 'select', options: schema.enum as string[] } : unsupported('enum')
+      if (values !== undefined) {
+        return strings ? { kind: 'select', options: values as string[] } : unsupported('enum')
       }
       if (schema.format === 'binary') return unsupported('파일')
       return { kind: 'text', inputType: INPUT_TYPES.get(schema.format ?? '') ?? 'text' }
     case 'integer':
     case 'number':
-      return schema.enum === undefined ? { kind: 'number', integer: type === 'integer' } : unsupported('enum')
+      return values === undefined ? { kind: 'number', integer: type === 'integer' } : unsupported('enum')
     case 'boolean':
-      return schema.enum === undefined ? { kind: 'checkbox' } : unsupported('enum')
+      return values === undefined ? { kind: 'checkbox', mustCheck: false } : unsupported('enum')
     case 'array':
       return unsupported('배열')
     case 'object':
@@ -352,11 +410,15 @@ function controlOf(name: string, schema: JsonSchema): Control | Unsupported {
   }
 }
 
-/** schema의 type에서 null을 뺀 타입들과 null을 허용하는지(3.0의 nullable, 3.1의 type: [..., 'null']) */
+/**
+ * schema의 type에서 null을 뺀 타입들과 null을 허용하는지(3.0의 nullable, 3.1의 type: [..., 'null']).
+ * 재생성 계층(orval)은 enum에 null이 있어도 null을 받는 스키마를 만들므로 그것도 null을 허용하는 것으로 본다.
+ */
 function typesOf(schema: JsonSchema): { types: string[]; nullable: boolean } {
   const declared = schema.type === undefined ? [] : [schema.type].flat()
   const types = declared.filter((type) => type !== 'null')
-  return { types, nullable: schema.nullable === true || types.length !== declared.length }
+  const nullable = schema.nullable === true || types.length !== declared.length || schema.enum?.includes(null) === true
+  return { types, nullable }
 }
 
 /**
@@ -422,6 +484,43 @@ function validationCheckOf(fields: readonly FormField[]): ValidationCheck {
 }
 
 /**
+ * 비워 두면 실패하는 필수 입력(requiredInput)이 알리는 오류 메시지. formResolver가 내보내는 상수의 이름이다.
+ * requiredInput인 체크박스는 반드시 true여야 하는 체크박스뿐이다.
+ */
+function blankMessageOf(field: FormField): BlankMessage {
+  return field.control.kind === 'checkbox' ? 'MUST_CHECK_MESSAGE' : 'REQUIRED_MESSAGE'
+}
+
+/**
+ * 비워 두면 null을 보낼 수 있는 입력. 체크박스(늘 true나 false다)와 기본값이 있는 필드(비워 두면 기본값이 간다)는 빠진다.
+ * 필수 필드는 늘 null을, 선택 필드는 처음 값이 있던 입력을 비웠을 때만 null을 보낸다(formResolver).
+ */
+function clearableFields(fields: readonly FormField[]): FormField[] {
+  return fields.filter((field) => field.nullable && field.control.kind !== 'checkbox' && field.defaultValue === undefined)
+}
+
+/**
+ * 필드를 비워 두고(체크박스는 체크하지 않고) 제출하면 요청 본문에 담기는 값. 담기지 않으면 undefined다. formResolver와
+ * 재생성 계층의 스키마가 정하는 대로, 체크박스는 체크하지 않은 값(false. 반드시 true여야 하는 체크박스는 비워 둔 것으로 본다)이,
+ * 기본값이 있으면 그 값이, null을 받는 필수 필드는 null이 간다.
+ */
+function blankValueOf(field: FormField): unknown {
+  if (field.control.kind === 'checkbox' && !field.control.mustCheck) return false
+  if (field.defaultValue !== undefined) return field.defaultValue
+  return field.nullable && field.required ? null : undefined
+}
+
+/** filled의 필드에 sample을 넣고 나머지는 비워 둔 채 제출하면 보내는 요청 본문 */
+function expectedBodyOf(fields: readonly FormField[], filled: readonly FormField[]): Record<string, unknown> {
+  return Object.fromEntries(
+    fields.flatMap((field) => {
+      const value = filled.includes(field) ? field.sample : blankValueOf(field)
+      return value === undefined ? [] : [[field.name, value]]
+    }),
+  )
+}
+
+/**
  * 폼이 뮤테이션에 넘기는 값. fetch 함수의 인자는 경로 파라미터, 요청 본문, 쿼리 파라미터 순서(orval)이므로 경로 파라미터 수로
  * 요청 본문 인자를 찾는다. 필수 경로 파라미터는 폼의 props로 받고, 선택 인자(쿼리 파라미터 등)는 넘기지 않는다.
  * mutate에는 mutation Schematic의 훅처럼 인자가 하나면 그 값을, 여럿이면 인자 이름을 키로 한 객체를 넘긴다.
@@ -469,10 +568,10 @@ function componentSource(form: FormModel): string {
     ...(usesRegister || uses('checkbox') ? ['FieldLabel'] : []),
   ]
   const imports = [
-    `import { ${usesController ? 'Controller, ' : ''}useForm } from 'react-hook-form'`,
+    ...(usesController ? [`import { Controller } from 'react-hook-form'`] : []),
     `import { ${form.hook.name} } from '${form.hook.moduleSpecifier}'`,
     `import { ${form.schema.name} } from '${form.schema.moduleSpecifier}'`,
-    `import { formResolver } from '${FORM_RESOLVER_IMPORT}'`,
+    `import { useSchemaForm } from '${SCHEMA_FORM_IMPORT}'`,
     `import { Button } from '@/shared/ui/button'`,
     ...(uses('checkbox') ? [`import { Checkbox } from '@/shared/ui/checkbox'`] : []),
     `import { ${fieldParts.join(', ')} } from '@/shared/ui/field'`,
@@ -513,12 +612,14 @@ ${form.props.map(({ name, type }) => `  /** 요청 경로의 ${name} */\n  ${nam
     'formState: { errors }',
   ]
   const checkboxes = fields.filter((field) => field.control.kind === 'checkbox')
-  const defaultValues =
+  // 처음 값(defaultValues)은 useSchemaForm이 useForm과 formResolver에 함께 넘긴다.
+  const schemaFormArguments =
     checkboxes.length === 0
-      ? ''
-      : `
-    // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 값을 넣지 않은 것으로 본다.
-    defaultValues: { ${checkboxes.map((field) => `${JSON.stringify(field.name)}: false`).join(', ')} },`
+      ? form.schema.name
+      : `${form.schema.name}, {
+    // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 명세에 따라 빼거나 null로 보낸다.
+    defaultValues: { ${checkboxes.map((field) => `${JSON.stringify(field.name)}: false`).join(', ')} },
+  }`
 
   return `'use client'
 
@@ -527,14 +628,12 @@ ${imports.join('\n')}
 ${[...options, ...skipped, ...propsInterface].map((block) => `${block}\n\n`).join('')}/**
  * ${form.operationId}(${form.submitLabel})의 요청 본문을 입력받아 보내는 폼. 입력 값은 재생성 계층의 요청 본문 스키마(${form.schema.name})로
  * 검증하고, 제출하면 ${form.domainName} Query Domain의 ${form.hook.name}으로 보낸다. 성공하든 실패하든 알림(토스트)으로 알린다.
- * 레이블은 명세의 title(없으면 필드 이름)이다. 문구와 성공한 뒤의 동작(지금은 폼을 비운다)은 화면에 맞게 고친다.
+ * 레이블은 명세의 title(없으면 필드 이름)이다. 문구와 성공한 뒤의 동작(지금은 폼을 비운다)은 화면에 맞게 고친다.${nullableNote(fields)}
  */
 export function ${form.componentName}(${parameters}) {
   const {
     ${formMethods.join(',\n    ')},
-  } = useForm({
-    resolver: formResolver(${form.schema.name}),${defaultValues}
-  })
+  } = useSchemaForm(${schemaFormArguments})
   const mutation = ${form.hook.name}()
   const toast = useToast()
 
@@ -562,6 +661,26 @@ ${fields.map((field) => fieldSource(field)).join('\n')}
 `
 }
 
+/** 폼 컴포넌트의 설명에 더할, 비워 둔 null을 받는 입력(clearableFields)을 보내는 방법. 그런 입력이 없으면 빈 문자열이다. */
+function nullableNote(fields: readonly FormField[]): string {
+  const namesOf = (required: boolean) =>
+    clearableFields(fields)
+      .filter((field) => field.required === required)
+      .map((field) => field.name)
+      .join(', ')
+  const requiredNames = namesOf(true)
+  const optionalNames = namesOf(false)
+  return [
+    ...(requiredNames === '' ? [] : [`\n * null을 받는 필수 필드(${requiredNames})는 비워 두면 null을 보낸다.`]),
+    ...(optionalNames === ''
+      ? []
+      : [
+          `\n * null을 받는 선택 필드(${optionalNames})는 처음 값이 있던 입력을 비웠을 때만 null을 보내고(값을 지운다), 처음부터 비어 있으면 보내지 않는다.
+ * 현재 값을 채워 수정 폼으로 쓰려면 그 값을 useSchemaForm의 defaultValues에 더한다(useForm과 formResolver가 함께 받는다).`,
+        ]),
+  ].join('')
+}
+
 /** 필드 하나의 입력 요소. 레이블과 설명, 오류 메시지를 Field로 묶어 입력 요소의 접근 가능한 이름과 설명으로 잇는다. */
 function fieldSource(field: FormField): string {
   const error = `errors${IDENTIFIER.test(field.name) ? `.${field.name}` : `[${JSON.stringify(field.name)}]`}`
@@ -586,10 +705,13 @@ function fieldSource(field: FormField): string {
       const step = field.control.integer ? '' : ' step="any"'
       return inField([label, `<Input type="number"${step} {...register(${name}, { valueAsNumber: true })} />`])
     }
-    case 'select':
+    case 'select': {
+      // null을 받는 필드는 고른 값을 다시 비울 수 있게 맨 앞에 값을 비우는 선택지를 둔다. 고르면 null이 되어 formResolver가 명세대로 보낸다.
+      const clear = field.nullable ? ` clearLabel=${jsxAttribute(CLEAR_SELECT_LABEL)}` : ''
       return controller([
-        `<Select label=${jsxAttribute(field.label)} options={${optionsName(field)}} value={field.value ?? null} onValueChange={field.onChange} inputRef={field.ref} />`,
+        `<Select label=${jsxAttribute(field.label)}${clear} options={${optionsName(field)}} value={field.value ?? null} onValueChange={field.onChange} inputRef={field.ref} />`,
       ])
+    }
     case 'checkbox':
       return controller([
         `<FieldLabel>\n<Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />\n${jsxText(field.label)}\n</FieldLabel>`,
@@ -603,6 +725,7 @@ function storySource(form: FormModel): string {
   const args =
     form.props.length === 0 ? '' : `\n  args: { ${form.props.map(({ name, sample }) => `${name}: ${sample}`).join(', ')} },`
   const submit = `await userEvent.click(canvas.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
+  const blankMessage = check?.kind === 'blank' ? blankMessageOf(check.fields[0]) : undefined
   const validationStory = (() => {
     if (check === undefined) return `\n${noValidationCheck('검증 오류 스토리')}\n`
     if (check.kind === 'blank') {
@@ -614,7 +737,7 @@ export const ValidationErrors: Story = {
 
     const control = ${controlQuery(check.fields[0], 'canvas')}
     await waitFor(() => expect(control).toHaveAttribute('aria-invalid', 'true'))
-    await expect(control).toHaveAccessibleDescription(expect.stringContaining(REQUIRED_MESSAGE))
+    await expect(control).toHaveAccessibleDescription(expect.stringContaining(${blankMessage}))
   },
 }
 `
@@ -637,7 +760,7 @@ export const ValidationErrors: Story = {
   return `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect${check === undefined ? '' : ', waitFor'} } from 'storybook/test'
-${check?.kind === 'blank' ? `import { REQUIRED_MESSAGE } from '${FORM_RESOLVER_IMPORT}'\n` : ''}import { ${form.componentName} } from './${form.fileName}'
+${blankMessage === undefined ? '' : `import { ${blankMessage} } from '${FORM_RESOLVER_IMPORT}'\n`}import { ${form.componentName} } from './${form.fileName}'
 
 const queryClient = new QueryClient()
 
@@ -666,34 +789,69 @@ export const Default: Story = {
 ${validationStory}`
 }
 
-/** 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 오류를 알리고 보내지 않는지 본다. */
+/**
+ * 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 오류를 알리고 보내지 않는지 본다.
+ * 비워 두면 null을 보낼 수 있는 입력(clearableFields)이 있으면 필수 입력만 채워 보냈을 때 비워 둔 입력이 어떻게 가는지
+ * (null이나 생략)도 본다.
+ */
 function testSource(form: FormModel): string {
   const check = form.validationCheck
   const filled = form.fields.filter((field) => field.sample !== undefined)
+  const requiredInputs = form.fields.filter((field) => field.requiredInput)
   const element = `<${form.componentName}${form.props.map(({ name, sample }) => ` ${name}={${sample}}`).join('')} />`
   const response = form.responseMock === undefined ? '' : `\n      return ${form.responseMock}()`
   const mockImports = [form.mockHandler.name, ...(form.responseMock === undefined ? [] : [form.responseMock])]
-  const expectedBody = Object.fromEntries(filled.map((field) => [field.name, field.sample]))
   const submit = `await user.click(screen.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
+  // 테스트 사이에는 빈 줄을 하나 둔다. 마지막 테스트(validationTest)는 빈 줄로 시작한다.
+  const submitTest = (name: string, inputs: readonly FormField[]) => `test(${JSON.stringify(name)}, async () => {
+  const user = userEvent.setup()
+  const bodies = receivedBodies()
+  renderForm()
+
+  ${[...inputs.flatMap((field) => fillSource(field)), submit].join('\n  ')}
+
+  expect(await screen.findByText(${JSON.stringify(successTitle(form))})).toBeInTheDocument()
+  expect(bodies).toEqual([${JSON.stringify(expectedBodyOf(form.fields, inputs))}])
+})
+`
+  const clearable = clearableFields(form.fields)
+  const blankTest =
+    clearable.length === 0
+      ? ''
+      : `\n${submitTest(
+          clearable.some((field) => field.required)
+            ? '비워 둔 입력은 보내지 않고, null을 받는 필수 필드는 null로 보낸다'
+            : '비워 둔 입력은 보내지 않는다',
+          requiredInputs,
+        )}`
+  const blankFields = check?.kind === 'blank' ? check.fields : []
+  const blankMessages = [...new Set(blankFields.map((field) => blankMessageOf(field)))]
   const validationTest = (() => {
     if (check === undefined) return `\n${noValidationCheck('검증 실패 테스트')}\n`
     if (check.kind === 'blank') {
+      const errorChecks = blankMessages.map((message) => {
+        const fields = blankFields.filter((field) => blankMessageOf(field) === message)
+        const { variable, comment } = BLANK_ERRORS[message]
+        return `${comment}
+  const ${variable} = new RegExp(RegExp.escape(${message}))
+  for (const control of [
+    ${fields.map((field) => controlQuery(field, 'screen')).join(',\n    ')},
+  ]) {
+    expect(control).toHaveAttribute('aria-invalid', 'true')
+    expect(control).toHaveAccessibleDescription(${variable})
+  }`
+      })
+      const [only] = blankMessages
+      const name = blankMessages.length > 1 || only === undefined ? '비워 두거나 체크하지 않은' : BLANK_ERRORS[only].unfilled
       return `
-test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
+test('${name} 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
   renderForm()
 
   ${submit}
 
-  // 오류 메시지는 입력 요소의 설명(aria-describedby)으로 읽힌다. 명세의 description이 있는 필드는 그 설명과 함께 읽힌다.
-  const requiredError = new RegExp(RegExp.escape(REQUIRED_MESSAGE))
-  for (const control of [
-    ${check.fields.map((field) => controlQuery(field, 'screen')).join(',\n    ')},
-  ]) {
-    expect(control).toHaveAttribute('aria-invalid', 'true')
-    expect(control).toHaveAccessibleDescription(requiredError)
-  }
+  // 오류 메시지는 입력 요소의 설명(aria-describedby)으로 읽힌다. 명세의 description이 있는 필드는 그 설명과 함께 읽힌다.${errorChecks.join('')}
   expect(bodies).toEqual([])
 })
 `
@@ -722,7 +880,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ${mockImports.join(', ')} } from '${form.mockHandler.moduleSpecifier}'
-${check?.kind === 'blank' ? `import { REQUIRED_MESSAGE } from '${FORM_RESOLVER_IMPORT}'\n` : ''}import { server } from '@/shared/mocks/node'
+${blankMessages.length === 0 ? '' : `import { ${blankMessages.toSorted().join(', ')} } from '${FORM_RESOLVER_IMPORT}'\n`}import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { ${form.componentName} } from './${form.fileName}'
 
@@ -756,18 +914,7 @@ function receivedBodies(): unknown[] {
   return bodies
 }
 
-test('입력한 값을 요청 본문으로 보내고 성공을 알린다', async () => {
-  const user = userEvent.setup()
-  const bodies = receivedBodies()
-  renderForm()
-
-  ${filled.flatMap((field) => fillSource(field)).join('\n  ')}
-  ${submit}
-
-  expect(await screen.findByText(${JSON.stringify(successTitle(form))})).toBeInTheDocument()
-  expect(bodies).toEqual([${JSON.stringify(expectedBody)}])
-})
-${validationTest}`
+${submitTest('입력한 값을 요청 본문으로 보내고 성공을 알린다', filled)}${blankTest}${validationTest}`
 }
 
 /** 테스트가 필드에 sample을 입력하는 문장 */

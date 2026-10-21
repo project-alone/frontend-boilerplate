@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`, 확장 지점 세 곳(`next.config`, instrumentation, instrumentation-client)에 조각을 더하는 `recipes/sentry/`, 그와 같은 instrumentation-client에 페이지뷰 조각을 더하는 `recipes/analytics/`, 진행률을 알려 주는 요청으로 파일을 올리는 `recipes/file-upload/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -441,7 +441,7 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 ## 예: multi-step-form
 
-입점 신청서(`/partners/apply`)를 사업자 정보 → 담당자 정보 → 판매 계획 → 신청 내용 확인의 네 단계로 나눠 입력받고, 확인 단계에서 한 번에 보내는 Recipe다. table처럼 명세 조각으로 요청 본문이 큰 operation `submitPartnerApplication`(tag `partners`)을 더하고, Query Domain(`src/queries/partners/`)은 `npm run g -- mutation submitPartnerApplication`이 만든 뮤테이션 훅을 그대로 담는다. 검증 규칙을 명세에서만 가져오도록(ADR-0003) 단계마다 재생성 계층의 요청 본문 스키마에서 그 단계의 필드만 고른 스키마(`.pick`)로 검증하고, 확인 단계에서 요청 본문 스키마 전체로 한 번 더 검증한 뒤 보낸다. 입력 요소와 오류 표시, 알림은 `form` Schematic이 만드는 폼을 따른다(선택지의 이름과 약관 동의의 오류 문구만 화면에 맞게 적는다). 단계마다의 제목, 스키마, 입력 요소, 확인 단계에 보일 값은 `partner-application-steps.tsx`의 단계 목록 한 곳에 모아, 단계를 더하거나 순서를 바꿀 때 그 목록만 고친다.
+입점 신청서(`/partners/apply`)를 사업자 정보 → 담당자 정보 → 판매 계획 → 신청 내용 확인의 네 단계로 나눠 입력받고, 확인 단계에서 한 번에 보내는 Recipe다. table처럼 명세 조각으로 요청 본문이 큰 operation `submitPartnerApplication`(tag `partners`)을 더하고, Query Domain(`src/queries/partners/`)은 `npm run g -- mutation submitPartnerApplication`이 만든 뮤테이션 훅을 그대로 담는다. 검증 규칙을 명세에서만 가져오도록(ADR-0003) 단계마다 재생성 계층의 요청 본문 스키마에서 그 단계의 필드만 고른 스키마(`.pick`)로 검증하고, 확인 단계에서 요청 본문 스키마 전체로 한 번 더 검증한 뒤 보낸다. 입력 요소와 오류 표시, 알림은 `form` Schematic이 만드는 폼을 따른다(선택지의 이름만 화면에 맞게 적고, 약관 동의는 명세의 `const: true`대로 `MUST_CHECK_MESSAGE`로 알린다). 단계마다의 제목, 스키마, 입력 요소, 확인 단계에 보일 값은 `partner-application-steps.tsx`의 단계 목록 한 곳에 모아, 단계를 더하거나 순서를 바꿀 때 그 목록만 고친다.
 
 다른 다단계 폼에도 쓸 부품은 `src/shared/multi-step-form/`에 둔다. `useFormSteps`가 단계와 모든 단계의 값(검증하기 전의 값)을 들고 단계를 옮길 때 포커스를 단계 제목으로 옮기며, `StepForm`이 단계마다 React Hook Form 폼을 하나씩 만들어 "다음"은 그 단계의 스키마로 검증하고 "이전"은 검증 없이 값을 넘긴다. 단계와 값은 `sessionStorage`에 둬 새로 고쳐도 이어 가고, 그린 뒤에 읽으므로 hydration이 어긋나지 않는다. 페이지 뼈대는 미리 렌더링하고 값은 브라우저가 들고 있다가 신청할 때만 요청하므로 두 Rendering Mode에서 같은 코드로 동작한다. MSW 목은 명세의 `example`만으로 충분해 직접 만든 핸들러가 없다.
 
@@ -527,3 +527,55 @@ table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared
 | 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `robots.test.ts`, `e2e/seo.spec.ts`                                                                                                     |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                                              |
 | Rendering Mode | `server`, `static-export`                                                                                                                                                                                                                                         |
+
+## 예: sentry
+
+Sentry의 Next.js SDK(`@sentry/nextjs`)로 브라우저와 서버의 오류를 보고하는 Recipe다. Base 파일을 패치하지 않고 확장 지점 세 곳에 조각을 더한다. `withSentryConfig`는 다른 래퍼보다 바깥이어야 하므로 next.config의 `order`가 0이고, SDK가 다른 조각보다 먼저 초기화되도록 instrumentation과 instrumentation-client의 `order`도 0이다. `static-export`에는 서버가 없어 브라우저의 오류만 보낸다.
+
+SDK는 `NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 때만 초기화하므로, 개발 서버와 테스트, 목 빌드(E2E, GitLab CI의 `build` 잡. ADR-0011)는 DSN이 있어도 아무것도 보내지 않는다. 브라우저 코드는 `API_MOCKING`을 읽을 수 없으므로, 목 빌드인지는 `withSentry`가 빌드할 때 `next.config`의 `env`로 코드에 박는다(`SENTRY_MOCK_BUILD`). 소스맵은 Sentry 인증 토큰이 있는 빌드에서만 만들어 올린다. 그대로 두면 `withSentryConfig`가 Turbopack 빌드에서 브라우저용 소스맵을 켜므로, 토큰 없이 만든 배포 결과에 올리지 못한 소스맵이 남아 소스가 드러난다. 빌드 도구가 Sentry에 사용 통계를 보내는 기능(`telemetry`)도 끈다. 하네스(`harness/sentry.test.ts`)는 DSN을 하네스가 띄운 가짜 수집 서버(로컬)로 가리켜 만든 배포용 빌드가 브라우저와 서버의 오류를 보내는지, 목 빌드와 개발 서버는 DSN이 있어도 보내지 않는지 본다. 진짜 Sentry로는 보내지 않는다.
+
+| 선언하는 것    | `recipes/sentry/`                                                                                                                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/shared/sentry/`(SDK를 초기화하는 조건과 설정, 세 조각)                                                                                                                                                                                                                        |
+| 확장 지점      | `extensions.json`: next.config `withSentry`(order 0), instrumentation `sentryInstrumentation`(order 0), instrumentation-client `sentryClientInstrumentation`(order 0). 환경 변수: `.env.example`(`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, 소스맵 업로드), `process-env.sentry.d.ts` |
+| 설정 패치      | 없음                                                                                                                                                                                                                                                                               |
+| npm 의존성     | `@sentry/nextjs`                                                                                                                                                                                                                                                                   |
+| 자기 테스트    | `src/shared/sentry/sentry.test.ts`, `sentry-instrumentation.test.ts`, `e2e/sentry.spec.ts`                                                                                                                                                                                         |
+| 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                               |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                                                                                                                          |
+
+## 예: analytics
+
+특정 분석 서비스에 묶이지 않는 페이지뷰·이벤트 인터페이스(`trackPageView`, `trackEvent`)와, 아무 데도 보내지 않는 기본 공급자를 담는 Recipe다. 분석 서비스의 SDK는 담지 않고, 프로젝트가 `src/shared/analytics/analytics-provider.ts`의 공급자만 바꿔 붙인다. 기본 공급자는 개발 서버에서는 브라우저 콘솔에만 남기고, 배포용 빌드와 테스트에서는 아무것도 하지 않는다.
+
+페이지뷰는 instrumentation-client 조각이 남긴다. 브라우저가 페이지를 새로 불러오면 `register`가, App Router로 옮겨 가면 `onRouterTransitionStart`가 남긴다. 루트 레이아웃의 Provider에서 `usePathname`·`useSearchParams`로 남기지 않는 것은, `useSearchParams`를 Suspense 경계로 감싸지 않으면 미리 렌더링하는 페이지가 브라우저 렌더링으로 바뀌어 빌드가 실패하기 때문이다. sentry와 같은 확장 지점에 조각을 더하지만 서로 기대지 않으므로 따로도 함께도 켤 수 있다. 하네스(`harness/analytics.test.ts`)는 개발자가 하듯 공급자를 바꿔 빌드한 앱에서 페이지뷰와 이벤트가 그 공급자로 가는지도 본다.
+
+| 선언하는 것    | `recipes/analytics/`                                                                  |
+| -------------- | ------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/shared/analytics/`(인터페이스, 공급자, 페이지뷰 조각)                            |
+| 확장 지점      | `extensions.json`: instrumentation-client `analyticsClientInstrumentation`(order 200) |
+| 설정 패치      | 없음                                                                                  |
+| npm 의존성     | 없음                                                                                  |
+| 자기 테스트    | `src/shared/analytics/analytics.test.ts`, `e2e/analytics.spec.ts`                     |
+| 필요한 Recipe  | 없음                                                                                  |
+| Rendering Mode | `server`, `static-export`                                                             |
+
+## 예: file-upload
+
+진행률, 취소, 실패 후 재시도를 갖춘 파일 업로드(`/upload`)를 보여 주는 Recipe다. 명세 조각으로 파일 하나를 `multipart/form-data`로 받는 업로드 operation `uploadFile`(tag `files`)을 더하고, 받는 형식은 `encoding.file.contentType`에, 크기 제한(5MB)은 OpenAPI에 정해진 표기가 없어 `file` 필드의 확장 필드 `x-max-bytes`에 적는다. 재생성 계층이 이 기준을 만들지 않으므로 `src/shared/upload/upload-policy.ts`에 같은 값을 두고(명세와 다르면 `upload-policy.test.ts`가 실패한다), 업로더가 올리기 전에 검사하고 목 백엔드도 같은 기준으로 413·415를 돌려준다.
+
+fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요한 업로드는 `src/shared/upload/api-upload.ts`의 `apiUpload`가 XMLHttpRequest로 보낸다. 보내는 곳과 결과는 Base의 `apiFetch`와 같다. 브라우저의 `apiFetch`처럼 `base-url.ts`의 `browserBaseUrl`(`server`는 BFF 프록시, `static-export`는 백엔드)로 보내고, 2xx가 아니면 `ApiError`로 실패하며, 응답을 명세의 Zod 스키마로 검증한다. Query Domain(`src/queries/files/`)은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꾸고 진행률과 취소(`signal`)를 `mutate`의 값으로 받는다. Base의 BFF 프록시는 multipart를 포함한 본문을 바이트 그대로 넘기므로 고치지 않는다. 다만 본문을 다 받은 뒤 넘기므로, 훨씬 큰 파일을 받게 되면 프록시를 거치지 않는 방식을 검토한다(Recipe의 README 절).
+
+실패와 취소를 E2E와 개발 서버에서 늘 같게 재현하도록, 직접 만든 MSW 핸들러(`src/shared/mocks/files.ts`)가 파일 이름으로 응답을 고른다(`slow`는 늦게 답하고, `flaky`는 그 이름으로 처음 올릴 때 실패한다). table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/files`)가 겹치지 않으므로 `order`는 같은 100이다.
+
+`static-export`에서는 브라우저가 다른 출처의 백엔드를 직접 부르고, XMLHttpRequest에 `upload` 이벤트를 달면 브라우저가 CORS preflight를 먼저 보낸다. 그래서 목 백엔드는 preflight에 답하고 응답에 CORS 헤더를 붙인다(Vitest의 jsdom도 CORS를 검사한다). 브라우저의 MSW(서비스 워커)는 본문을 네트워크로 보내지 않고 받아 진행률이 중간값 없이 끝나므로, E2E는 Chromium의 네트워크 흉내로 업로드를 늦추고 중간값은 요청이 네트워크를 지나는 `server`에서만 본다.
+
+| 선언하는 것    | `recipes/file-upload/`                                                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`                                            |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`. `extensions.json`: MSW 핸들러 `filesHandlers`(100)               |
+| 설정 패치      | 없음                                                                                                                                                                         |
+| npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                                                                         |
+| 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `upload-policy.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `file-uploader.stories.tsx`, `e2e/file-upload.spec.ts` |
+| 필요한 Recipe  | 없음                                                                                                                                                                         |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                    |

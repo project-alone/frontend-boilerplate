@@ -1,5 +1,5 @@
 # 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/table/openapi.yaml
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/file-upload/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/table/openapi.yaml
 
 # API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
 # 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
@@ -16,6 +16,8 @@ tags:
     description: 인증
   - name: stats
     description: 대시보드 통계
+  - name: files
+    description: 파일
   - name: articles
     description: 게시글
   - name: partners
@@ -234,6 +236,61 @@ paths:
                 - channel: 제휴 마켓
                   currentMonth: 12700000
                   previousMonth: 9300000
+  /files:
+    post:
+      operationId: uploadFile
+      summary: 파일 업로드
+      description: >-
+        파일 하나를 multipart/form-data의 file 필드로 받는다. 5MB(5,242,880바이트) 이하의 PNG, JPEG, PDF, 텍스트 파일만 받고, 더 크면 413, 다른 형식이면 415로 거절한다.
+      tags: [files]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+            encoding:
+              file:
+                # 받는 형식. 업로더의 기준(src/shared/upload/upload-policy.ts)과 같아야 한다(upload-policy.test.ts).
+                contentType: image/png, image/jpeg, application/pdf, text/plain
+      responses:
+        '201':
+          description: 받은 파일
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFile'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 file-upload Recipe의 핸들러(src/shared/mocks/files.ts)가
+              # 올린 파일의 이름·크기·형식을 담아 대신 답한다.
+              example:
+                id: file-1
+                name: report.pdf
+                size: 1024
+                contentType: application/pdf
+        '400':
+          description: file 필드에 파일이 없다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: multipart/form-data의 file 필드에 파일을 담아 보내 주세요.
+        '413':
+          description: 파일이 5MB보다 크다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: 5MB 이하의 파일만 올릴 수 있습니다.
+        '415':
+          description: 받지 않는 형식이다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: PNG, JPEG, PDF, 텍스트 파일만 올릴 수 있습니다.
   /articles:
     get:
       operationId: listArticles
@@ -580,6 +637,39 @@ components:
           type: integer
           minimum: 0
           description: 지난달 매출(원)
+    FileUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: 올릴 파일. 5MB(5,242,880바이트)까지 받는다.
+          # 받는 가장 큰 크기(바이트). OpenAPI에는 파일 크기를 적는 표기가 없어 확장 필드로 적는다(maxLength는 글자 수이고,
+          # orval이 파일 스키마에 맞지 않는 Zod 검사를 만든다). 업로더의 기준과 같아야 한다(upload-policy.test.ts).
+          x-max-bytes: 5242880
+    UploadedFile:
+      type: object
+      required: [id, name, size, contentType]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 올린 파일의 이름
+        size:
+          type: integer
+          description: 바이트 단위 크기
+        contentType:
+          type: string
+          description: 파일의 형식(MIME 타입)
+    UploadError:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: 사용자에게 보여 줄 거절 이유
     Article:
       type: object
       required: [id, title, summary, publishedAt]

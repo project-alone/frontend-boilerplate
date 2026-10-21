@@ -2,7 +2,7 @@
 >
 > Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe를 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`)나 Recipe(`recipes/<이름>/`)를 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md)).
 >
-> - 켠 Recipe: `auth`, `chart`, `dark-mode`, `docker`, `i18n`, `infinite-list`, `multi-step-form`, `optimistic-update`, `route-rendering`, `seo`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
+> - 켠 Recipe: `analytics`, `auth`, `chart`, `dark-mode`, `docker`, `file-upload`, `i18n`, `infinite-list`, `multi-step-form`, `optimistic-update`, `route-rendering`, `sentry`, `seo`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
 > - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`, `src/shared/i18n/en.json`, `src/shared/i18n/ko.json`, `src/shared/seo/pretendard-bold.woff`, `src/shared/seo/pretendard-license.txt`
 > - 실행: 레포 최상위에서 `npm run showcase:dev`. Showcase를 레포 밖의 디렉터리에 복사해 설치하고 MSW 목으로 개발 서버를 띄웁니다. 아래는 Starter의 README이고, 그 명령은 그 디렉터리에서 실행합니다.
 
@@ -87,15 +87,15 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 
 공통 컴포넌트는 `src/shared/ui/`에 있습니다. 키보드 조작과 스크린 리더 지원은 [Base UI](https://base-ui.com)가 맡고, 모양은 디자인 토큰으로 만든 Tailwind CSS 유틸리티가 정합니다. 특정 디자인 시스템의 모양은 담겨 있지 않습니다.
 
-| 컴포넌트                                                | 쓰는 법                                                                                                                            |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                                                | `variant`(`primary`, `secondary`, `danger`), `size`(`sm`, `md`). 링크를 버튼처럼 보이게 할 때는 `<a className={buttonVariants()}>` |
-| `Field`, `FieldLabel`, `FieldDescription`, `FieldError` | 폼 컨트롤 하나에 레이블, 설명, 오류 메시지를 잇습니다.                                                                             |
-| `Input`                                                 | `<Field><FieldLabel>이름</FieldLabel><Input /></Field>`                                                                            |
-| `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                            |
-| `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`                                                            |
-| `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                        |
-| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                        |
+| 컴포넌트                                                | 쓰는 법                                                                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                                                | `variant`(`primary`, `secondary`, `danger`), `size`(`sm`, `md`). 링크를 버튼처럼 보이게 할 때는 `<a className={buttonVariants()}>`                   |
+| `Field`, `FieldLabel`, `FieldDescription`, `FieldError` | 폼 컨트롤 하나에 레이블, 설명, 오류 메시지를 잇습니다.                                                                                               |
+| `Input`                                                 | `<Field><FieldLabel>이름</FieldLabel><Input /></Field>`                                                                                              |
+| `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                                              |
+| `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`. 고른 값을 다시 비울 수 있게 하려면 `clearLabel="선택 안 함"`(비우면 `null`) |
+| `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                                          |
+| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                                          |
 
 컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 훅을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
 
@@ -193,11 +193,38 @@ const {
   register,
   handleSubmit,
   formState: { errors },
-} = useForm({ resolver: formResolver(CreateProductBody) })
+} = useSchemaForm(CreateProductBody)
 ```
 
-- `src/shared/form/form-resolver.ts`의 `formResolver(schema)`를 `useForm`의 `resolver`로 넘깁니다. 제출 핸들러(`handleSubmit`)는 검증을 통과한 값을 받습니다.
-- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 값을 넣지 않은 것으로 보고 검증 전에 뺍니다. 비워 둔 선택 필드는 요청에 담기지 않고, 비워 둔 필수 필드는 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다. 그 밖의 오류는 Zod의 한국어 메시지입니다.
+- `src/shared/form/use-schema-form.ts`의 `useSchemaForm(schema, { defaultValues })`은 스키마로 검증하는 `useForm`입니다. `src/shared/form/form-resolver.ts`의 `formResolver(schema)`를 `resolver`로 두고, 처음 값(`defaultValues`)을 `useForm`과 `formResolver`에 함께 넘깁니다. `mode` 같은 `useForm`의 다른 옵션도 함께 넘기고, 돌려주는 값은 `useForm`과 같습니다. 제출 핸들러(`handleSubmit`)는 검증을 통과한 값을 받습니다.
+- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 명세에 따라 검증 전에 바꿉니다. "비우기"(`null`)와 "보내지 않기"(키를 뺌)를 이렇게 나눕니다.
+
+  | 비워 둔 필드                                                                                | 요청 본문                                                                                |
+  | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | 선택 필드                                                                                   | 보내지 않습니다                                                                          |
+  | 필수 필드                                                                                   | 보내지 않고 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다                         |
+  | null을 받는 필수 필드(`type: [string, 'null']`, `nullable: true`, `anyOf`의 `type: 'null'`) | `null`을 보냅니다                                                                        |
+  | null을 받는 선택 필드                                                                       | 처음 값이 있던 입력을 비웠으면 `null`(값을 지움), 처음부터 비어 있었으면 보내지 않습니다 |
+
+- 기본값(`default`)이 있는 필드는 필수 필드여도 선택 필드처럼 다룹니다. 보내지 않는 입력에는 재생성 계층의 스키마가 기본값을 넣습니다.
+- null을 받는 선택 필드의 "처음 값"은 `useSchemaForm`의 `defaultValues`입니다. 현재 값을 채운 수정 폼은 그 값을 `useSchemaForm`에 한 번만 넘기면 `useForm`과 `formResolver`가 함께 받습니다. 넘기지 않으면 처음 값이 없는 것으로 보므로 비워 둔 입력을 보내지 않습니다. 사용자가 손대지 않은 필드까지 `null`로 지우지 않도록(PATCH) 이렇게 정했습니다. `reset(values)`로 처음 값을 바꾸면 `formResolver`는 바뀐 값을 모르므로, 새 처음 값으로 폼을 다시 만듭니다(컴포넌트의 `key`를 바꿉니다). `useForm`에 `resolver`를 직접 넘길 때는 같은 값을 `formResolver(schema, { defaultValues })`에도 넘깁니다.
+
+  ```tsx
+  const form = useSchemaForm(UpdateProfileBody, {
+    defaultValues: { nickname: profile.nickname, bio: profile.bio },
+  })
+  ```
+
+- 반드시 체크해야 하는 체크박스(약관 동의 등)는 명세에 `const: true`나 `enum: [true]`로 적습니다. 재생성 계층의 스키마가 `true`만 받으므로, 체크하지 않으면 `MUST_CHECK_MESSAGE`("반드시 체크해야 합니다.")로 알리고 보내지 않습니다. 선택 필드면 체크하지 않았을 때 보내지 않습니다. `type: boolean`만 적은 필드는 체크하지 않으면 `false`를 보내고 검증을 통과합니다.
+
+  ```yaml
+  agreed:
+    type: boolean
+    const: true # 또는 enum: [true]
+    title: 약관에 동의합니다
+  ```
+
+- 그 밖의 오류는 Zod의 한국어 메시지입니다.
 - 숫자 입력은 `register(name, { valueAsNumber: true })`로 숫자로 바꿉니다.
 - 입력 요소는 공통 UI를 씁니다. `Field`에 `invalid`를, `FieldError`에 `match`와 오류 메시지를 넘기면 입력 요소에 `aria-invalid`가 붙고 오류 메시지가 입력 요소의 설명(`aria-describedby`)으로 읽힙니다. `Select`, `Checkbox`처럼 값을 직접 다루는 컴포넌트는 React Hook Form의 `Controller`로 잇습니다.
 - 폼 테스트는 `@testing-library/user-event`로 사람처럼 입력하고, 요청은 MSW가 받습니다.
@@ -264,21 +291,26 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 ```
 
 - JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`), 스토리(`.stories.tsx`), 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
-- 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `formResolver`로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
+- 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `useSchemaForm`으로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
 - 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
 
-  | 명세의 속성                              | 입력 요소                                                                                |
-  | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-  | `string`                                 | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                  |
-  | `string`의 `enum`                        | `Select`(선택지의 레이블은 enum 값)                                                      |
-  | `integer`, `number`                      | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                  |
-  | `boolean`                                | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                           |
-  | 그 밖(배열, 객체, null 허용, `oneOf` 등) | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다 |
+  | 명세의 속성                               | 입력 요소                                                                                                                                     |
+  | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `string`                                  | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                                                                       |
+  | `string`의 `enum`                         | `Select`(선택지의 레이블은 enum 값)                                                                                                           |
+  | `integer`, `number`                       | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                                                                       |
+  | `boolean`                                 | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                                                                                |
+  | `boolean`의 `const: true`, `enum: [true]` | `Checkbox`. 체크하지 않으면 보내지 않고 `MUST_CHECK_MESSAGE`로 알립니다(필수 필드)                                                            |
+  | 위 타입에 null을 더한 것                  | 같은 입력 요소. 비워 두면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. `enum`의 `null`은 선택지 대신 값을 비우는 "선택 안 함"이 됩니다 |
+  | 그 밖(배열, 객체, `oneOf` 등)             | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다                                                      |
+
+- null을 더하는 방법은 3.1의 `type: [string, 'null']`, 3.0의 `nullable: true`, 스키마 하나와 `{ type: 'null' }`을 묶은 `anyOf`·`oneOf`, `enum`에 넣은 `null`을 모두 받습니다. 체크박스는 null을 받는 필드여도 늘 `true`나 `false`를 보냅니다. null을 받는 필드의 `Select`는 목록 맨 앞에 "선택 안 함"(`clearLabel`)을 두어 고른 값을 다시 비울 수 있고, 비우면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. 그 밖의 `Select`는 고른 값을 다시 비울 수 없으므로, 비울 수 있어야 하면 `clearLabel`을 더합니다.
 
 - 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
 - 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.
-- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
-- 검증 실패는 비워 둔 필수 입력으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
+- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드(null을 받는 필드는 빼고)는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
+- null을 받는 입력(체크박스와 기본값이 있는 필드는 빼고)이 있으면 필수 입력만 채워 제출했을 때 비워 둔 입력이 `null`로 가거나 빠지는지도 봅니다. 폼은 처음 값 없이 시작하므로, 처음 값이 있던 선택 필드를 비우는 경우(`useSchemaForm`의 `defaultValues`)는 `form-resolver.test.ts`와 `use-schema-form.test.ts`가 확인합니다. 수정 폼으로 쓰려면 현재 값을 `useSchemaForm`의 `defaultValues`에 더합니다.
+- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
 - 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 
@@ -327,6 +359,48 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 공통 UI의 컴포넌트는 다른 공통 컴포넌트처럼 디자인 토큰 유틸리티와 `cva` 변형(`<이름>Variants`)으로 모양을 정하고, `className`은 배치에만 받습니다. 키보드 조작이나 스크린 리더 지원이 필요한 부품이면 `<div>` 대신 Base UI 부품을 감쌉니다(예: `button.tsx`).
 - 만든 직후 스토리는 `npm run test:storybook`의 접근성(axe) 검사를, 테스트는 `npm test`를 통과합니다. 내용을 바꾸면 스토리의 `play`와 테스트도 함께 고칩니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다. 확장자만 다른 파일(`<이름>.ts` 등)도 같은 import 경로로 풀리므로 이미 있는 것으로 봅니다.
+
+## 분석(analytics)
+
+`analytics` Recipe로 넣었습니다. 특정 분석 서비스에 묶이지 않는 페이지뷰·이벤트 인터페이스와, 아무 데도 보내지 않는 기본 구현입니다. 분석 서비스의 SDK는 들어 있지 않습니다.
+
+| 위치                                                       | 내용                                                                                                                                         |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/analytics/analytics.ts`                        | 앱 코드가 부르는 `trackEvent(name, properties)`, `trackPageView(url)`과 공급자의 모양(`AnalyticsProvider`)                                   |
+| `src/shared/analytics/analytics-provider.ts`               | 페이지뷰와 이벤트를 실제로 보낼 곳(`analyticsProvider`). 분석 서비스를 붙일 때는 이 파일만 바꿉니다                                          |
+| `src/shared/analytics/analytics-instrumentation-client.ts` | 페이지뷰. 브라우저가 페이지를 새로 불러오면 앱 코드보다 먼저, App Router로 옮겨 가면 옮겨 가기 시작할 때(`onRouterTransitionStart`) 남깁니다 |
+
+페이지뷰 조각은 `src/instrumentation-client.ts`에 들어가 있습니다(위 "앱 조립 파일").
+
+- 이벤트: 브라우저 코드(예: 버튼의 `onClick`)에서 `trackEvent('signup_completed', { plan: 'pro' })`처럼 부릅니다. 이름은 snake_case로 짓고, 속성에는 문자열·숫자·불리언만 담습니다. 이메일, 이름 같은 개인정보는 담지 않습니다. 페이지뷰는 저절로 남으므로 부르지 않습니다.
+- 페이지뷰의 주소는 경로와 쿼리 문자열입니다(예: `/products?page=2`). 쿼리 문자열에 개인정보가 담기는 화면이 있으면 공급자에서 빼고 보냅니다. App Router로 옮겨 갈 때는 옮겨 가기 시작할 때 요청한 주소로 남기므로, 도중에 redirect되면(예: proxy가 로그인 페이지로 보냄) 처음 요청한 주소가 남고 도중에 취소된 이동도 남습니다.
+- 기본 구현: 개발 서버(`npm run dev`)에서는 브라우저 콘솔에 `[analytics] page_view /products` 같은 줄만 남기고, 배포용 빌드와 테스트에서는 아무것도 하지 않습니다. 그래서 공급자를 붙이기 전에는 어디에도 보내지 않습니다.
+- 분석 서비스 붙이기: `analytics-provider.ts`의 `analyticsProvider`를 그 서비스로 보내는 공급자로 바꿉니다. 측정 ID 같은 값은 `NEXT_PUBLIC_` 환경 변수로 받아 `.env.example`과 `process-env.d.ts`에 적고, 개발과 테스트에서 보내지 않도록 배포용 빌드(`NODE_ENV`가 `production`)에 그 값이 있을 때만 붙입니다. E2E와 GitLab CI의 목 빌드도 `production`이므로 그 값은 배포용 빌드를 만드는 곳에만 넣습니다(GitLab CI/CD 변수라면 배포 잡의 environment로 범위를 정하고, `.env.production.local`에 두지 않습니다). 이 모듈은 instrumentation-client가 앱 코드보다 먼저 불러오고 클라이언트 컴포넌트를 서버에서 렌더링할 때도 불러오므로, 모듈 최상위에서는 SDK를 불러오거나 초기화하지 않고 처음 보낼 때 브라우저(`typeof window !== 'undefined'`)에서 한 번 합니다. GA4라면 다음과 같습니다. `gtag.js`는 `src/app/layout.tsx`에서 `next/script`로 불러오고, 페이지뷰를 두 번 남기지 않도록 `gtag('config', <측정 ID>, { send_page_view: false })`로 GA4의 자동 페이지뷰를 끕니다. Amplitude라면 `@amplitude/analytics-browser`의 `init`을 처음 보낼 때 한 번 부르고 `track(name, properties)`로 보냅니다.
+
+  ```ts
+  const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+  const gtag = (...args: unknown[]) => {
+    ;(window as { gtag?: (...args: unknown[]) => void }).gtag?.(...args)
+  }
+
+  const ga4Provider: AnalyticsProvider = {
+    trackPageView: (url) => {
+      gtag('event', 'page_view', { page_location: new URL(url, window.location.origin).href })
+    },
+    trackEvent: (name, properties) => {
+      gtag('event', name, properties)
+    },
+  }
+
+  export const analyticsProvider: AnalyticsProvider =
+    process.env.NODE_ENV === 'production' && measurementId !== undefined && measurementId !== ''
+      ? ga4Provider
+      : process.env.NODE_ENV === 'development'
+        ? consoleProvider
+        : noopProvider
+  ```
+
+- 테스트: `src/shared/analytics/analytics.test.ts`(개발 서버에서 콘솔에 남기는 페이지뷰와 이벤트, 배포용 빌드와 테스트에서는 아무것도 하지 않음), `e2e/analytics.spec.ts`(공급자를 붙이지 않은 앱은 페이지를 열고 옮겨도 앱 밖으로 요청을 보내지 않고 콘솔에도 남기지 않음). 공급자를 바꾸면 `analytics.test.ts`의 기본 구현 테스트도 그 공급자에 맞게 고칩니다.
 
 ## 인증
 
@@ -467,6 +541,29 @@ docker:
 - `e2e/health.spec.ts`: 빌드한 앱에서 상태 확인 주소가 캐시하지 않는 200 응답을 돌려준다.
 - 이미지 자체(빌드, root가 아닌 사용자, `HEALTHCHECK`, 정적 파일과 `public`, 목을 켠 빌드의 거부, 목 이미지)는 Docker가 필요해 이 프로젝트의 스크립트로는 검사하지 않습니다. Generator를 배포하기 전에 Generator의 하네스가 같은 `Dockerfile`로 검사했습니다. `Dockerfile`을 고친 뒤에는 위의 `docker build`와 `docker run`으로 이미지를 만들어 띄우고 `/api/health`와 페이지가 응답하는지 확인합니다.
 
+## 파일 업로드
+
+`file-upload` Recipe로 넣었습니다. `/upload` 페이지에서 파일을 고르거나 끌어 놓아 올리고, 파일마다 진행률을 보여 주며, 올리는 중에 취소하고, 실패하거나 취소한 업로드를 다시 시도합니다. 받지 않는 크기·형식의 파일은 보내기 전에 이유를 알립니다.
+
+| 위치                          | 내용                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `src/shared/upload/`          | 진행률을 알려 주는 요청(`api-upload.ts`의 `apiUpload`), 업로드 operation이 받는 크기·형식(`upload-policy.ts`) |
+| `src/queries/files/`          | `files` Query Domain(`uploadFile`의 뮤테이션 훅 `useUploadFileMutation`)                                      |
+| `src/features/file-uploader/` | 업로더 화면(`file-uploader.tsx`)과 파일마다의 업로드 상태(`use-uploads.ts`)                                   |
+| `src/app/upload/`             | `/upload` 라우트                                                                                              |
+| `src/shared/mocks/files.ts`   | 업로드를 흉내 내는 MSW 핸들러                                                                                 |
+
+- 명세: `openapi.yaml`의 `uploadFile`(`POST /files`, tag `files`)이 `multipart/form-data`의 `file` 필드로 파일 하나를 받아 `UploadedFile`(`id`, `name`, `size`, `contentType`)을 돌려줍니다. 5MB보다 크면 413, PNG·JPEG·PDF·텍스트가 아니면 415로 거절하고, 이유는 `UploadError`(`message`)에 담깁니다. 받는 형식은 `encoding.file.contentType`에, 크기 제한은 OpenAPI에 정해진 표기가 없어 `file` 필드의 확장 필드 `x-max-bytes`에 적었습니다. 재생성 계층이 이 기준을 만들지 않으므로 `src/shared/upload/upload-policy.ts`에 같은 값을 두고, 업로더와 목 백엔드가 함께 씁니다. 백엔드의 기준이 바뀌면 명세와 이 파일을 함께 고칩니다. 둘이 다르면 `upload-policy.test.ts`가 실패합니다.
+- 진행률: 생성된 fetch 함수(`uploadFile`)는 fetch로 보내는데, fetch는 보낸 본문의 양을 알려 주지 않습니다(요청 본문 스트림은 Chromium의 HTTP/2에서만 됩니다). 그래서 `useUploadFileMutation`은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꿨습니다. `apiUpload`는 같은 요청(operation의 경로, `file` 필드를 담은 `FormData`, 응답 스키마)을 XMLHttpRequest로 보내고 `upload`의 `progress` 이벤트로 보낸 바이트 수를 알립니다. 보내는 곳과 결과는 `apiFetch`와 같습니다. 브라우저의 `apiFetch`처럼 `server`는 BFF 프록시(`/api/proxy`)를, `static-export`는 `NEXT_PUBLIC_API_BASE_URL`의 백엔드를 부르고, 2xx가 아니면 `ApiError`로 실패하며, 응답은 명세의 Zod 스키마로 검증합니다. 다른 파일 업로드 operation에도 `apiUpload(get<Operation>Url(), { body, schema, onProgress, signal })`로 씁니다. `onProgress`를 넘길 때만 `upload` 이벤트를 듣습니다(아래의 CORS preflight).
+- 취소: 뮤테이션에 `signal`을 넘기고, 업로더가 항목마다 `AbortController`로 취소합니다. 취소한 업로드는 `AbortError`로 실패하고, 업로더는 이를 실패 대신 취소로 보여 줍니다. 업로더가 화면에서 사라지면 올리던 업로드를 모두 취소합니다. 뮤테이션은 `networkMode: 'always'`라서 브라우저가 오프라인이라고 알려도 멈춰 기다리지 않고 보냅니다. 기본값(`online`)이면 보내기 전에 멈춰 취소도, 실패 뒤의 다시 시도도 할 수 없습니다.
+- 업로더: 파일 선택 버튼(Tab·Enter·Space)으로 파일 고르기 창을 열고, 놓는 곳에 파일을 끌어 놓아도 됩니다. 끌어 놓기는 마우스로만 할 수 있으므로 같은 일을 하는 버튼을 안에 둡니다. 여러 파일을 한꺼번에 더하면 파일마다 따로 올립니다. 진행률은 진행 막대(`role="progressbar"`, 이름 "<파일 이름> 업로드 진행률", 값 `aria-valuenow`·`aria-valuetext`)로 보여 주고, 항목마다 상태 문구(올리는 중, 올림, 실패와 그 이유, 취소, 거절)를 둡니다. 업로드가 끝나거나 거절되면 업로더의 알림 영역(`role="status"`, 화면에는 보이지 않음)이 "<파일 이름>: <상태 문구>"를 읽어 줍니다. 알림 영역은 내용이 바뀌어야 읽히므로 항목과 함께 생기지 않도록 처음부터 둡니다. 진행률 숫자는 바뀔 때마다 읽으면 다른 내용을 들을 수 없으므로 알리지 않고, 진행 막대의 값으로 언제든 읽을 수 있습니다. 취소 버튼과 다시 시도 버튼은 같은 자리의 같은 버튼이라 누른 뒤에도 포커스가 남고(더블 클릭의 두 번째 클릭은 무시합니다), 항목을 지우면 파일 선택 버튼으로 포커스를 옮깁니다.
+- BFF 프록시(`server`): Base의 프록시는 multipart를 포함한 모든 본문을 바이트 그대로 백엔드에 넘깁니다(경계가 담긴 `content-type`도 그대로). 다만 본문을 다 받은 뒤 넘기므로 파일 크기만큼 서버 메모리를 쓰고, 진행률은 브라우저가 프록시에 보낸 양입니다. 지금 기준(5MB)에서는 문제없지만 훨씬 큰 파일을 받게 되면 프록시를 거치지 않고 백엔드나 저장소로 바로 올리는 방식(미리 서명한 URL 등)을 검토합니다.
+- 다른 출처의 백엔드(`static-export`): 진행률을 받으려고 `upload` 이벤트를 들으면 브라우저가 업로드 전에 CORS preflight(`OPTIONS /files`)를 보냅니다. 백엔드는 preflight에 답하고(`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods: POST`), 업로드 응답에도 `Access-Control-Allow-Origin`을 붙여야 합니다. 목 백엔드도 그렇게 답합니다. 개발 서버와 E2E에서 브라우저의 MSW(서비스 워커)는 Base가 fetch만 준비될 때까지 붙잡아 두므로(`src/shared/mocks/browser-instrumentation.ts`), 페이지를 연 직후 서비스 워커가 준비되기 전에 올린 업로드는 MSW를 거치지 않고 실패할 수 있습니다. 다시 시도하면 됩니다. E2E는 fetch 하나로 준비를 기다린 뒤 올립니다.
+- MSW: `src/shared/mocks/files.ts`의 핸들러가 올린 파일의 이름·크기·형식을 담아 답하고, 명세처럼 413·415로 거절합니다. `src/shared/mocks/handlers.ts`(확장 지점 MSW 핸들러의 조립 파일)가 생성된 핸들러보다 앞에 둡니다. 실패와 취소를 직접 해 보려면 파일 이름을 바꿉니다. 이름에 `slow`가 들면 3초 뒤에 답하고(그동안 취소해 봅니다), `flaky`가 들면 그 이름으로 처음 올릴 때 503으로 실패합니다(다시 시도하면 받습니다). 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `filesHandlers`를 지웁니다.
+- Rendering Mode: 페이지 뼈대는 빌드할 때 미리 만들고 업로드는 브라우저가 보내므로 `server`와 `static-export`에서 같은 코드로 동작합니다. `apiUpload`는 브라우저에서만 씁니다. 서버 코드에서 올려야 하면 생성된 fetch 함수를 씁니다.
+- 테스트: `src/shared/upload/api-upload.test.ts`(`apiFetch`와 같은 주소, multipart 본문, 진행률, `onProgress`가 없으면 preflight 없음, `ApiError`, 응답 스키마 검증, 취소), `src/shared/upload/upload-policy.test.ts`(기준이 명세와 같음), `src/features/file-uploader/file-uploader.test.tsx`(고르기·끌어 놓기, 진행 막대와 상태 문구, 알림 영역, 크기·형식 검사, 취소 후 다시 시도와 포커스, 더블 클릭, 오프라인, 거절 후 다시 시도, 여러 파일, 키보드로 고르기 창 열기), `file-uploader.stories.tsx`(axe 검사, 키보드 포커스, 거절한 항목. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/file-upload.spec.ts`(빌드한 앱에서 진행률, 끌어 놓기, 크기·형식 검사와 알림, 취소와 다시 시도, 실패와 다시 시도, 운영체제가 라이트·다크 모드일 때의 axe 검사). E2E의 진행률 검사는 Chromium의 네트워크 흉내로 업로드를 늦추고, `static-export`의 E2E처럼 브라우저의 MSW(서비스 워커)가 요청을 받으면 본문이 네트워크를 지나지 않아 중간값 없이 끝나므로 중간값은 `server`에서만 봅니다.
+- 샘플을 지우려면 `src/app/upload/`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/mocks/files.ts`(와 `handlers.ts`의 `filesHandlers`), `e2e/file-upload.spec.ts`와 샘플 operation의 기준·테스트(`src/shared/upload/upload-policy.ts`, `upload-policy.test.ts`, `api-upload.test.ts`)를 지우고 `openapi.yaml`에서 `files` tag·경로·스키마(`FileUpload`, `UploadedFile`, `UploadError`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 업로드에 쓸 `src/shared/upload/api-upload.ts`는 남겨 두고, 새 operation으로 테스트를 다시 씁니다.
+
 ## 다국어(i18n)
 
 `i18n` Recipe로 넣었습니다. [next-intl](https://next-intl.dev)로 한국어(기본 locale `ko`)와 영어(`en`)를 지원합니다.
@@ -521,7 +618,7 @@ docker:
 | `src/app/partners/apply/`           | `/partners/apply` 라우트                                                                                  |
 
 - 명세: `openapi.yaml`의 `submitPartnerApplication`(`POST /partner-applications`, tag `partners`)이 세 단계의 입력을 요청 본문(`PartnerApplication`) 하나로 받습니다. MSW 목은 명세의 `example`(접수 번호 `PA-0001`)을 돌려줍니다.
-- 단계마다 검증: 단계마다 재생성 계층의 요청 본문 스키마(`SubmitPartnerApplicationBody`)에서 그 단계의 필드만 고른 스키마(`.pick({ ... })`)로 검증합니다. 그래서 검증 규칙은 명세에서만 오고, 아직 입력하지 않은 다음 단계의 필드는 오류로 알리지 않습니다. 단계마다 `StepForm`이 React Hook Form 폼을 하나씩 만들고, 입력 요소와 오류 표시는 `npm run g -- form`이 만드는 폼을 따릅니다(Base의 "폼"). 다만 판매 분야의 선택지는 enum 값 대신 화면에 보일 이름(`CATEGORY_LABELS`)으로 보이고, 약관 동의(명세의 `const: true`)는 Zod의 문구 대신 "입점 약관에 동의해야 신청할 수 있습니다."로 알립니다. 검증 규칙은 그대로 스키마가 정합니다.
+- 단계마다 검증: 단계마다 재생성 계층의 요청 본문 스키마(`SubmitPartnerApplicationBody`)에서 그 단계의 필드만 고른 스키마(`.pick({ ... })`)로 검증합니다. 그래서 검증 규칙은 명세에서만 오고, 아직 입력하지 않은 다음 단계의 필드는 오류로 알리지 않습니다. 단계마다 `StepForm`이 React Hook Form 폼을 하나씩 만들고, 입력 요소와 오류 표시는 `npm run g -- form`이 만드는 폼을 따릅니다(Base의 "폼"). 다만 판매 분야의 선택지는 enum 값 대신 화면에 보일 이름(`CATEGORY_LABELS`)으로 보입니다. 약관 동의는 명세에 `const: true`로 적어 체크하지 않으면 `formResolver`가 다른 폼처럼 `MUST_CHECK_MESSAGE`("반드시 체크해야 합니다.")로 알립니다. 단계 폼은 앞뒤 단계에서 입력한 값을 `useSchemaForm`의 처음 값으로 넘깁니다.
 - 값 유지: "다음"은 그 단계의 검증을 통과한 뒤, "이전"은 검증하지 않고 지금 입력한 그대로를 모든 단계의 값(`useFormSteps`의 `draft`)에 담습니다. 단계를 오가도 입력한 값이 남습니다. 확인 단계의 "수정"은 그 단계로 돌아가고, "다음"으로 뒤 단계를 차례로 지나(값은 남아 있습니다) 다시 확인 단계로 옵니다.
 - 한 번에 제출: 확인 단계의 "신청하기"가 모든 단계의 값을 요청 본문 스키마 전체로 한 번 더 검증한 뒤 `useSubmitPartnerApplicationMutation`으로 한 번 보냅니다. 성공하든 실패하든 알림(토스트)으로 알리고, 성공하면 처음 단계로 돌아가 비웁니다. 실패하면 확인 단계에 값을 그대로 둬 다시 신청할 수 있습니다. 보내는 동안에는 "이전", "수정", "신청하기"를 끕니다(돌아가 고친 값은 보낸 요청에 담기지 않으므로). 성공한 뒤의 동작(완료 페이지로 이동 등)은 화면에 맞게 고칩니다.
 - 새로 고침: 단계와 입력한 값을 `sessionStorage`(`partner-application-draft`)에 둬, 페이지를 새로 고치면 이어서 입력합니다. 탭을 닫거나 신청에 성공하면 지워지고, 다른 탭과는 나누지 않습니다. 저장한 값은 그린 뒤에 읽으므로 서버가 보낸 첫 단계가 잠깐 보였다가 이어 갑니다. 저장한 값은 지금 명세의 규칙에 맞지 않을 수 있으므로(다른 버전의 앱이 저장 등) 신청할 때 맞지 않는 값이 있는 첫 단계로 돌아가 오류를 알립니다. 비밀번호, 카드 번호 같은 비밀 값을 받는 폼에서는 그 값을 저장하지 않도록 `useFormSteps`의 `save`, `next`, `back`에 넘기기 전에 빼거나 저장을 끕니다.
@@ -559,6 +656,28 @@ docker:
 - ISR이 다시 렌더링한 HTML은 서버 인스턴스마다 따로 캐시됩니다(Next.js 기본 캐시). 서버를 여러 대 띄우면 인스턴스마다 다른 HTML을 보낼 수 있으므로, 배포 대상을 정할 때 공유 캐시(`next.config.ts`의 `cacheHandler`)도 함께 정합니다.
 - `static-export` Starter에는 넣을 수 없습니다. SSR, ISR, 스트리밍은 요청을 받는 Next.js 서버가 있어야 합니다.
 - 테스트: `src/features/rendering-demo/browser-product-list.test.tsx`(CSR 목록의 상태), `e2e/route-rendering.spec.ts`(빌드한 앱에서 SSR은 요청마다 렌더링, SSG는 빌드할 때 만든 HTML을 보냄, ISR은 시간이 지나면 다시 렌더링, 스트리밍은 대체 UI를 먼저 보냄, CSR은 브라우저가 BFF 프록시로 요청, 모든 데모 페이지의 접근성).
+
+## 오류 보고(Sentry)
+
+`sentry` Recipe로 넣었습니다. [Sentry](https://sentry.io)의 Next.js SDK(`@sentry/nextjs`)로 브라우저와 서버에서 난 오류를 Sentry에 보냅니다. **DSN이 없거나 개발 서버·테스트·목 빌드에서는 SDK를 초기화하지 않으므로 아무것도 보내지 않습니다.**
+
+| 위치                                                 | 내용                                                                                                                                                      |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/sentry/sentry-instrumentation-client.ts` | 브라우저의 SDK 초기화(`NEXT_PUBLIC_SENTRY_DSN`). 처리하지 못한 오류와 Promise 거부를 보냅니다                                                             |
+| `src/shared/sentry/sentry-instrumentation.ts`        | 서버(nodejs, edge 런타임)의 SDK 초기화(`SENTRY_DSN`)와, 서버가 요청을 처리하다 난 오류를 보내는 `onRequestError`                                          |
+| `src/shared/sentry/sentry-options.ts`                | 초기화 조건(`NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 때)과 두 SDK가 함께 쓰는 설정                                                       |
+| `src/shared/sentry/sentry-next-config.ts`            | `next.config.ts`의 설정을 감싸는 `withSentryConfig`(소스맵 업로드 등 빌드 설정)와 목 빌드 표시(`SENTRY_MOCK_BUILD`). 다른 래퍼보다 바깥에 씌워져 있습니다 |
+
+세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일").
+
+- 켜기: 배포 환경에 DSN을 넣습니다(`.env.example`). 서버의 `SENTRY_DSN`은 서버를 띄울 때 읽고, 브라우저의 `NEXT_PUBLIC_SENTRY_DSN`은 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다. 보통 두 값은 같은 DSN입니다. `static-export`에는 서버가 없어 `NEXT_PUBLIC_SENTRY_DSN`만 씁니다. DSN은 브라우저에 드러나도 되는 값이지만 아래의 인증 토큰은 비밀 값입니다.
+- 개발과 테스트: SDK는 `NODE_ENV`가 `production`일 때만 초기화하므로 개발 서버(`npm run dev`)와 단위 테스트는 DSN을 넣어도 보내지 않습니다. 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`. E2E와 GitLab CI의 `build` 잡)도 배포하지 않는 빌드라 빌드하는 환경에 DSN이 있어도 초기화하지 않습니다. `sentry-next-config.ts`가 빌드할 때 목 빌드인지를 코드에 박아 두기 때문입니다(`SENTRY_MOCK_BUILD`). 실제로 보내지는지 확인하려면 목을 끈 배포용 빌드를 DSN과 함께 만들고 `npm start`로 띄워 오류를 냅니다.
+- 소스맵: 빌드하는 환경에 Sentry 인증 토큰(`SENTRY_AUTH_TOKEN`)과 `SENTRY_ORG`, `SENTRY_PROJECT`가 있을 때만 브라우저 소스맵을 만들어 Sentry에 올리고, 올린 뒤에는 빌드 결과에서 지웁니다. 토큰이 없으면 소스맵을 만들지도 올리지도 않으므로 개발과 CI의 빌드는 토큰 없이 통과하고 Sentry에 접속하지 않습니다. 토큰은 GitLab CI/CD 변수(masked)로 배포용 빌드를 만드는 잡에만 넣습니다. 빌드 도구가 Sentry에 사용 통계를 보내는 기능(`telemetry`)은 꺼 두었습니다.
+- 개인정보: `sendDefaultPii: false`(Sentry의 기본값)라 IP 주소, 쿠키, 요청 헤더 같은 정보는 이벤트에 담지 않습니다. 성능 추적(`tracesSampleRate`)과 Session Replay는 켜지 않았습니다. 켜려면 `sentry-options.ts`의 `SENTRY_OPTIONS`에 더합니다(Replay의 `Sentry.replayIntegration()`은 브라우저 쪽 `sentry-instrumentation-client.ts`에만). 페이지 이동은 `onRouterTransitionStart`가 이미 SDK에 알리므로 성능 추적을 켜면 함께 남습니다.
+- 광고 차단기: 브라우저가 Sentry에 바로 보내는 요청은 광고 차단기에 막힐 수 있습니다. `server` Starter라면 `sentry-next-config.ts`의 `withSentryConfig` 옵션에 `tunnelRoute`를 더해 Next.js 서버를 거쳐 보낼 수 있습니다(기본은 꺼 두었습니다). proxy(`src/proxy.ts`)가 있으면 그 경로가 proxy 처리기에 막히지 않도록 proxy의 matcher가 빼는 `/api` 아래 경로(예: `/api/monitoring`)를 씁니다. `static-export`에는 서버가 없어 쓸 수 없습니다.
+- 오류 경계: 오류 경계가 잡지 않은 오류는 SDK가 그대로 받습니다. 라우트에 `error.tsx`(예: `npm run g -- page`가 만든 오류 상태)나 `global-error.tsx`가 있으면, Next.js는 그 경계가 잡은 브라우저의 렌더링 오류를 콘솔에만 남깁니다. 서버 컴포넌트의 오류는 서버의 `onRequestError`가 보내지만, 브라우저에서 렌더링하다 난 오류도 보내려면 그 경계에서 `useEffect(() => { Sentry.captureException(error) }, [error])`를 부릅니다.
+- 테스트: `src/shared/sentry/sentry.test.ts`(개발·테스트 환경, 목 빌드이거나 DSN이 없으면 브라우저와 서버의 조각이 SDK를 초기화하지 않음), `sentry-instrumentation.test.ts`(DSN이 있으면 서버가 요청을 처리하다 난 오류를 그 DSN으로 보냄. 요청은 MSW가 받아 밖으로 나가지 않음), `e2e/sentry.spec.ts`(DSN 없이 빌드한 앱은 브라우저에서 오류가 나도 앱 밖으로 요청을 보내지 않음).
+- 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을 지웁니다.
 
 ## 검색 노출(SEO)
 

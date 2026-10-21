@@ -1,9 +1,8 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
 import { useUpdateProductMutation } from '@/queries/products/products.queries'
 import { UpdateProductBody } from '@/shared/api/generated/model'
-import { formResolver } from '@/shared/form/form-resolver'
+import { useSchemaForm } from '@/shared/form/use-schema-form'
 import { Button } from '@/shared/ui/button'
 import { Field, FieldError, FieldLabel } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
@@ -25,9 +24,7 @@ export function UpdateProductForm({ productId }: UpdateProductFormProps) {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm({
-    resolver: formResolver(UpdateProductBody),
-  })
+  } = useSchemaForm(UpdateProductBody)
   const mutation = useUpdateProductMutation()
   const toast = useToast()
 

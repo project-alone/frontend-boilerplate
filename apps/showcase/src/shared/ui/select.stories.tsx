@@ -2,7 +2,7 @@
 // 원본(packages/devc-frontend-generator/): base/src/shared/ui/select.stories.tsx
 
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect, screen, waitFor } from 'storybook/test'
+import { expect, fn, screen, waitFor } from 'storybook/test'
 import { Select } from './select'
 
 const meta = {
@@ -58,5 +58,21 @@ export const Disabled: Story = {
   args: { disabled: true },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('combobox', { name: '지역' })).toHaveAttribute('data-disabled')
+  },
+}
+
+// 값을 비우는 선택지(clearLabel)가 있으면 고른 값을 다시 비울 수 있다. 비운 값은 null이다(onValueChange).
+export const Clearable: Story = {
+  args: { clearLabel: '선택 안 함', defaultValue: 'seoul', onValueChange: fn() },
+  play: async ({ args, canvas, userEvent }) => {
+    const trigger = canvas.getByRole('combobox', { name: '지역' })
+    await expect(trigger).toHaveTextContent('서울')
+
+    await userEvent.click(trigger)
+    await userEvent.click(await screen.findByRole('option', { name: '선택 안 함' }))
+
+    await expect(trigger).toHaveTextContent('선택 안 함')
+    await expect(args.onValueChange).toHaveBeenLastCalledWith(null, expect.anything())
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
   },
 }

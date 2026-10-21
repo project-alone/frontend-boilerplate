@@ -1,9 +1,10 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json
+// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/sentry/extensions.json
 
 import type { Instrumentation } from 'next'
 import { apiInstrumentation } from '@/shared/api/api-instrumentation'
 import { authInstrumentation } from '@/shared/auth/auth-instrumentation'
+import { sentryInstrumentation } from '@/shared/sentry/sentry-instrumentation'
 
 // Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
 // Next.js 서버가 뜰 때(register)와 서버가 요청을 처리하다 오류가 났을 때(onRequestError) 조각을 위에서부터 차례로 실행한다.
@@ -14,7 +15,7 @@ interface InstrumentationHook {
   onRequestError?: Instrumentation.onRequestError
 }
 
-const hooks: readonly InstrumentationHook[] = [apiInstrumentation, authInstrumentation]
+const hooks: readonly InstrumentationHook[] = [sentryInstrumentation, apiInstrumentation, authInstrumentation]
 
 export async function register() {
   for (const hook of hooks) await hook.register?.()

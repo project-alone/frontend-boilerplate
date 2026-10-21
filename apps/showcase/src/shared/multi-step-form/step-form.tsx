@@ -4,9 +4,10 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { type DefaultValues, type FieldErrors, type FieldValues, useForm, type UseFormReturn } from 'react-hook-form'
+import type { FieldErrors, FieldValues, UseFormReturn } from 'react-hook-form'
 import type * as z from 'zod'
-import { type FormDraft, formResolver } from '@/shared/form/form-resolver'
+import type { FormDraft } from '@/shared/form/form-resolver'
+import { useSchemaForm } from '@/shared/form/use-schema-form'
 import { Button } from '@/shared/ui/button'
 
 /** 단계 폼이 children에 넘기는 React Hook Form의 폼. schema는 그 단계의 스키마다. */
@@ -61,12 +62,8 @@ export function StepForm<Input extends FieldValues, Output>({
   labelledBy,
   children,
 }: StepFormProps<Input, Output>) {
-  const form = useForm<FormDraft<Input>, unknown, Output>({
-    resolver: formResolver(schema),
-    // FormDraft는 모든 필드가 비어 있을 수 있는 값이라 DefaultValues(DeepPartial)에 들어맞지만, 제네릭 타입으로는 TypeScript가
-    // 증명하지 못하므로 타입만 맞춘다.
-    defaultValues: defaultValues as DefaultValues<FormDraft<Input>>,
-  })
+  // 앞뒤 단계에서 입력한 값을 처음 값으로 useForm과 formResolver에 함께 넘긴다. null을 받는 선택 필드는 그 값을 비우면 null을 보낸다.
+  const form = useSchemaForm(schema, { defaultValues })
 
   const { subscribe, trigger } = form
 

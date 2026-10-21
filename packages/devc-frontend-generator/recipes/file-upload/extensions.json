@@ -1,0 +1,9 @@
+{
+  "mockHandlers": [
+    {
+      "path": "src/shared/mocks/files.ts",
+      "export": "filesHandlers",
+      "order": 100
+    }
+  ]
+}

@@ -215,9 +215,8 @@ function PlanFields({ form }: Readonly<{ form: StepFormReturn<typeof planStep> }
               <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />
               입점 약관에 동의합니다
             </FieldLabel>
-            {/* 검증 규칙(명세의 const: true)은 스키마가 정하지만, Zod의 문구("값은 true 이어야 합니다")는 사람이 읽기 어려우므로
-                이 필드만 오류 문구를 화면에 맞게 적는다. */}
-            <FieldError match={errors.agreedToTerms !== undefined}>입점 약관에 동의해야 신청할 수 있습니다.</FieldError>
+            {/* 명세의 const: true라 체크하지 않으면 formResolver가 MUST_CHECK_MESSAGE("반드시 체크해야 합니다.")로 알린다. */}
+            <FieldError match={errors.agreedToTerms !== undefined}>{errors.agreedToTerms?.message}</FieldError>
           </Field>
         )}
       />
