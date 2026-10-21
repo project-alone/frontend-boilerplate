@@ -86,6 +86,26 @@ test('번역한 페이지의 링크는 지금 locale의 주소로 간다', async
   await expect(page.getByText('This Starter supports Korean and English.', { exact: false })).toBeVisible()
 })
 
+test('번역한 페이지는 자기 주소를 canonical로, 같은 페이지의 locale별 주소를 hreflang으로 검색 엔진에 알린다', async ({
+  page,
+}) => {
+  // 주소는 사이트 주소(metadataBase)가 있으면 절대 주소, 없으면 경로다. 어느 쪽이든 경로만 비교한다.
+  const pathOf = (href: string | null) => new URL(href ?? '', page.url()).pathname
+
+  for (const [path, alternates] of [
+    ['/en', { ko: '/ko', en: '/en' }],
+    ['/ko/i18n', { ko: '/ko/i18n', en: '/en/i18n' }],
+  ] as const) {
+    await page.goto(path)
+
+    expect(pathOf(await page.locator('link[rel="canonical"]').getAttribute('href'))).toBe(path)
+    for (const [locale, alternate] of Object.entries(alternates)) {
+      const link = page.locator(`link[rel="alternate"][hreflang="${locale}"]`)
+      expect(pathOf(await link.getAttribute('href')), `${path}의 ${locale}`).toBe(alternate)
+    }
+  }
+})
+
 test('번역하지 않은 페이지는 주소 그대로 열리고, 거기서 다른 locale을 고르면 그 locale의 홈으로 간다', async ({
   page,
 }) => {

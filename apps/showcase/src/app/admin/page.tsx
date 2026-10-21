@@ -4,8 +4,10 @@
 import type { Metadata } from 'next'
 import { requireServerSession } from '@/shared/auth/server-session'
 
+// 검색 결과에 보이지 않을 페이지다.
 export const metadata: Metadata = {
   title: '관리자',
+  robots: { index: false },
 }
 
 // auth Recipe: admin 역할이 있는 사용자만 들어오는 보호된 라우트(src/shared/auth/access-rules.ts). 역할이 없으면 proxy가

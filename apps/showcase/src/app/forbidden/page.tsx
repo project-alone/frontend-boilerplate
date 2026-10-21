@@ -4,8 +4,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+// 검색 결과에 보이지 않을 페이지다.
 export const metadata: Metadata = {
   title: '접근 권한 없음',
+  robots: { index: false },
 }
 
 // auth Recipe: 보호된 라우트의 역할(src/shared/auth/access-rules.ts)이 없는 사용자에게 proxy가 주소는 그대로 둔 채 403으로
