@@ -68,6 +68,18 @@ export async function unsealSession(sealed: string | undefined): Promise<Session
   return parsed.success ? parsed.data : undefined
 }
 
+/** 요청의 쿠키(NextRequest.cookies, next/headers의 cookies())에서 세션을 읽는다. 없거나 되읽지 못하면 undefined */
+export function sessionOf(cookies: {
+  get: (name: string) => { value: string } | undefined
+}): Promise<Session | undefined> {
+  return unsealSession(cookies.get(SESSION_COOKIE)?.value)
+}
+
+/** 세션 쿠키를 지우는 쿠키의 속성(값은 빈 문자열) */
+export function clearedSessionCookieOptions() {
+  return { ...sessionCookieOptions(), maxAge: 0 } as const
+}
+
 /** 세션 쿠키의 속성. 브라우저의 JavaScript는 읽을 수 없고(httpOnly), 다른 사이트에서 보낸 요청에는 실리지 않는다(SameSite=Lax). */
 export function sessionCookieOptions() {
   return {

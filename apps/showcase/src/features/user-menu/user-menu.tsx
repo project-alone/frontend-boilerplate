@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { sessionQueryOptions, useLogoutMutation } from '@/queries/auth/auth.queries'
-import { LOGIN_PATH } from '@/shared/auth/access-rules'
+import { ACCOUNT_PATH, LOGIN_PATH } from '@/shared/auth/access-rules'
 import { Button, buttonVariants } from '@/shared/ui/button'
 
 /** 로그아웃한 뒤 로그인 페이지로 새로 들어간다. 이전 사용자로 받아 둔 화면과 캐시를 남기지 않는다. */
@@ -36,7 +36,7 @@ export function UserMenu({ onLoggedOut = goToLoginPage }: Readonly<{ onLoggedOut
 
   return (
     <div className="flex items-center gap-2">
-      <Link href="/account" className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
+      <Link href={ACCOUNT_PATH} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
         {user.name}
       </Link>
       <Button

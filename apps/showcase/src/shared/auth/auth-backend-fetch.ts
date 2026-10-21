@@ -3,7 +3,14 @@
 
 import { parseCookie, stringifyCookie, stringifySetCookie } from 'cookie'
 import { refreshSession } from './refresh-session'
-import { type Session, SESSION_COOKIE, sealSession, sessionCookieOptions, unsealSession } from './session'
+import {
+  clearedSessionCookieOptions,
+  type Session,
+  SESSION_COOKIE,
+  sealSession,
+  sessionCookieOptions,
+  unsealSession,
+} from './session'
 import { sessionOfRender } from './session-scope'
 
 type Next = (url: string, init: RequestInit) => Promise<Response>
@@ -17,23 +24,23 @@ type Next = (url: string, init: RequestInit) => Promise<Response>
  * - 서버 컴포넌트가 부른 apiFetch: 그 렌더링에서 getServerSession()으로 읽은 세션의 accessToken을 붙인다(session-scope.ts).
  *   서버 컴포넌트는 쿠키를 고칠 수 없으므로 refresh하지 않는다. 대신 페이지 요청은 proxy(auth-proxy.ts)가 accessToken이
  *   만료되기 전에 미리 refresh해 둔다.
- * - 이미 Authorization 헤더가 있는 요청(예: BFF가 직접 부르는 인증 operation)과 로그인하지 않은 요청은 그대로 보낸다.
+ * - 이미 Authorization 헤더가 있는 요청(예: BFF가 직접 부르는 인증 operation)과 로그인하지 않은 요청은 토큰을 붙이지 않는다.
+ *   이때도 세션 쿠키는 넘기지 않는다.
  */
 export async function authBackendFetch(url: string, init: RequestInit, next: Next): Promise<Response> {
   const headers = new Headers(init.headers)
-  if (headers.has('authorization')) return next(url, init)
-
   const { [SESSION_COOKIE]: sealed, ...otherCookies } = parseCookie(headers.get('cookie') ?? '')
   if (sealed !== undefined) {
     const forwardedCookies = stringifyCookie(otherCookies)
     if (forwardedCookies === '') headers.delete('cookie')
     else headers.set('cookie', forwardedCookies)
-    return forwardBrowserRequest(url, { ...init, headers }, await unsealSession(sealed), next)
   }
+  const forwarded = { ...init, headers }
+  if (headers.has('authorization')) return next(url, forwarded)
+  if (sealed !== undefined) return forwardBrowserRequest(url, forwarded, await unsealSession(sealed), next)
 
   const session = sessionOfRender()
-  if (session === undefined) return next(url, init)
-  return next(url, withAccessToken(init, session))
+  return next(url, session === undefined ? forwarded : withAccessToken(forwarded, session))
 }
 
 async function forwardBrowserRequest(
@@ -67,7 +74,7 @@ function withAccessToken(init: RequestInit, session: Session): RequestInit {
 }
 
 function clearedSessionCookie(): string {
-  return stringifySetCookie({ name: SESSION_COOKIE, value: '', ...sessionCookieOptions(), maxAge: 0 })
+  return stringifySetCookie({ name: SESSION_COOKIE, value: '', ...clearedSessionCookieOptions() })
 }
 
 // fetch가 돌려준 응답의 헤더는 고칠 수 없으므로 헤더를 복사한 새 응답을 만든다. BFF 프록시가 이 헤더를 브라우저에 넘긴다.

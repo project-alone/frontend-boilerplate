@@ -4,7 +4,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { canEnter, FORBIDDEN_PATH, LOGIN_PATH, protectedRouteOf } from './access-rules'
 import { refreshSession } from './refresh-session'
-import { isAccessTokenExpiring, SESSION_COOKIE, sealSession, sessionCookieOptions, unsealSession } from './session'
+import {
+  clearedSessionCookieOptions,
+  isAccessTokenExpiring,
+  SESSION_COOKIE,
+  sealSession,
+  sessionCookieOptions,
+  unsealSession,
+} from './session'
 
 /** 세션 쿠키를 새 값으로 바꾸거나(string) 지운다(null). 바꾸지 않으면 undefined */
 type CookieChange = string | null | undefined
@@ -54,7 +61,7 @@ function withRequestCookie(request: NextRequest, change: string | null): NextReq
 }
 
 function withSessionCookie(response: NextResponse, change: CookieChange): NextResponse {
-  if (change === null) response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions(), maxAge: 0 })
+  if (change === null) response.cookies.set(SESSION_COOKIE, '', clearedSessionCookieOptions())
   else if (change !== undefined) response.cookies.set(SESSION_COOKIE, change, sessionCookieOptions())
   return response
 }

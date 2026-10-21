@@ -2,9 +2,11 @@
 // 원본(packages/devc-frontend-generator/): recipes/auth/src/shared/auth/auth-proxy.test.ts
 
 // @vitest-environment node
+import { http, HttpResponse } from 'msw'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { loginWithPassword } from './auth-backend'
+import { server } from '@/shared/mocks/node'
+import { loginAtBackend } from './auth-backend'
 import { MOCK_PASSWORD } from './auth-mock-handlers'
 import { authProxy } from './auth-proxy'
 import { type Session, SESSION_COOKIE, sealSession, unsealSession } from './session'
@@ -23,7 +25,7 @@ afterEach(() => {
 })
 
 async function loggedIn(email: string, overrides: Partial<Session> = {}): Promise<Session> {
-  const session = await loginWithPassword({ email, password: MOCK_PASSWORD })
+  const session = await loginAtBackend({ email, password: MOCK_PASSWORD })
   if (session === undefined) throw new Error('목 백엔드에 로그인하지 못했습니다.')
   return { ...session, ...overrides }
 }
@@ -98,6 +100,17 @@ test('accessToken이 곧 만료되면 페이지를 렌더링하기 전에 refres
   expect(routeSession?.accessToken).not.toBe(session.accessToken)
   expect(routeSession?.accessTokenExpiresAt).toBeGreaterThan(Date.now())
   expect(await unsealSession(sessionCookieOf(response)?.value)).toEqual(routeSession)
+})
+
+test('refresh할 때 사용자 정보도 백엔드에서 다시 받으므로, 백엔드에서 바꾼 역할이 다시 로그인하지 않아도 반영된다', async () => {
+  const session = await loggedIn('user@example.com', { accessTokenExpiresAt: Date.now() })
+  // 백엔드에서 이 사용자에게 admin 역할을 주었다.
+  server.use(http.get('*/auth/me', () => HttpResponse.json({ ...session.user, roles: ['admin', 'user'] as const })))
+  const { request, forwarded, next } = await pageRequest('/admin', session)
+
+  await authProxy(request, next)
+
+  expect(forwarded).toHaveLength(1)
 })
 
 test('refreshToken도 만료되었으면 세션 쿠키를 지우고, 보호된 라우트면 로그인 페이지로 보낸다', async () => {
