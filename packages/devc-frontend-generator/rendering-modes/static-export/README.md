@@ -84,7 +84,7 @@ MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세�
 - 목 빌드: `API_MOCKING=enabled`로 빌드하면 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다(GitLab CI의 `build` 잡). 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").
 - 배포용 빌드: `.env.production`의 `NEXT_PUBLIC_API_MOCKING=disabled` 때문에 MSW 코드가 빌드 결과에 들어가지 않습니다. `API_MOCKING=disabled`이므로 빌드할 때 서버 컴포넌트가 보내는 요청도 MSW가 받지 않습니다.
 
-브라우저의 요청은 서비스 워커(`public/mockServiceWorker.js`)가 받습니다. `src/shared/mocks/browser-instrumentation.ts`가 앱 코드보다 먼저(`src/instrumentation-client.ts`가 부릅니다) 서비스 워커를 띄우고, 준비될 때까지 요청을 붙잡아 둡니다. 서비스 워커 파일은 MSW CLI가 만든 것이므로 고치지 않고, MSW를 올린 뒤에는 `npx msw init`으로 다시 만듭니다(`package.json`의 `msw.workerDirectory`).
+브라우저의 요청은 서비스 워커(`public/mockServiceWorker.js`)가 받습니다. `src/shared/mocks/browser-instrumentation.ts`가 앱 코드보다 먼저(`src/instrumentation-client.ts`가 부릅니다) 서비스 워커를 띄우고, 준비될 때까지 fetch 요청을 붙잡아 둡니다. XMLHttpRequest, EventSource, WebSocket처럼 fetch를 쓰지 않는 요청은 붙잡을 수 없으므로, 페이지를 연 직후에 이런 요청을 보내는 코드는 `src/shared/mocks/mock-readiness.ts`의 `waitForMocks()`를 기다린 뒤 보냅니다(목을 끈 빌드에서는 바로 끝납니다). 서비스 워커 파일은 MSW CLI가 만든 것이므로 고치지 않고, MSW를 올린 뒤에는 `npx msw init`으로 다시 만듭니다(`package.json`의 `msw.workerDirectory`).
 
 실제 백엔드로 바꾸려면 `.env.development.local`에 다음 네 줄을 적고 개발 서버를 다시 띄웁니다. `API_MOCKING`만 끄고 `API_BASE_URL`을 빠뜨리면 개발 서버가 오류를 내고 요청을 처리하지 않습니다.
 

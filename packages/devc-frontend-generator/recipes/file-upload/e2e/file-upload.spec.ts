@@ -21,16 +21,12 @@ function uploadItem(page: Page, name: string): Locator {
 }
 
 /**
- * /upload를 열고 업로드를 보낼 수 있을 때까지 기다린다. static-export에서는 브라우저의 MSW(서비스 워커)가 요청을 받는데, 업로드는
- * XMLHttpRequest로 보내므로 서비스 워커가 준비되기 전에 보내면 MSW가 받지 못한다. fetch는 서비스 워커가 준비될 때까지 붙잡아
- * 두므로(src/shared/mocks/browser-instrumentation.ts) fetch 하나가 끝나기를 기다린다. 브라우저의 MSW가 없는 server에서는 바로 끝난다.
+ * /upload를 연다. static-export에서는 브라우저의 MSW(서비스 워커)가 업로드를 받는데, apiUpload가 서비스 워커가 준비될 때까지
+ * 기다린 뒤 보내므로(waitForMocks) 페이지를 열자마자 올려도 된다.
  */
 async function openUploader(page: Page) {
   await page.goto('/upload')
   await expect(page.getByRole('heading', { level: 1, name: '파일 업로드' })).toBeVisible()
-  await page.evaluate(async () => {
-    await fetch(window.location.href, { method: 'HEAD' })
-  })
 }
 
 /** 파일 선택 버튼으로 파일 고르기 창을 열어 files를 고른다. */
