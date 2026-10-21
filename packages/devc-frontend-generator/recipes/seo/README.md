@@ -18,6 +18,7 @@
 
   ```sh
   NEXT_PUBLIC_SITE_URL=https://www.example.com API_BASE_URL=https://<백엔드 주소> npm run build  # 배포용 빌드
+  docker build --build-arg NEXT_PUBLIC_SITE_URL=https://www.example.com -t my-app .           # 컨테이너 이미지(docker Recipe)
   ```
 
 - **페이지의 메타데이터**: 루트 레이아웃의 `siteMetadata()`가 모든 페이지의 기본값을 정하므로, 페이지는 `metadata`에 `title`과 `description`만 적습니다.

@@ -9,3 +9,5 @@
 `auth` Recipe는 이 규칙으로 보호된 라우트(`PROTECTED_ROUTES`)를 robots.txt가 막게 하고 로그인·접근 권한 없음 페이지는 sitemap에서 뺀다. 로그인, 내 정보, 관리자, 접근 권한 없음 페이지는 metadata의 `robots: { index: false }`로 검색 결과에서 빠진다.
 
 `seo` Recipe는 next.config 래퍼 `withSeo`로 공유 이미지 라우트의 빌드 결과(`.next/standalone`과 그것으로 만든 컨테이너 이미지)에 함께 담기는 글꼴(Pretendard Bold) 옆에 SIL Open Font License 전문(`pretendard-license.txt`)도 담는다.
+
+`docker` Recipe의 `Dockerfile`은 build 단계에서 빌드 인자 `NEXT_PUBLIC_SITE_URL`을 받는다. `seo` Recipe를 넣은 Starter의 배포용 이미지는 `docker build --build-arg NEXT_PUBLIC_SITE_URL=<사이트 주소>`로 만들고, 빠지면 빌드가 무엇을 넣어야 하는지 알리며 실패한다. 목 이미지(`--target mock`)는 넣지 않아도 된다.

@@ -43,6 +43,9 @@ RUN if [ "$API_MOCKING" != disabled ]; then \
 ARG API_BASE_URL
 # 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 브라우저 번들에 박히므로 비밀 값이 아니어야 한다.
 ARG NEXT_PUBLIC_API_BASE_URL
+# 사이트의 공개 주소(seo Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). 빌드할 때 페이지와 번들에 박힌다.
+# seo Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 무엇을 넣어야 하는지 알리며 실패한다. 넣지 않은 Starter에서는 쓰이지 않는다.
+ARG NEXT_PUBLIC_SITE_URL
 RUN npm run build
 
 # 로컬 확인용 목 빌드: docker build --target mock -t my-app:mock . 빌드와 서버의 API 요청을 MSW가 받는다. 배포하지 않는다.
