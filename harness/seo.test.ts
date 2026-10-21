@@ -3,7 +3,7 @@ import { freePort, start, waitForServer } from './run.ts'
 import { expectFileToPass, type RenderingMode, runVitestScript, useStarter } from './starter.ts'
 
 // 하네스 매트릭스: Base에 seo Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들어, Starter 자신의 스크립트와 Recipe가
-// 함께 넣은 테스트(src/shared/seo, src/app/sitemap.test.ts, e2e/seo.spec.ts)가 통과하는지 본다. 다른 Recipe와 함께 켠 조합은
+// 함께 넣은 테스트(src/shared/seo, src/app/sitemap.test.ts·robots.test.ts, e2e/seo.spec.ts)가 통과하는지 본다. 다른 Recipe와 함께 켠 조합은
 // table과 함께 넣은 static-export 조합으로 보고(다른 Recipe가 더한 페이지가 sitemap에 저절로 들어가는지), server에서 모든
 // Recipe를 켠 조합은 Showcase(showcase-starter.test.ts)가 본다.
 
@@ -20,15 +20,26 @@ const UNIT_TESTS = [
   'src/shared/seo/metadata.test.ts',
   'src/shared/seo/og-image.test.tsx',
   'src/app/sitemap.test.ts',
+  'src/app/robots.test.ts',
 ]
 
-const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly string[]; pages: readonly string[] }[] = [
-  { renderingMode: 'server', recipes: ['seo'], pages: ['/', '/products'] },
-  { renderingMode: 'static-export', recipes: ['seo'], pages: ['/', '/products'] },
-  { renderingMode: 'static-export', recipes: ['seo', 'table'], pages: ['/', '/members', '/products'] },
+interface Combination {
+  renderingMode: RenderingMode
+  recipes: readonly string[]
+  /** 배포용 빌드 전에 `npm run g -- page`로 더할 라우트 */
+  generatedPages: readonly string[]
+  /** sitemap.xml에 들어갈 페이지의 경로 */
+  pages: readonly string[]
+}
+
+// Starter를 만든 뒤 Schematic이 더한 페이지(/about)와 다른 Recipe가 더한 페이지(table의 /members)도 sitemap.ts를 고치지 않고 들어간다.
+const COMBINATIONS: readonly Combination[] = [
+  { renderingMode: 'server', recipes: ['seo'], generatedPages: ['about'], pages: ['/', '/about', '/products'] },
+  { renderingMode: 'static-export', recipes: ['seo'], generatedPages: [], pages: ['/', '/products'] },
+  { renderingMode: 'static-export', recipes: ['seo', 'table'], generatedPages: [], pages: ['/', '/members', '/products'] },
 ]
 
-for (const { renderingMode, recipes, pages } of COMBINATIONS) {
+for (const { renderingMode, recipes, generatedPages, pages } of COMBINATIONS) {
   describe(`Rendering Mode ${renderingMode}에 Recipe ${recipes.join(', ')}를 넣은 Starter`, () => {
     const starter = useStarter({
       prefix: `dcgen-${recipes.join('-')}-${renderingMode}-`,
@@ -59,6 +70,7 @@ for (const { renderingMode, recipes, pages } of COMBINATIONS) {
     })
 
     test('배포용 빌드는 사이트 주소로 sitemap.xml, robots.txt, canonical과 공유 이미지의 주소를 만든다', async () => {
+      for (const route of generatedPages) starter.expectNpmSuccess(['run', 'g', '--', 'page', route])
       starter.expectNpmSuccess(['run', 'build'], { NEXT_PUBLIC_SITE_URL: SITE_URL })
       const port = await freePort()
       const origin = `http://localhost:${String(port)}`
@@ -73,7 +85,6 @@ for (const { renderingMode, recipes, pages } of COMBINATIONS) {
         const ogImage = /<meta property="og:image" content="([^"]+)"/.exec(html)?.[1] ?? ''
         expect(ogImage).toMatch(new RegExp(`^${SITE_URL}/opengraph-image/image\\.png\\?`))
 
-        // 다른 Recipe가 더한 페이지(table의 /members)도 sitemap.ts를 고치지 않고 들어간다.
         const sitemap = await (await fetch(`${origin}/sitemap.xml`)).text()
         const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url)
         expect(locations).toEqual(pages.map((page) => new URL(page, SITE_URL).href))

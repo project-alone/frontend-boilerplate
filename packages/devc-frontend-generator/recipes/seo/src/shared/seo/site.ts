@@ -9,8 +9,8 @@ export const SITE_DESCRIPTION = 'devc-frontend-generator로 만든 Starter입니
 /** og:locale. 루트 레이아웃의 `<html lang>`과 맞춘다. */
 export const SITE_LOCALE = 'ko_KR'
 
-/** 사이트 주소가 없을 때 목 빌드와 개발 서버가 쓰는 주소. `next dev`의 기본 주소다. */
-export const LOCAL_SITE_URL = 'http://localhost:3000'
+// 사이트 주소가 없을 때 목 빌드가 쓰는 주소. `next dev`의 기본 주소로, .env.development의 값과 같다.
+const LOCAL_SITE_URL = 'http://localhost:3000'
 
 /**
  * 사이트의 공개 주소. sitemap, robots.txt, 페이지의 canonical·OG 주소를 이 주소로 만든다.
@@ -28,7 +28,7 @@ export function siteUrl(): URL {
   }
   const url = URL.parse(value)
   if (url === null || (url.protocol !== 'https:' && url.protocol !== 'http:')) {
-    throw new Error(`NEXT_PUBLIC_SITE_URL은 https://로 시작하는 주소여야 합니다(지금 값: ${value}).`)
+    throw new Error(`NEXT_PUBLIC_SITE_URL은 https:// 또는 http://로 시작하는 주소여야 합니다(지금 값: ${value}).`)
   }
   return url
 }

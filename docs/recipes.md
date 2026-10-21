@@ -266,7 +266,7 @@ overlay의 dotenv 파일(`.env`, `.env.<이름>`)은 Starter의 같은 파일을
 
 ## 코드 규칙
 
-Recipe가 더한 파일은 Starter의 일부로 검사된다. 생성 직후의 Starter가 `typecheck`, `lint`, `format:check`, `test`, `test:storybook`, `build`, `test:e2e`를 모두 통과해야 한다.
+Recipe가 더한 파일은 Starter의 일부로 검사된다. 생성 직후의 Starter가 `typecheck`, `lint`, `format:check`, `test`, `test:storybook`, `build`, `test:e2e`를 모두 통과해야 한다. `build`는 Starter의 GitLab CI처럼 목 빌드(`API_MOCKING=enabled`, ADR-0011)를 말한다. 배포할 때만 정해지는 값(seo의 사이트 주소 등)이 없으면 배포용 빌드는 실패해도 되지만, 목 빌드는 그 값 없이도 통과해야 한다.
 
 - import 방향(`app → features → queries → shared`)과 폴더 깊이(`src/<계층>/<이름>/<파일>`)를 지킨다(ADR-0005). 예: 테마 적용은 `src/shared/theme/`, 전환 UI는 `src/features/theme-switcher/`.
 - 모양은 디자인 토큰으로 만든 유틸리티만 쓴다. 테마가 토큰 값만 바꿔 적용되도록 Tailwind 기본 팔레트나 임의의 색을 쓰지 않는다.
@@ -494,12 +494,12 @@ table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared
 - sitemap은 빌드할 때 `src/app`의 페이지 파일을 찾아 만든다(`src/shared/seo/page-routes.ts`). 다른 Recipe나 `npm run g -- page`가 더한 페이지는 sitemap을 고치거나 확장 지점에 선언하지 않아도 들어가고, 동적 세그먼트가 있는 페이지는 빠진다. 페이지 목록을 모으는 확장 지점은 두지 않았다. 페이지를 더하는 Recipe가 seo에 기대지 않아도 되고, Starter를 만든 뒤 더한 페이지도 같은 규칙으로 들어간다.
 - 공유 이미지는 `opengraph-image.tsx`가 `generateImageMetadata`로 `opengraph-image/image.png`처럼 확장자가 붙은 주소 하나로 만든다. 확장자가 없으면 static-export가 내보낸 파일(`out/opengraph-image`)을 정적 파일 서버가 이미지로 알리지 못한다. `next/og`는 기본 글꼴에 없는 글자를 빌드 중에 Google Fonts에서 받으므로, 한글 11,172자를 담은 글꼴(Pretendard Bold, SIL Open Font License)을 함께 넣어 네트워크 없이 같은 이미지를 만든다.
 
-| 선언하는 것    | `recipes/seo/`                                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/sitemap.ts`, `src/app/robots.ts`, `src/app/opengraph-image.tsx`, `src/app/products/opengraph-image.tsx`, `src/shared/seo/`(글꼴과 라이선스 포함) |
-| 확장 지점      | 환경 변수: `.env.development`, `.env.example`의 `NEXT_PUBLIC_SITE_URL`, `process-env.seo.d.ts`                                                            |
-| 설정 패치      | `src/app/layout.tsx.patch`(루트 레이아웃의 metadata)                                                                                                      |
-| npm 의존성     | 없음(`next/og`는 Next.js에 들어 있다)                                                                                                                     |
-| 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `e2e/seo.spec.ts`               |
-| 필요한 Recipe  | 없음                                                                                                                                                      |
-| Rendering Mode | `server`, `static-export`                                                                                                                                 |
+| 선언하는 것    | `recipes/seo/`                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/sitemap.ts`, `src/app/robots.ts`, `src/app/opengraph-image.tsx`, `src/app/products/opengraph-image.tsx`, `src/shared/seo/`(글꼴과 라이선스 포함)     |
+| 확장 지점      | 환경 변수: `.env.development`, `.env.example`의 `NEXT_PUBLIC_SITE_URL`, `process-env.seo.d.ts`                                                                |
+| 설정 패치      | `src/app/layout.tsx.patch`(루트 레이아웃의 metadata)                                                                                                          |
+| npm 의존성     | 없음(`next/og`는 Next.js에 들어 있다)                                                                                                                         |
+| 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `robots.test.ts`, `e2e/seo.spec.ts` |
+| 필요한 Recipe  | 없음                                                                                                                                                          |
+| Rendering Mode | `server`, `static-export`                                                                                                                                     |

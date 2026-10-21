@@ -11,6 +11,7 @@ SSG·ISR 페이지는 `next build`가 미리 렌더링할 때 서버 컴포넌�
 
 ## Consequences
 
+- `API_MOCKING=enabled`는 "배포하지 않는 빌드와 서버"라는 뜻도 갖는다. 배포할 때만 정해지는 값이 없으면 배포용 빌드는 실패하고 목 빌드는 자리표시 값을 쓴다. Base의 `API_BASE_URL`(`MOCK_API_BASE_URL`)과 seo Recipe의 `NEXT_PUBLIC_SITE_URL`(개발 서버의 주소)이 그렇다. 그래서 GitLab CI와 E2E는 이런 값을 넣지 않아도 된다.
 - MSW는 빌드 프로세스 안에서만 돌아 빌드 결과를 띄운 서버에는 남지 않는다. 실행할 때 MSW를 켜는 곳은 여전히 instrumentation 하나다. `apiFetch`는 서버에서만 실행되는 블록에서 목 모듈을 동적 import하므로 MSW는 브라우저 번들에 들어가지 않는다.
 - Turbopack이 라우트의 번들에 `msw/node`를 넣으면 MSW가 파일에서 읽는 WebAssembly의 경로가 바뀌어 실패하므로, Base의 `next.config.ts`는 `serverExternalPackages: ['msw']`로 MSW를 `node_modules`에서 불러온다. `standalone` 결과물에는 MSW 패키지가 함께 복사된다.
 - 목 빌드의 응답은 Next.js의 데이터 캐시(`.next/cache/fetch-cache`)에도 남으므로, Starter의 CI `build` 잡은 빌드 캐시를 저장하기 전에 그 폴더를 지운다.
