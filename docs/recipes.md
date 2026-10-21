@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`, 확장 지점 세 곳(`next.config`, instrumentation, instrumentation-client)에 조각을 더하는 `recipes/sentry/`, 그와 같은 instrumentation-client에 페이지뷰 조각을 더하는 `recipes/analytics/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`, 확장 지점 세 곳(`next.config`, instrumentation, instrumentation-client)에 조각을 더하는 `recipes/sentry/`, 그와 같은 instrumentation-client에 페이지뷰 조각을 더하는 `recipes/analytics/`, 진행률을 알려 주는 요청으로 파일을 올리는 `recipes/file-upload/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -559,3 +559,23 @@ SDK는 `NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 �
 | 자기 테스트    | `src/shared/analytics/analytics.test.ts`, `e2e/analytics.spec.ts`                     |
 | 필요한 Recipe  | 없음                                                                                  |
 | Rendering Mode | `server`, `static-export`                                                             |
+
+## 예: file-upload
+
+진행률, 취소, 실패 후 재시도를 갖춘 파일 업로드(`/upload`)를 보여 주는 Recipe다. 명세 조각으로 파일 하나를 `multipart/form-data`로 받는 업로드 operation `uploadFile`(tag `files`)을 더하고, 받는 형식은 `encoding.file.contentType`에, 크기 제한(5MB)은 OpenAPI에 정해진 표기가 없어 operation의 설명에 적는다. 재생성 계층이 이 기준을 만들지 않으므로 `src/shared/upload/upload-policy.ts`에 같은 값을 두고, 업로더가 올리기 전에 검사하고 목 백엔드도 같은 기준으로 413·415를 돌려준다.
+
+fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요한 업로드는 `src/shared/upload/api-upload.ts`의 `apiUpload`가 XMLHttpRequest로 보낸다. 보내는 곳과 결과는 Base의 `apiFetch`와 같다. 브라우저의 `apiFetch`처럼 `base-url.ts`의 `browserBaseUrl`(`server`는 BFF 프록시, `static-export`는 백엔드)로 보내고, 2xx가 아니면 `ApiError`로 실패하며, 응답을 명세의 Zod 스키마로 검증한다. Query Domain(`src/queries/files/`)은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꾸고 진행률과 취소(`signal`)를 `mutate`의 값으로 받는다. Base의 BFF 프록시는 multipart를 포함한 본문을 바이트 그대로 넘기므로 고치지 않는다. 다만 본문을 다 받은 뒤 넘기므로, 훨씬 큰 파일을 받게 되면 프록시를 거치지 않는 방식을 검토한다(Recipe의 README 절).
+
+실패와 취소를 E2E와 개발 서버에서 늘 같게 재현하도록, 직접 만든 MSW 핸들러(`src/shared/mocks/files.ts`)가 파일 이름으로 응답을 고른다(`slow`는 늦게 답하고, `flaky`는 그 이름으로 처음 올릴 때 실패한다). table처럼 `src/shared/mocks/handlers.ts`의 패치로 더하되, table의 패치와 함께 적용되도록 목록을 고치지 않고 목록 뒤에서 맨 앞에 넣는다(`handlers.unshift(...filesHandlers)`). 이렇게 둘 이상의 Recipe가 같은 자리에 핸들러를 더하므로 이 자리는 확장 지점으로 바꿀 대상이다(ADR-0010).
+
+`static-export`에서는 브라우저가 다른 출처의 백엔드를 직접 부르고, XMLHttpRequest에 `upload` 이벤트를 달면 브라우저가 CORS preflight를 먼저 보낸다. 그래서 목 백엔드는 preflight에 답하고 응답에 CORS 헤더를 붙인다(Vitest의 jsdom도 CORS를 검사한다). 브라우저의 MSW(서비스 워커)는 본문을 네트워크로 보내지 않고 받아 진행률이 중간값 없이 끝나므로, E2E는 Chromium의 네트워크 흉내로 업로드를 늦추고 중간값은 요청이 네트워크를 지나는 `server`에서만 본다.
+
+| 선언하는 것    | `recipes/file-upload/`                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts` |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`                        |
+| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                                              |
+| npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                              |
+| 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `e2e/file-upload.spec.ts`            |
+| 필요한 Recipe  | 없음                                                                                                                              |
+| Rendering Mode | `server`, `static-export`                                                                                                         |
