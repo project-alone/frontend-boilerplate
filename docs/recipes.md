@@ -343,7 +343,7 @@ Recharts로 대시보드용 시계열 차트(일별 방문 수)와 비교 차트
 
 next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recipe다. 번역한 페이지는 `src/app/[locale]/` 아래에 두어 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), Base의 홈은 이 아래로 옮긴다. 머리글의 locale 전환 UI, `ko.json`의 타입으로 검사하는 메시지 키, 홈(`/`)에서 locale을 고르는 proxy 처리기를 더한다.
 
-다른 Recipe는 i18n을 모르고 `src/app/<경로>`에 라우트를 더하므로, i18n이 그 라우트를 옮기거나 바꾸지 않고 함께 켜지는 라우팅을 골랐다.
+다른 Recipe는 i18n을 모르고 `src/app/<경로>`에 라우트를 더하므로, i18n이 그 라우트를 옮기거나 바꾸지 않고 함께 켜지는 라우팅을 골랐다(ADR-0012).
 
 - **next-intl의 기본 구성(모든 페이지를 `app/[locale]/` 아래로)을 쓰지 않는다.** 그 구성은 `[locale]` 레이아웃을 루트 레이아웃으로 두고 `next/root-params`로 locale을 읽는다. Recipe가 그렇게 하면 Base와 다른 Recipe의 페이지를 모두 `[locale]` 아래로 옮겨야 해서 Showcase처럼 함께 켤 수 없다.
 - **proxy의 rewrite와 헤더·쿠키로 locale을 넘기지 않는다.** proxy가 `/en/<경로>`를 `/<경로>`로 rewrite하고 locale을 요청 헤더나 쿠키로 넘기는 방식, 그리고 next-intl의 "i18n 라우팅 없이" 쿠키로 locale을 정하는 방식은 라우트를 옮기지 않지만, 서버 컴포넌트가 요청마다 헤더·쿠키를 읽어야 한다. 앱 전체를 감싸는 Provider에서 읽으면 모든 페이지가 요청마다 렌더링되어, route-rendering의 SSG 라우트(`dynamic = 'error'`)는 빌드가 실패하고 ISR은 의미를 잃으며, 랜딩 Archetype(SSG)과 `static-export`에서도 쓸 수 없다.
