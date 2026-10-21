@@ -1,0 +1,100 @@
+import { describe, expect, test } from 'vitest'
+import { freePort, start, waitForServer } from './run.ts'
+import { expectFileToPass, type RenderingMode, runVitestScript, useStarter } from './starter.ts'
+
+// 하네스 매트릭스: Base에 seo Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들어, Starter 자신의 스크립트와 Recipe가
+// 함께 넣은 테스트(src/shared/seo, src/app/sitemap.test.ts, e2e/seo.spec.ts)가 통과하는지 본다. 다른 Recipe와 함께 켠 조합은
+// table과 함께 넣은 static-export 조합으로 보고(다른 Recipe가 더한 페이지가 sitemap에 저절로 들어가는지), server에서 모든
+// Recipe를 켠 조합은 Showcase(showcase-starter.test.ts)가 본다.
+
+// 배포용 빌드에 넣는 사이트 주소
+const SITE_URL = 'https://www.example.com'
+
+// 배포한 서버처럼 MSW를 끄고 백엔드 주소를 넣어 띄운다(standalone.test.ts). 확인하는 페이지는 백엔드를 부르지 않는다.
+const DEPLOYED_ENV = { API_MOCKING: 'disabled', API_BASE_URL: 'https://backend.example.com' }
+
+// Recipe가 함께 넣은 단위 테스트
+const UNIT_TESTS = [
+  'src/shared/seo/site.test.ts',
+  'src/shared/seo/page-routes.test.ts',
+  'src/shared/seo/metadata.test.ts',
+  'src/shared/seo/og-image.test.tsx',
+  'src/app/sitemap.test.ts',
+]
+
+const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly string[]; pages: readonly string[] }[] = [
+  { renderingMode: 'server', recipes: ['seo'], pages: ['/', '/products'] },
+  { renderingMode: 'static-export', recipes: ['seo'], pages: ['/', '/products'] },
+  { renderingMode: 'static-export', recipes: ['seo', 'table'], pages: ['/', '/members', '/products'] },
+]
+
+for (const { renderingMode, recipes, pages } of COMBINATIONS) {
+  describe(`Rendering Mode ${renderingMode}에 Recipe ${recipes.join(', ')}를 넣은 Starter`, () => {
+    const starter = useStarter({
+      prefix: `dcgen-${recipes.join('-')}-${renderingMode}-`,
+      renderingMode,
+      recipes,
+      install: true,
+      playwright: true,
+    })
+
+    test('타입 검사, 린트, 포맷 검사, 단위 테스트(사이트 주소, sitemap에 넣을 페이지, 한글 공유 이미지)를 통과한다', () => {
+      for (const script of [
+        ['run', 'typecheck'],
+        ['run', 'lint'],
+        ['run', 'format:check'],
+      ]) {
+        starter.expectNpmSuccess(script)
+      }
+
+      const report = runVitestScript(starter, ['test'])
+      for (const file of UNIT_TESTS) expectFileToPass(report, file, 1)
+    })
+
+    test('사이트 주소(NEXT_PUBLIC_SITE_URL) 없이 만든 배포용 빌드는 무엇을 넣어야 하는지 알리며 실패한다', () => {
+      const result = starter.npm(['run', 'build'])
+
+      expect(result.status, result.failureMessage).not.toBe(0)
+      expect(result.output).toContain('NEXT_PUBLIC_SITE_URL 환경 변수가 없습니다')
+    })
+
+    test('배포용 빌드는 사이트 주소로 sitemap.xml, robots.txt, canonical과 공유 이미지의 주소를 만든다', async () => {
+      starter.expectNpmSuccess(['run', 'build'], { NEXT_PUBLIC_SITE_URL: SITE_URL })
+      const port = await freePort()
+      const origin = `http://localhost:${String(port)}`
+      // server는 next start, static-export는 out/만 띄우는 정적 파일 서버다.
+      const server = start('npm', ['run', 'start', '--', '--port', String(port)], starter.dir, DEPLOYED_ENV)
+
+      try {
+        const home = await waitForServer(`${origin}/`, server)
+        const html = await home.text()
+        expect(home.status, server.output()).toBe(200)
+        expect(html).toContain(`<link rel="canonical" href="${SITE_URL}"/>`)
+        const ogImage = /<meta property="og:image" content="([^"]+)"/.exec(html)?.[1] ?? ''
+        expect(ogImage).toMatch(new RegExp(`^${SITE_URL}/opengraph-image/image\\.png\\?`))
+
+        // 다른 Recipe가 더한 페이지(table의 /members)도 sitemap.ts를 고치지 않고 들어간다.
+        const sitemap = await (await fetch(`${origin}/sitemap.xml`)).text()
+        const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url)
+        expect(locations).toEqual(pages.map((page) => new URL(page, SITE_URL).href))
+
+        const robots = await (await fetch(`${origin}/robots.txt`)).text()
+        expect(robots).toContain(`Sitemap: ${SITE_URL}/sitemap.xml`)
+
+        const image = await fetch(`${origin}${new URL(ogImage).pathname}`)
+        expect(image.status).toBe(200)
+        expect(image.headers.get('content-type')).toBe('image/png')
+      } finally {
+        await server.stop()
+      }
+    })
+
+    // E2E는 배포하지 않는 목 빌드(API_MOCKING=enabled)로 돈다. 사이트 주소 없이도 빌드된다.
+    // server는 여기서 만든 목 빌드를 띄우고, static-export는 E2E가 브라우저의 MSW까지 켜고 직접 다시 빌드한다(playwright.config.ts).
+    test('사이트 주소 없이 만든 목 빌드에서 E2E가 통과한다(메타데이터, 공유 이미지, sitemap.xml, robots.txt)', async () => {
+      if (renderingMode === 'server') starter.expectNpmSuccess(['run', 'build'], { API_MOCKING: 'enabled' })
+
+      starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
+    })
+  })
+}

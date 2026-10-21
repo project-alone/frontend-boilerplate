@@ -1,0 +1,5 @@
+{
+  "description": "검색 노출을 위한 sitemap, robots.txt, 페이지별 OG 이미지와 사이트 주소로 canonical·OG·Twitter 메타데이터를 일관되게 만드는 도우미",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}

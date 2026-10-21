@@ -1,0 +1,46 @@
+## 검색 노출(SEO)
+
+`seo` Recipe로 넣었습니다. 검색 엔진과 메신저·SNS의 공유 카드에 보이는 정보(메타데이터, 공유 이미지, `/sitemap.xml`, `/robots.txt`)를 만듭니다.
+
+| 위치                                      | 내용                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/shared/seo/site.ts`                  | 사이트 이름·설명·locale과 사이트 주소(`NEXT_PUBLIC_SITE_URL`)                                        |
+| `src/shared/seo/metadata.ts`              | 모든 페이지가 물려받는 메타데이터의 기본값(`siteMetadata`). 루트 레이아웃(`src/app/layout.tsx`)이 씀 |
+| `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                            |
+| `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                          |
+| `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                        |
+| `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예        |
+
+- **사이트 주소**: `NEXT_PUBLIC_SITE_URL`(예: `https://www.example.com`)로 sitemap, robots.txt, canonical, og:url, 공유 이미지의 절대 주소를 만듭니다. 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다(`.env.example`). 없으면 엉뚱한 주소가 검색 엔진에 알려지지 않도록 빌드가 실패합니다. 개발 서버는 `.env.development`의 `http://localhost:3000`을 쓰고, 배포하지 않는 목 빌드(`API_MOCKING=enabled`. GitLab CI의 `build` 잡과 E2E)는 값이 없으면 같은 주소를 씁니다.
+
+  ```sh
+  NEXT_PUBLIC_SITE_URL=https://www.example.com API_BASE_URL=https://<백엔드 주소> npm run build  # 배포용 빌드
+  ```
+
+- **페이지의 메타데이터**: 루트 레이아웃의 `siteMetadata()`가 모든 페이지의 기본값을 정하므로, 페이지는 `metadata`에 `title`과 `description`만 적습니다.
+
+  ```ts
+  export const metadata: Metadata = {
+    title: '주문', // <title>주문 | Starter</title>, og:title
+    description: '주문 내역과 배송 상태를 확인합니다.', // description, og:description
+  }
+  ```
+
+  - 제목 뒤에 사이트 이름이 붙고(`주문 | Starter`), 제목을 적지 않은 페이지(홈)는 사이트 이름이 제목입니다. 설명을 적지 않으면 사이트 설명을 씁니다.
+  - canonical과 og:url은 페이지마다 그 페이지의 주소(쿼리 문자열 제외)입니다.
+  - og:title·og:description과 Twitter 카드(`summary_large_image`)의 제목·설명·이미지는 Next.js가 페이지의 `title`·`description`과 공유 이미지로 채웁니다.
+  - Next.js는 레이아웃과 페이지의 metadata를 항목 단위로 덮어씁니다. 페이지가 `openGraph`, `twitter`, `alternates`를 적으면 그 항목의 기본값(og:url, 공유 이미지, canonical)이 사라지므로, 꼭 적어야 하면 `alternates: { canonical: './', ... }`처럼 `siteMetadata()`의 기본값을 함께 적습니다.
+  - 검색에 노출하지 않을 페이지(로그인, 내 정보 등)는 `robots: { index: false }`를 적고 `src/app/sitemap.ts`의 `EXCLUDED_ROUTES`에도 적습니다.
+
+- **공유 이미지(OG 이미지)**: 페이지 폴더에 `opengraph-image.tsx`를 두면 그 페이지(와 아래 페이지)의 공유 이미지가 되고, 없으면 가장 가까운 위 폴더의 이미지, 끝내 사이트의 기본 이미지(`src/app/opengraph-image.tsx`)를 씁니다. 새 페이지의 이미지는 `src/app/products/opengraph-image.tsx`를 그 페이지 폴더에 복사해 제목을 바꿉니다.
+  - 빌드할 때 한 번 그려 PNG로 둡니다(`dynamic = 'force-static'`). 주소에 확장자가 붙어(`/products/opengraph-image/image.png`) static-export의 정적 파일도 서버가 `image/png`로 응답합니다(`ogImageMetadata`).
+  - 모양은 `ogImage`(`src/shared/seo/og-image.tsx`)가 정합니다. next/og는 CSS 변수를 읽지 못하므로 색은 디자인 토큰 파일(`src/shared/ui/tokens.css`)의 값을 읽어 씁니다.
+  - 글꼴은 함께 넣은 Pretendard Bold(한글 11,172자, SIL Open Font License 1.1. `src/shared/seo/pretendard-license.txt`)입니다. next/og는 글꼴에 없는 글자를 만나면 빌드 중에 Google Fonts에서 글꼴을 받으므로, 네트워크가 막힌 CI에서도 같은 이미지가 나오도록 글꼴을 함께 둡니다. 한자, 일본어, 이모지는 이 글꼴에 없어 받으러 가므로 공유 이미지의 글에 쓰지 않습니다. 글꼴을 바꾸면 라이선스 파일도 함께 바꿉니다.
+- **sitemap**: 빌드할 때 `src/app`의 페이지를 찾아 `/sitemap.xml`에 넣습니다. 다른 Recipe나 `npm run g -- page`가 더한 페이지도 `sitemap.ts`를 고치지 않고 들어갑니다.
+  - 경로 그룹(`(admin)`)은 주소에서 빠집니다. 동적 세그먼트가 있는 페이지(`products/[productId]`)는 빌드할 때 주소를 알 수 없어 빠지므로, `sitemap.ts`에서 데이터를 가져와 주소를 더합니다(예: `listProducts`의 상품마다 `/products/<id>`).
+  - 빌드할 때 만들어 두므로 페이지를 더하거나 지우면 다시 빌드해야 반영됩니다.
+- **robots.txt**: 모든 검색 엔진에 사이트 전체를 열고 sitemap의 주소를 알립니다. 스테이징처럼 검색에 노출하지 않을 배포라면 `src/app/robots.ts`의 `rules`를 `{ userAgent: '*', disallow: '/' }`로 바꿉니다.
+- Rendering Mode `server`와 `static-export` 모두에서 sitemap.xml, robots.txt, 공유 이미지를 빌드할 때 만듭니다. static-export는 `out/sitemap.xml`, `out/robots.txt`, `out/**/opengraph-image/image.png`로 내보냅니다.
+- 사이트 이름, 설명, locale은 `src/shared/seo/site.ts`에서 바꿉니다. 루트 레이아웃의 `<html lang>`과 locale을 맞춥니다.
+- `/products` 샘플을 지우면(위 "샘플 명세 바꾸기") `src/app/sitemap.test.ts`와 `e2e/seo.spec.ts`에서 `/products`를 확인하는 부분도 지웁니다.
+- 테스트: `src/shared/seo/site.test.ts`(사이트 주소와 없을 때의 실패), `page-routes.test.ts`(sitemap에 넣을 페이지 찾기), `metadata.test.ts`(모든 페이지의 기본값), `og-image.test.tsx`(한글 공유 이미지를 네트워크 없이 그림), `src/app/sitemap.test.ts`(이 Starter의 sitemap과 robots.txt), `e2e/seo.spec.ts`(빌드한 앱의 메타데이터, 공유 이미지, sitemap.xml, robots.txt).

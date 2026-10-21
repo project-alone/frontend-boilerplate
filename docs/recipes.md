@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`, 배포용 컨테이너 이미지와 상태 확인 주소를 더하는 `recipes/docker/`, 다른 Recipe의 페이지도 저절로 sitemap에 넣는 `recipes/seo/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -485,3 +485,21 @@ table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared
 | 자기 테스트    | `e2e/health.spec.ts`(이미지 자체는 하네스가 `docker build`·`docker run`으로 검사) |
 | 필요한 Recipe  | 없음                                                                              |
 | Rendering Mode | `server`                                                                          |
+
+## 예: seo
+
+검색 엔진과 공유 카드에 보이는 메타데이터, 페이지별 공유 이미지(OG 이미지), `/sitemap.xml`, `/robots.txt`를 만드는 Recipe다. 사이트 주소(`NEXT_PUBLIC_SITE_URL`)는 환경 변수 확장 지점으로 `.env.development`에 개발 서버의 주소를, `.env.example`에 빈 값을 더한다. 배포용 빌드에 값이 없으면 루트 레이아웃과 sitemap이 빌드를 멈추고, 배포하지 않는 목 빌드(`API_MOCKING=enabled`, ADR-0011)만 개발 서버의 주소를 쓰므로 GitLab CI와 E2E 설정은 고치지 않는다.
+
+- 메타데이터의 기본값은 루트 레이아웃의 `metadata` 한 곳(`siteMetadata()`)이 정한다. canonical과 og:url을 `./`로 두면 Next.js가 페이지마다 그 페이지의 경로로 풀고, 공유 이미지는 Next.js가 가장 가까운 폴더의 `opengraph-image`를 물려주므로, 다른 Recipe와 Schematic의 페이지는 `title`과 `description`만 적어도 자기 주소와 공유 이미지를 알린다. 페이지가 `openGraph`, `twitter`, `alternates`를 적으면 그 항목의 기본값이 통째로 사라지므로 적지 않는다. 루트 레이아웃의 `metadata`는 확장 지점이 아니어서 패치(`src/app/layout.tsx.patch`)로 바꾼다.
+- sitemap은 빌드할 때 `src/app`의 페이지 파일을 찾아 만든다(`src/shared/seo/page-routes.ts`). 다른 Recipe나 `npm run g -- page`가 더한 페이지는 sitemap을 고치거나 확장 지점에 선언하지 않아도 들어가고, 동적 세그먼트가 있는 페이지는 빠진다. 페이지 목록을 모으는 확장 지점은 두지 않았다. 페이지를 더하는 Recipe가 seo에 기대지 않아도 되고, Starter를 만든 뒤 더한 페이지도 같은 규칙으로 들어간다.
+- 공유 이미지는 `opengraph-image.tsx`가 `generateImageMetadata`로 `opengraph-image/image.png`처럼 확장자가 붙은 주소 하나로 만든다. 확장자가 없으면 static-export가 내보낸 파일(`out/opengraph-image`)을 정적 파일 서버가 이미지로 알리지 못한다. `next/og`는 기본 글꼴에 없는 글자를 빌드 중에 Google Fonts에서 받으므로, 한글 11,172자를 담은 글꼴(Pretendard Bold, SIL Open Font License)을 함께 넣어 네트워크 없이 같은 이미지를 만든다.
+
+| 선언하는 것    | `recipes/seo/`                                                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/sitemap.ts`, `src/app/robots.ts`, `src/app/opengraph-image.tsx`, `src/app/products/opengraph-image.tsx`, `src/shared/seo/`(글꼴과 라이선스 포함) |
+| 확장 지점      | 환경 변수: `.env.development`, `.env.example`의 `NEXT_PUBLIC_SITE_URL`, `process-env.seo.d.ts`                                                            |
+| 설정 패치      | `src/app/layout.tsx.patch`(루트 레이아웃의 metadata)                                                                                                      |
+| npm 의존성     | 없음(`next/og`는 Next.js에 들어 있다)                                                                                                                     |
+| 자기 테스트    | `src/shared/seo/site.test.ts`, `page-routes.test.ts`, `metadata.test.ts`, `og-image.test.tsx`, `src/app/sitemap.test.ts`, `e2e/seo.spec.ts`               |
+| 필요한 Recipe  | 없음                                                                                                                                                      |
+| Rendering Mode | `server`, `static-export`                                                                                                                                 |
