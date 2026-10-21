@@ -6,7 +6,7 @@ import { KEYS, run, runInTerminal } from './run.ts'
 import { readTree } from './starter.ts'
 
 // `dcgen new`가 Archetype을 고르고 조합을 검사하는 동작. 설치가 필요 없으므로 모두 --skip-install로 만든다.
-// 대시보드·커머스 Archetype을 넣은 Starter의 스크립트·E2E는 dashboard.test.ts, commerce.test.ts가 검증한다.
+// Archetype을 넣은 Starter의 스크립트·E2E는 Archetype마다 commerce.test.ts, dashboard.test.ts, landing.test.ts가 검증한다.
 
 let workdir: string
 
@@ -97,7 +97,7 @@ describe('터미널에서 실행한 new', () => {
     expect(existsSync(join(workdir, 'my-app', 'src/app/dashboard/page.tsx'))).toBe(true)
   })
 
-  test('고른 Rendering Mode에서 쓸 수 없는 Archetype은 이유와 함께 알리고 고르지 못하게 한다', async () => {
+  test('고른 Rendering Mode에서 쓸 수 없는 Archetype은 이유와 함께 알리고 고르지 못하게 하며, 쓸 수 있는 Archetype은 고른 대로 넣는다', async () => {
     const terminal = runInTerminal(inject('dcgenBin'), ['new', 'my-app', '--skip-install'], workdir)
 
     await terminal.waitFor('Rendering Mode를 고르세요')
@@ -108,9 +108,20 @@ describe('터미널에서 실행한 new', () => {
     await terminal.waitFor('Archetype dashboard에 필요해 함께 넣으려던 Recipe입니다.')
     // 쓰는 Recipe는 static-export를 지원해도 archetype.json에서 server로 좁힌 Archetype은 적어 둔 이유를 보인다.
     await terminal.waitFor('Archetype commerce은(는) Rendering Mode static-export에서 쓸 수 없습니다')
-    terminal.press(KEYS.ctrlC)
-    expect(await terminal.exited, terminal.output()).not.toBe(0)
-    expect(readdirSync(workdir)).toEqual([])
+    // 커서는 고를 수 없는 commerce, dashboard를 건너뛰어 static-export에서도 쓸 수 있는 landing에 있다.
+    await terminal.waitFor('Recipe: i18n, seo')
+    terminal.press(KEYS.space)
+    terminal.press(KEYS.enter)
+    await terminal.waitFor('넣을 Recipe를 고르세요')
+    await terminal.waitFor('Archetype landing에 들어 있어 함께 넣습니다.')
+    terminal.press(KEYS.enter)
+
+    expect(await terminal.exited, terminal.output()).toBe(0)
+    expect(terminal.output()).toContain('Rendering Mode: static-export')
+    expect(terminal.output()).toContain('Archetype: landing')
+    expect(terminal.output()).toContain('Recipe: i18n, seo')
+    expect(existsSync(join(workdir, 'my-app', 'src/app/[locale]/landing/page.tsx'))).toBe(true)
+    expect(existsSync(join(workdir, 'my-app', 'src/app/dashboard'))).toBe(false)
   })
 
   test('--archetype을 주면 묻지 않고 플래그대로 만든다', async () => {
