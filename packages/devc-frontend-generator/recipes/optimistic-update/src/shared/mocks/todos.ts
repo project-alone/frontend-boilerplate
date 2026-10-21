@@ -3,8 +3,9 @@ import { type Todo, TodoUpdate } from '@/shared/api/generated/model'
 import { getListTodosResponseMock } from '@/shared/api/generated/todos/todos.msw'
 
 // optimistic-update Recipe: 할 일(todos)을 흉내 내는 MSW 핸들러. 명세에서 생성한 핸들러는 example을 그대로 돌려주므로
-// 완료 여부를 바꿔도 다시 가져온 목록은 그대로다. 이 핸들러가 그보다 앞에서(handlers.ts) 바뀐 완료 여부를 기억해
-// 백엔드처럼 돌려준다. Vitest, 개발 서버, E2E가 모두 이 핸들러를 쓴다.
+// 완료 여부를 바꿔도 다시 가져온 목록은 그대로다. 이 핸들러가 그보다 앞에서 바뀐 완료 여부를 기억해 백엔드처럼 돌려준다.
+// 확장 지점 mockHandlers(Recipe의 extensions.json)로 선언해, MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이 생성된
+// 핸들러보다 앞에 둔다. Vitest, 개발 서버, E2E가 모두 이 핸들러를 쓴다.
 //
 // - 저장(updateTodo)은 SAVE_DELAY_MS 뒤에 답한다. 응답이 늦어야 낙관적 업데이트가 응답 전에 화면을 바꾸고, 실패하면
 //   되돌리는 것이 눈에 보인다.
