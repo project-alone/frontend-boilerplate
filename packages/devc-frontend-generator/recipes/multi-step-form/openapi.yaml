@@ -1,0 +1,94 @@
+# multi-step-form Recipe가 Base 명세에 더하는 명세 조각(docs/recipes.md의 "OpenAPI 명세 조각"). 여러 단계에 나눠 입력받는
+# 요청 본문을 한 번에 받는 operation이다. 다단계 폼(src/features/partner-application)은 이 요청 본문의 Zod 스키마를 단계마다
+# 나눠 검증하고, 마지막 단계에서 전체를 한 번 보낸다.
+tags:
+  - name: partners
+    description: 입점 파트너
+paths:
+  /partner-applications:
+    post:
+      operationId: submitPartnerApplication
+      summary: 입점 신청
+      description: 사업자 정보, 담당자 정보, 판매 계획을 한 번에 받아 입점 신청을 접수한다.
+      tags: [partners]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerApplication'
+      responses:
+        '201':
+          description: 접수한 입점 신청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerApplicationReceipt'
+              # 생성된 MSW 핸들러가 돌려주는 값
+              example:
+                id: PA-0001
+        '400':
+          description: 요청 본문이 잘못되었다.
+components:
+  schemas:
+    PartnerCategory:
+      type: string
+      enum: [fashion, food, living, digital]
+    PartnerApplication:
+      type: object
+      required: [companyName, businessNumber, category, contactName, email, phone, productCount, agreedToTerms]
+      properties:
+        # 1단계: 사업자 정보
+        companyName:
+          type: string
+          title: 상호
+          minLength: 1
+          maxLength: 50
+        businessNumber:
+          type: string
+          title: 사업자등록번호
+          description: 000-00-00000 형식으로 적습니다.
+          pattern: '^\d{3}-\d{2}-\d{5}$'
+        category:
+          $ref: '#/components/schemas/PartnerCategory'
+          title: 판매 분야
+        # 2단계: 담당자 정보
+        contactName:
+          type: string
+          title: 담당자 이름
+          minLength: 1
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          title: 이메일
+        phone:
+          type: string
+          title: 연락처
+          description: 010-0000-0000 형식으로 적습니다.
+          pattern: '^01\d-\d{3,4}-\d{4}$'
+        # 3단계: 판매 계획
+        productCount:
+          type: integer
+          title: 판매할 상품 수
+          minimum: 1
+          maximum: 10000
+        monthlySales:
+          type: integer
+          title: 월 예상 매출(만 원)
+          minimum: 0
+        introduction:
+          type: string
+          title: 회사 소개
+          maxLength: 200
+        agreedToTerms:
+          type: boolean
+          title: 입점 약관에 동의합니다
+          const: true
+    PartnerApplicationReceipt:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: 접수 번호

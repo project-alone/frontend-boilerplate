@@ -1,5 +1,5 @@
 # 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/table/openapi.yaml
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/table/openapi.yaml
 
 # API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
 # 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
@@ -16,6 +16,8 @@ tags:
     description: 인증
   - name: stats
     description: 대시보드 통계
+  - name: partners
+    description: 입점 파트너
   - name: members
     description: 회원
 paths:
@@ -228,6 +230,30 @@ paths:
                 - channel: 제휴 마켓
                   currentMonth: 12700000
                   previousMonth: 9300000
+  /partner-applications:
+    post:
+      operationId: submitPartnerApplication
+      summary: 입점 신청
+      description: 사업자 정보, 담당자 정보, 판매 계획을 한 번에 받아 입점 신청을 접수한다.
+      tags: [partners]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerApplication'
+      responses:
+        '201':
+          description: 접수한 입점 신청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerApplicationReceipt'
+              # 생성된 MSW 핸들러가 돌려주는 값
+              example:
+                id: PA-0001
+        '400':
+          description: 요청 본문이 잘못되었다.
   /members:
     get:
       operationId: listMembers
@@ -410,6 +436,67 @@ components:
           type: integer
           minimum: 0
           description: 지난달 매출(원)
+    PartnerCategory:
+      type: string
+      enum: [fashion, food, living, digital]
+    PartnerApplication:
+      type: object
+      required: [companyName, businessNumber, category, contactName, email, phone, productCount, agreedToTerms]
+      properties:
+        # 1단계: 사업자 정보
+        companyName:
+          type: string
+          title: 상호
+          minLength: 1
+          maxLength: 50
+        businessNumber:
+          type: string
+          title: 사업자등록번호
+          description: 000-00-00000 형식으로 적습니다.
+          pattern: '^\d{3}-\d{2}-\d{5}$'
+        category:
+          $ref: '#/components/schemas/PartnerCategory'
+          title: 판매 분야
+        # 2단계: 담당자 정보
+        contactName:
+          type: string
+          title: 담당자 이름
+          minLength: 1
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          title: 이메일
+        phone:
+          type: string
+          title: 연락처
+          description: 010-0000-0000 형식으로 적습니다.
+          pattern: '^01\d-\d{3,4}-\d{4}$'
+        # 3단계: 판매 계획
+        productCount:
+          type: integer
+          title: 판매할 상품 수
+          minimum: 1
+          maximum: 10000
+        monthlySales:
+          type: integer
+          title: 월 예상 매출(만 원)
+          minimum: 0
+        introduction:
+          type: string
+          title: 회사 소개
+          maxLength: 200
+        agreedToTerms:
+          type: boolean
+          title: 입점 약관에 동의합니다
+          const: true
+    PartnerApplicationReceipt:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: 접수 번호
     MemberRole:
       type: string
       enum: [admin, editor, viewer]
