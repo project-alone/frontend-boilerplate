@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getRegisterMemberMockHandler } from '@/shared/api/generated/members/members.msw'
-import { REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
+import { MUST_CHECK_MESSAGE, REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { RegisterMemberForm } from './register-member-form'
@@ -51,15 +51,27 @@ test('입력한 값을 요청 본문으로 보내고 성공을 알린다', async
   await user.click(await screen.findByRole('option', { name: 'basic' }))
   await user.type(screen.getByRole('textbox', { name: '별명' }), 'a')
   await user.click(screen.getByRole('checkbox', { name: '약관에 동의합니다' }))
+  await user.click(screen.getByRole('checkbox', { name: '개인정보 처리에 동의합니다' }))
+  await user.click(screen.getByRole('checkbox', { name: '마케팅 정보를 받습니다' }))
   await user.click(screen.getByRole('button', { name: '회원 가입' }))
 
   expect(await screen.findByText('회원 가입 완료')).toBeInTheDocument()
   expect(bodies).toEqual([
-    { name: 'a', email: 'user@example.com', age: 14, height: 1, grade: 'basic', nickname: 'a', agreed: true },
+    {
+      name: 'a',
+      email: 'user@example.com',
+      age: 14,
+      height: 1,
+      grade: 'basic',
+      nickname: 'a',
+      agreed: true,
+      privacy: true,
+      marketing: true,
+    },
   ])
 })
 
-test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
+test('비워 두거나 체크하지 않은 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
   renderForm()
@@ -75,6 +87,15 @@ test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류�
   ]) {
     expect(control).toHaveAttribute('aria-invalid', 'true')
     expect(control).toHaveAccessibleDescription(requiredError)
+  }
+  // 반드시 true여야 하는 체크박스(명세의 const: true, enum: [true])는 체크하라고 알린다.
+  const mustCheckError = new RegExp(RegExp.escape(MUST_CHECK_MESSAGE))
+  for (const control of [
+    screen.getByRole('checkbox', { name: '약관에 동의합니다' }),
+    screen.getByRole('checkbox', { name: '개인정보 처리에 동의합니다' }),
+  ]) {
+    expect(control).toHaveAttribute('aria-invalid', 'true')
+    expect(control).toHaveAccessibleDescription(mustCheckError)
   }
   expect(bodies).toEqual([])
 })

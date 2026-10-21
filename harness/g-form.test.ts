@@ -21,9 +21,12 @@ const QUERIES_DIR = 'src/queries'
 
 // Base의 샘플 명세(openapi.yaml)에 하네스가 더하는 operation. 샘플의 products(listProducts, createProduct)는 그대로 두고 다음을 더한다.
 // - products tag에 path 파라미터와 요청 본문을 받는 PUT, 요청 본문이 없는 DELETE → 폼이 path 파라미터를 props로 받기, 요청 본문이 없는 operation
-// - members tag(Query Domain 모듈이 없다)에 입력 요소의 종류(문자열, 이메일, 정수, 숫자, enum, 불리언)를 모두 담은 인라인 요청 본문의 POST
-//   → 응답 본문이 없는(204) 뮤테이션, title·description으로 정한 레이블과 설명, 입력 요소로 만들 수 없는 선택 필드(배열)
-// - 같은 tag에 선택 필드만 받는 PATCH → 비워 두고 제출해도 검증에 실패하지 않는 폼(검증 실패 테스트와 스토리를 만들지 않는다)
+// - members tag(Query Domain 모듈이 없다)에 입력 요소의 종류(문자열, 이메일, 정수, 숫자, enum, 반드시 true여야 하는 불리언)를
+//   모두 담은 인라인 요청 본문의 POST → 응답 본문이 없는(204) 뮤테이션, title·description으로 정한 레이블과 설명,
+//   입력 요소로 만들 수 없는 선택 필드(배열), 체크해야 보낼 수 있는 체크박스(const: true, enum: [true])
+// - 같은 tag에 선택 필드만 받는 PATCH → 비워 두고 제출해도 검증에 실패하지 않는 폼(길이 규칙으로 검증 실패를 보인다)
+// - 같은 tag에 null을 받는 필드(3.1의 type: [..., 'null'], 3.0의 nullable: true, anyOf의 null)를 필수·선택으로 받는 PUT
+//   → 비워 둔 필수 필드는 null로, 비워 둔 선택 필드는 빼고 보낸다
 // - 같은 tag에 입력 요소로 만들 수 없는 필수 필드(객체)를 받는 POST → 폼을 만들지 않는다
 const HARNESS_OPERATIONS = `
 tags:
@@ -78,7 +81,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, email, grade, agreed]
+              required: [name, email, grade, agreed, privacy]
               properties:
                 name:
                   type: string
@@ -106,7 +109,15 @@ paths:
                   title: 별명
                 agreed:
                   type: boolean
+                  const: true
                   title: 약관에 동의합니다
+                privacy:
+                  type: boolean
+                  enum: [true]
+                  title: 개인정보 처리에 동의합니다
+                marketing:
+                  type: boolean
+                  title: 마케팅 정보를 받습니다
                 interests:
                   type: array
                   items:
@@ -133,6 +144,50 @@ paths:
                 newsletter:
                   type: boolean
                   title: 소식 받기
+      responses:
+        '204':
+          description: 수정됨
+  /members/me/contact:
+    put:
+      operationId: updateMemberContact
+      summary: 연락처 수정
+      tags: [members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, floor, region]
+              properties:
+                phone:
+                  type: [string, 'null']
+                  title: 전화번호
+                  maxLength: 20
+                floor:
+                  type: [integer, 'null']
+                  title: 층
+                  minimum: 1
+                region:
+                  type: [string, 'null']
+                  title: 지역
+                  enum: [seoul, busan, null]
+                memo:
+                  type: string
+                  nullable: true
+                  title: 메모
+                homepage:
+                  title: 홈페이지
+                  anyOf:
+                    - type: string
+                      format: uri
+                    - type: 'null'
+                extension:
+                  type: string
+                  title: 내선 번호
+                sms:
+                  type: [boolean, 'null']
+                  title: 문자를 받습니다
       responses:
         '204':
           description: 수정됨
@@ -173,13 +228,14 @@ function generate(starter: Starter, args: readonly string[]): void {
 }
 
 // Starter의 검사를 통과하는지 볼 때 만드는 폼: 응답 본문이 있는 샘플 operation, 경로 파라미터를 받는 operation(같은 Feature),
-// 입력 요소의 종류를 모두 담은 응답 본문이 없는 operation(새 Query Domain, 새 Feature), 선택 필드만 받는 operation.
-// stem은 만들어지는 세 파일의 확장자를 뺀 경로다.
+// 입력 요소의 종류를 모두 담은 응답 본문이 없는 operation(새 Query Domain, 새 Feature), 선택 필드만 받는 operation,
+// null을 받는 필드가 있는 operation. stem은 만들어지는 세 파일의 확장자를 뺀 경로다.
 const CHECKED_FORMS = [
   { operationId: 'createProduct', feature: 'product-admin', stem: 'src/features/product-admin/create-product-form' },
   { operationId: 'updateProduct', feature: 'product-admin', stem: 'src/features/product-admin/update-product-form' },
   { operationId: 'registerMember', feature: 'members', stem: 'src/features/members/register-member-form' },
   { operationId: 'updateMemberProfile', feature: 'members', stem: 'src/features/members/update-member-profile-form' },
+  { operationId: 'updateMemberContact', feature: 'members', stem: 'src/features/members/update-member-contact-form' },
 ]
 
 /**
@@ -262,6 +318,19 @@ describe('server Starter', () => {
     await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, [
       'update-member-profile-form.test.tsx',
       'update-member-profile-form.stories.tsx',
+    ])
+  })
+
+  test('null을 받는 필드는 같은 입력 요소로 받고, 비워 둔 필수 필드는 null로, 비워 둔 선택 필드는 빼고 보내는지 테스트한다', async () => {
+    generate(starter, ['mutation', 'updateMemberContact'])
+
+    const result = dcgen(starter, ['g', 'form', 'updateMemberContact', '--feature', 'members'])
+
+    expect(result.status, result.output).toBe(0)
+    expect(result.output).not.toContain('입력 요소로 만들지 않은 선택 필드')
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, [
+      'update-member-contact-form.tsx',
+      'update-member-contact-form.test.tsx',
     ])
   })
 

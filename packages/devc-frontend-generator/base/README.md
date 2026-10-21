@@ -189,7 +189,33 @@ const {
 ```
 
 - `src/shared/form/form-resolver.ts`의 `formResolver(schema)`를 `useForm`의 `resolver`로 넘깁니다. 제출 핸들러(`handleSubmit`)는 검증을 통과한 값을 받습니다.
-- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 값을 넣지 않은 것으로 보고 검증 전에 뺍니다. 비워 둔 선택 필드는 요청에 담기지 않고, 비워 둔 필수 필드는 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다. 그 밖의 오류는 Zod의 한국어 메시지입니다.
+- 비워 둔 입력(빈 문자열, 고르지 않은 `Select`, 비운 숫자 입력)은 명세에 따라 검증 전에 바꿉니다. "비우기"(`null`)와 "보내지 않기"(키를 뺌)를 이렇게 나눕니다.
+
+  | 비워 둔 필드                                                                                | 요청 본문                                                                                |
+  | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | 선택 필드                                                                                   | 보내지 않습니다                                                                          |
+  | 필수 필드                                                                                   | 보내지 않고 `REQUIRED_MESSAGE`("값을 입력해 주세요.")로 알립니다                         |
+  | null을 받는 필수 필드(`type: [string, 'null']`, `nullable: true`, `anyOf`의 `type: 'null'`) | `null`을 보냅니다                                                                        |
+  | null을 받는 선택 필드                                                                       | 처음 값이 있던 입력을 비웠으면 `null`(값을 지움), 처음부터 비어 있었으면 보내지 않습니다 |
+  | 기본값(`default`)이 있는 필드                                                               | 기본값을 보냅니다                                                                        |
+
+- null을 받는 선택 필드의 "처음 값"은 `formResolver(schema, { defaultValues })`로 넘깁니다. 현재 값을 채운 수정 폼이라면 `useForm`에 넘기는 `defaultValues`를 `formResolver`에도 똑같이 넘깁니다. 넘기지 않으면 처음 값이 없는 것으로 보므로 비워 둔 입력을 보내지 않습니다. 사용자가 손대지 않은 필드까지 `null`로 지우지 않도록(PATCH) 이렇게 정했습니다.
+
+  ```tsx
+  const defaultValues = { nickname: profile.nickname, bio: profile.bio }
+  const form = useForm({ resolver: formResolver(UpdateProfileBody, { defaultValues }), defaultValues })
+  ```
+
+- 반드시 체크해야 하는 체크박스(약관 동의 등)는 명세에 `const: true`나 `enum: [true]`로 적습니다. 재생성 계층의 스키마가 `true`만 받으므로, 체크하지 않으면 `MUST_CHECK_MESSAGE`("반드시 체크해야 합니다.")로 알리고 보내지 않습니다. 선택 필드면 체크하지 않았을 때 보내지 않습니다. `type: boolean`만 적은 필드는 체크하지 않으면 `false`를 보내고 검증을 통과합니다.
+
+  ```yaml
+  agreed:
+    type: boolean
+    const: true # 또는 enum: [true]
+    title: 약관에 동의합니다
+  ```
+
+- 그 밖의 오류는 Zod의 한국어 메시지입니다.
 - 숫자 입력은 `register(name, { valueAsNumber: true })`로 숫자로 바꿉니다.
 - 입력 요소는 공통 UI를 씁니다. `Field`에 `invalid`를, `FieldError`에 `match`와 오류 메시지를 넘기면 입력 요소에 `aria-invalid`가 붙고 오류 메시지가 입력 요소의 설명(`aria-describedby`)으로 읽힙니다. `Select`, `Checkbox`처럼 값을 직접 다루는 컴포넌트는 React Hook Form의 `Controller`로 잇습니다.
 - 폼 테스트는 `@testing-library/user-event`로 사람처럼 입력하고, 요청은 MSW가 받습니다.
@@ -259,18 +285,23 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 - 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `formResolver`로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
 - 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
 
-  | 명세의 속성                              | 입력 요소                                                                                |
-  | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-  | `string`                                 | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                  |
-  | `string`의 `enum`                        | `Select`(선택지의 레이블은 enum 값)                                                      |
-  | `integer`, `number`                      | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                  |
-  | `boolean`                                | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                           |
-  | 그 밖(배열, 객체, null 허용, `oneOf` 등) | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다 |
+  | 명세의 속성                               | 입력 요소                                                                                                                |
+  | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+  | `string`                                  | `Input`(`format: email`은 `type="email"`, `format: uri`는 `type="url"`)                                                  |
+  | `string`의 `enum`                         | `Select`(선택지의 레이블은 enum 값)                                                                                      |
+  | `integer`, `number`                       | `Input type="number"`. 입력한 값을 숫자로 바꿔 보냅니다                                                                  |
+  | `boolean`                                 | `Checkbox`. 체크하지 않으면 `false`를 보냅니다                                                                           |
+  | `boolean`의 `const: true`, `enum: [true]` | `Checkbox`. 체크하지 않으면 보내지 않고 `MUST_CHECK_MESSAGE`로 알립니다(필수 필드)                                       |
+  | 위 타입에 null을 더한 것                  | 같은 입력 요소. 비워 두면 위 "폼"의 표대로 `null`을 보내거나 보내지 않습니다. `enum`의 `null`은 선택지로 만들지 않습니다 |
+  | 그 밖(배열, 객체, `oneOf` 등)             | 선택 필드면 빼고 폼 위의 주석과 명령 출력으로 알립니다. 필수 필드면 폼을 만들지 않습니다                                 |
+
+- null을 더하는 방법은 3.1의 `type: [string, 'null']`, 3.0의 `nullable: true`, 스키마 하나와 `{ type: 'null' }`을 묶은 `anyOf`·`oneOf`, `enum`에 넣은 `null`을 모두 받습니다. 체크박스는 null을 받는 필드여도 늘 `true`나 `false`를 보냅니다. `Select`는 고른 값을 다시 비울 수 없으므로, 비울 수 있어야 하면 비우는 동작(예: `setValue(name, null)`)을 직접 더합니다.
 
 - 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
 - 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.
-- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
-- 검증 실패는 비워 둔 필수 입력으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
+- 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드(null을 받는 필드는 빼고)는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
+- null을 받는 필드가 있으면 필수 입력만 채워 제출했을 때 비워 둔 입력이 `null`로 가거나 빠지는지도 봅니다. 폼은 처음 값 없이 시작하므로, 처음 값이 있던 선택 필드를 비우는 경우(`formResolver`의 `defaultValues`)는 `form-resolver.test.ts`가 확인합니다.
+- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
 - 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 

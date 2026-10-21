@@ -33,8 +33,8 @@ export function RegisterMemberForm() {
     formState: { errors },
   } = useForm({
     resolver: formResolver(RegisterMemberBody),
-    // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 값을 넣지 않은 것으로 본다.
-    defaultValues: { agreed: false },
+    // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 명세에 따라 빼거나 null로 보낸다.
+    defaultValues: { agreed: false, privacy: false, marketing: false },
   })
   const mutation = useRegisterMemberMutation()
   const toast = useToast()
@@ -105,6 +105,32 @@ export function RegisterMemberForm() {
               약관에 동의합니다
             </FieldLabel>
             <FieldError match={errors.agreed !== undefined}>{errors.agreed?.message}</FieldError>
+          </Field>
+        )}
+      />
+      <Controller
+        control={control}
+        name="privacy"
+        render={({ field }) => (
+          <Field invalid={errors.privacy !== undefined}>
+            <FieldLabel>
+              <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />
+              개인정보 처리에 동의합니다
+            </FieldLabel>
+            <FieldError match={errors.privacy !== undefined}>{errors.privacy?.message}</FieldError>
+          </Field>
+        )}
+      />
+      <Controller
+        control={control}
+        name="marketing"
+        render={({ field }) => (
+          <Field invalid={errors.marketing !== undefined}>
+            <FieldLabel>
+              <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />
+              마케팅 정보를 받습니다
+            </FieldLabel>
+            <FieldError match={errors.marketing !== undefined}>{errors.marketing?.message}</FieldError>
           </Field>
         )}
       />
