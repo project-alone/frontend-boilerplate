@@ -11,10 +11,35 @@ const processState = globalThis as typeof globalThis & { starterApiMocking?: Pro
 /** MSW를 켠다. 같은 프로세스에서 이미 켰으면 처음 켠 결과를 기다린다. */
 export function startApiMocking(): Promise<void> {
   processState.starterApiMocking ??= import('@/shared/mocks/node').then(({ server }) => {
+    const unmockedFetch = globalThis.fetch
     // 핸들러가 없는 요청은 실제 네트워크로 보낸다.
     server.listen({ onUnhandledFrame: 'bypass' })
+    if (process.env.NODE_ENV === 'development') keepFetchMocked(unmockedFetch)
   })
   return processState.starterApiMocking
+}
+
+/**
+ * Next.js 개발 서버가 globalThis.fetch를 MSW를 켜기 전의 fetch로 되돌려도 서버의 fetch 요청을 MSW가 계속 받게 한다.
+ *
+ * 개발 서버는 고친 코드 때문에 라우트의 서버 번들을 다시 쓰면(새 모듈을 import하거나, 컴파일 오류를 고치거나, .env 파일을 고칠
+ * 때 등) fetch에 자기 래퍼를 다시 씌우려고 globalThis.fetch를 서버가 뜰 때 기억해 둔 값으로 되돌린다. 그 값은 instrumentation이
+ * MSW를 켜기 전의 fetch라 MSW가 씌운 fetch가 빠진다. 그러면 MSW가 이미 받은 목 백엔드 연결을 keep-alive로 다시 쓰는 몇 초 동안만
+ * 응답이 오고, 그 뒤의 요청은 MSW를 거치지 않고 실제 네트워크로 나가 목 백엔드 주소(MOCK_API_BASE_URL)를 찾지 못한다.
+ * 그래서 globalThis.fetch에 MSW를 켜기 전의 fetch를 넣는 대입만 MSW가 씌운 fetch로 바꿔 넣고, 다른 값(Next.js가 다시 씌우는
+ * 래퍼 등)은 그대로 넣는다.
+ */
+function keepFetchMocked(unmockedFetch: typeof fetch): void {
+  const mockedFetch = globalThis.fetch
+  let currentFetch = mockedFetch
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    enumerable: true,
+    get: () => currentFetch,
+    set: (nextFetch: typeof fetch) => {
+      currentFetch = nextFetch === unmockedFetch ? mockedFetch : nextFetch
+    },
+  })
 }
 
 /**

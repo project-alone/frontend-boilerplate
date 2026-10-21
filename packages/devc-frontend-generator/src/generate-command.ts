@@ -62,7 +62,14 @@ export function registerGenerateCommand(program: Command): void {
         form.skippedFields.length === 0
           ? ''
           : `\n입력 요소로 만들지 않은 선택 필드: ${form.skippedFields.join(', ')}. 보내야 하면 폼에 직접 더하세요.`
-      report(`${operationId}의 폼(${form.componentName})과 스토리, 테스트를 만들었습니다.${skipped}`, form.changed)
+      const hookArguments =
+        form.hookArguments.length === 0
+          ? ''
+          : `\n폼은 뮤테이션 훅(${form.hookName})의 인자(${form.hookArguments.join(', ')})도 props로 받아 훅에 넘깁니다. 훅이 응답 전에 고칠 쿼리의 인자이므로 화면이 보고 있는 쿼리와 같은 값을 넘기세요.`
+      report(
+        `${operationId}의 폼(${form.componentName})과 스토리, 테스트를 만들었습니다.${skipped}${hookArguments}`,
+        form.changed,
+      )
     })
 
   generate

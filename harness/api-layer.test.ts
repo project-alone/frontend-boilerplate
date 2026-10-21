@@ -5,7 +5,7 @@ import { setTimeout } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { type BackgroundProcess, freePort, start, waitForServer } from './run.ts'
 import { addOperations } from './schematic.ts'
-import { readTree, SAMPLE_PRODUCTS, useStarter } from './starter.ts'
+import { MSW_PROBE_ROUTE, readTree, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
 
 // Starter 하나를 만들어 설치해 두고, 테스트마다 다시 설치하지 않도록 이 파일의 모든 테스트가 함께 쓴다.
 const starter = useStarter({ prefix: 'dcgen-api-layer-', install: true })
@@ -404,7 +404,59 @@ describe('개발 서버', () => {
       await devServer.stop()
     }
   })
+
+  // #65: 개발 서버는 고친 코드 때문에 라우트의 서버 번들을 다시 쓰면(새 모듈을 import하거나, 컴파일 오류를 고치거나, .env 파일을
+  // 고칠 때 등) globalThis.fetch를 서버가 뜰 때의 값, 곧 instrumentation이 MSW를 켜기 전의 fetch로 되돌린다. 그 뒤로도 서버가
+  // 보내는 요청을 MSW가 받아야 한다. 모듈의 내용만 고치면 서버 번들을 다시 쓰지 않고 바꿔 넣으므로 이 경우가 드러나지 않는다.
+  // 되돌린 뒤에도 Node.js의 fetch(undici)는 MSW가 이미 받은 목 백엔드 연결을 keep-alive 동안(4초) 다시 써서 요청이 MSW에 닿으므로,
+  // 그보다 오래 쉬었다가 새 연결로 보내는 요청을 본다.
+  test('페이지가 새 모듈을 import하게 고친 뒤에도 서버 컴포넌트와 BFF 프록시가 보내는 요청을 MSW가 받는다', async () => {
+    writeMswProbePage(starter)
+    const port = await freePort()
+    const appUrl = `http://localhost:${String(port)}`
+    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter.dir)
+
+    try {
+      const before = await waitForServer(`${appUrl}${MSW_PROBE_ROUTE}`, devServer)
+      expect(before.status, devServer.output()).toBe(200)
+      expect(await before.text()).toContain(SAMPLE_PRODUCT_NAMES[0])
+
+      const label = '모듈을 더한 탐침 페이지'
+      writeMswProbePage(starter, label)
+      await waitForEdit(`${appUrl}${MSW_PROBE_ROUTE}`, label, devServer)
+      await setTimeout(6_000)
+
+      const edited = await fetch(`${appUrl}${MSW_PROBE_ROUTE}`)
+      expect(edited.status, devServer.output()).toBe(200)
+      expect(await edited.text()).toContain(SAMPLE_PRODUCT_NAMES[0])
+      const page = await fetch(`${appUrl}/products`)
+      expect(page.status, devServer.output()).toBe(200)
+      const html = await page.text()
+      for (const name of SAMPLE_PRODUCT_NAMES) expect(html).toContain(name)
+      const proxied = await fetch(`${appUrl}/api/proxy/products`)
+      expect(proxied.status, devServer.output()).toBe(200)
+      const products = (await proxied.json()) as { name: string }[]
+      expect(products.map(({ name }) => name)).toEqual(SAMPLE_PRODUCT_NAMES)
+    } finally {
+      await devServer.stop()
+      rmSync(join(starter.dir, `src/app${MSW_PROBE_ROUTE}`), { recursive: true, force: true })
+    }
+  })
 })
+
+/**
+ * 개발 서버가 고친 코드를 반영할 때까지 url을 다시 요청한다. 응답 본문에 text가 담기거나 200이 아닌 응답이 오면 끝난다.
+ * 파일을 고친 직후에는 개발 서버가 아직 고치기 전의 코드로 응답할 수 있다.
+ */
+async function waitForEdit(url: string, text: string, server: Pick<BackgroundProcess, 'output'>): Promise<void> {
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline) {
+    const response = await fetch(url)
+    if (response.status !== 200 || (await response.text()).includes(text)) return
+    await setTimeout(500)
+  }
+  throw new Error(`개발 서버가 1분 안에 고친 코드를 반영하지 않았습니다(${url}).\n${server.output()}`)
+}
 
 // 실제 백엔드 대신 띄우는 HTTP 서버. 받은 요청을 기록하고, GET /products에는 상품 목록을, 나머지에는 받은 본문을
 // 2xx가 아닌 상태와 함께 그대로 돌려준다.

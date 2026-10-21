@@ -1,0 +1,4 @@
+{
+  "header": [{ "path": "src/features/landing/landing-link.tsx", "export": "LandingLink", "order": 40 }],
+  "mockHandlers": [{ "path": "src/shared/mocks/landing.ts", "export": "landingHandlers", "order": 100 }]
+}

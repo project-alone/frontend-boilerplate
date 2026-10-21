@@ -253,6 +253,28 @@ describe('server Starter', () => {
     )
   })
 
+  test('--form의 폼이 뮤테이션 훅에 넘길 인자를 props로 받으면 같은 이름의 동적 세그먼트에서 읽어 넘기고, 그런 세그먼트가 없으면 만들지 않는다', () => {
+    // 상품 등록의 뮤테이션 훅이 응답 전에 상품 상세 쿼리(getProduct)를 고치므로(--optimistic), 훅과 폼이 그 쿼리의 productId를 받는다.
+    generate(starter, ['query', 'getProduct'])
+    generate(starter, ['mutation', 'createProduct', '--optimistic', 'getProduct'])
+    generate(starter, ['form', 'createProduct', '--feature', 'product-admin'])
+    const before = pagesTree(starter)
+
+    const missing = dcgen(starter, ['g', 'page', 'products/new', '--form', 'createProduct'])
+
+    expect(missing.status).not.toBe(0)
+    expect(missing.output).toContain('useCreateProductMutation에 넘길 인자(productId)를 props로 받습니다')
+    expect(missing.output).toContain('라우트에 같은 이름의 동적 세그먼트([productId])가 있어야 합니다')
+    expect(pagesTree(starter)).toEqual(before)
+
+    generate(starter, ['page', 'products/[productId]/variants/new', '--form', 'createProduct'])
+
+    expect(readTree(join(starter.dir, APP_DIR, 'products/[productId]/variants/new'))['page.tsx']).toContain(
+      '<CreateProductForm productId={productId} />',
+    )
+    starter.expectNpmSuccess(['run', 'typecheck'])
+  })
+
   test.each([
     {
       problem: 'queryOptions를 아직 만들지 않은 --query',
