@@ -2,5 +2,6 @@
   "providers": [{ "path": "src/shared/i18n/i18n-provider.tsx", "export": "I18nProvider", "order": 50 }],
   "header": [{ "path": "src/features/locale-switcher/locale-switcher.tsx", "export": "LocaleSwitcher", "order": 200 }],
   "proxy": [{ "path": "src/shared/i18n/i18n-proxy.ts", "export": "i18nProxy", "order": 200 }],
-  "nextConfig": [{ "path": "src/shared/i18n/next-config.ts", "export": "withI18n", "order": 200 }]
+  "nextConfig": [{ "path": "src/shared/i18n/next-config.ts", "export": "withI18n", "order": 200 }],
+  "sitemap": [{ "path": "src/shared/i18n/routing.ts", "export": "i18nSitemapRules", "order": 200 }]
 }

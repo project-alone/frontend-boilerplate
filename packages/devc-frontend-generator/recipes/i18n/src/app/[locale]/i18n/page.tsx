@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import { CartCounter } from '@/features/i18n-example/cart-counter'
+import { localeAlternates } from '@/shared/i18n/locale-alternates'
 import { Link } from '@/shared/i18n/navigation'
 import { type LocaleRouteProps, requireLocale } from '@/shared/i18n/require-locale'
 
@@ -9,7 +10,8 @@ const RELEASE_DATE = new Date('2026-03-02T10:00:00+09:00')
 
 export async function generateMetadata(props: LocaleRouteProps): Promise<Metadata> {
   const t = await getTranslations({ locale: await requireLocale(props), namespace: 'I18nExample' })
-  return { title: t('title') }
+  // 같은 페이지의 locale별 주소(/ko/i18n, /en/i18n)를 검색 엔진에 알린다.
+  return { title: t('title'), alternates: localeAlternates('/i18n') }
 }
 
 // i18n Recipe: 같은 메시지 키를 locale마다 다른 문장과 형식(날짜, 통화, 복수형)으로 보여 주는 예(/ko/i18n, /en/i18n).

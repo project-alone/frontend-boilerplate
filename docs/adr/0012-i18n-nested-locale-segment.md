@@ -14,4 +14,5 @@ i18n Recipe는 next-intl로 `ko`(기본)와 `en`을 지원한다. 다른 Recipe�
 - 서버 컴포넌트는 next-intl에 locale을 직접 넘겨야 한다. 넘기지 않으면 기본 locale로 조용히 그리지 않고 오류가 난다(`src/shared/i18n/request.ts`).
 - 다른 Recipe의 페이지는 번역하지 않은 채 기본 locale로 보이고, 거기서 다른 locale을 고르면 그 locale의 홈으로 간다. 번역하려면 페이지를 `src/app/[locale]/` 아래로 옮긴다. Starter가 모든 페이지를 옮기면 next-intl의 기본 구성(`next/root-params`)으로 바꿀 수 있다(Starter README의 "다국어(i18n)").
 - `static-export` Starter에는 proxy가 없으므로 홈(`/`)은 Recipe의 `src/app/page.tsx`가 기본 locale의 홈을 그린다. 그래서 i18n은 두 Rendering Mode를 모두 지원한다.
+- 검색 엔진에 알리는 locale별 주소는 번역한 페이지의 metadata(`localeAlternates`)가 적는다. 레이아웃은 아래 페이지의 주소를 모르므로 `[locale]` 레이아웃이 한 번에 적을 수 없고, next-intl proxy의 hreflang 응답 헤더는 locale이 없는 주소도 가리키며 `static-export`에서는 쓸 수 없어 끈다. sitemap은 확장 지점 sitemap 규칙으로 `[locale]` 아래 페이지를 locale마다 넣게 한다(ADR-0010).
 - `harness/i18n-combinations.test.ts`가 route-rendering과 함께 켠 Starter를 빌드해, 번역한 페이지는 locale마다 미리 렌더링하고 route-rendering의 SSG·ISR·CSR 라우트는 Rendering Mode가 그대로인지 확인한다.
