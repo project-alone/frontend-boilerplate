@@ -12,12 +12,14 @@ import { Field, FieldError, FieldLabel } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { useToast } from '@/shared/ui/toast'
+import { accessDeniedMessage, isAccessDenied } from './access-denied'
 import { DUPLICATE_EMAIL_MESSAGE, isDuplicateEmail } from './duplicate-email'
 
 /**
  * createUser(사용자 추가)의 요청 본문을 입력받아 보내는 폼. `npm run g -- form createUser --feature user-form`이 만든 폼에서
  * 레이블과 선택지를 화면에 맞게 바꾸고, 추가하면 사용자 목록으로 돌아가게 고쳤다. 입력 값은 재생성 계층의 요청 본문
  * 스키마(CreateUserBody)로 검증하고, users Query Domain의 useCreateUserMutation으로 보낸다(목록과 통계를 무효화한다).
+ * 백엔드가 로그인 세션이나 역할 때문에 거절하면(401·403) 알리고 서버가 이 화면의 접근 규칙을 다시 확인하게 한다.
  */
 export function CreateUserForm() {
   const {
@@ -40,6 +42,12 @@ export function CreateUserForm() {
       onError: (error) => {
         if (isDuplicateEmail(error)) {
           setError('email', { message: DUPLICATE_EMAIL_MESSAGE }, { shouldFocus: true })
+          return
+        }
+        if (isAccessDenied(error)) {
+          // 세션이 끝났거나 관리자가 아니다. 서버(proxy)가 이 화면의 접근 규칙을 다시 확인한다(access-denied.ts).
+          toast.add({ type: 'error', title: '사용자 추가 실패', description: accessDeniedMessage(error) })
+          router.refresh()
           return
         }
         toast.add({ type: 'error', title: '사용자 추가 실패', description: '잠시 뒤에 다시 시도해 주세요.' })

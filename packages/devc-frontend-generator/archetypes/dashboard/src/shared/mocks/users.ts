@@ -11,6 +11,7 @@ import {
   type UserStats,
   UserStatus,
 } from '@/shared/api/generated/model'
+import { mockUserOf } from '@/shared/auth/auth-mock-handlers'
 
 // 대시보드 Archetype: 사용자 관리 API(users tag)를 흉내 내는 목 백엔드. 명세에서 생성한 핸들러는 늘 같은 example을
 // 돌려주므로, 추가하고 고친 사용자를 기억하고 쿼리 파라미터대로 거르고 정렬하는 핸들러를 따로 둔다. 확장 지점 mockHandlers
@@ -19,8 +20,10 @@ import {
 // 이 핸들러를 쓴다. 사용자는 서버 프로세스의 메모리에만 있어 서버를 다시 띄우면 처음 상태로 돌아간다. 실제 백엔드로 바꾸면
 // 쓰이지 않는다.
 //
-// 역할 확인(사용자를 추가하고 고치는 것은 관리자만)은 화면 쪽 접근 규칙(src/shared/auth/access-rules.ts)이 한다. 실제 백엔드는
-// accessToken의 사용자 역할을 보고 같은 규칙으로 요청을 거절해야 한다(명세의 403).
+// 실제 백엔드처럼 요청의 accessToken으로 사용자와 역할을 확인한다(명세의 bearerAuth, 401, 403). accessToken은 auth Recipe의 목
+// 백엔드(src/shared/auth/auth-mock-handlers.ts)가 발급한 것이고, 앱에서는 BFF 프록시와 서버의 apiFetch가 세션의 accessToken을
+// 붙인다(auth-backend-fetch.ts). 화면 쪽 접근 규칙(src/shared/auth/access-rules.ts의 PROTECTED_ROUTES)이 관리자가 아닌 사용자를
+// 추가·수정 화면에 들이지 않아도, 백엔드는 따로 요청을 거절한다.
 
 /** 목 백엔드의 처음 사용자. auth Recipe의 목 계정(user@example.com, admin@example.com)도 들어 있다. */
 const SEED_USERS: readonly UserAccount[] = [
@@ -177,15 +180,37 @@ function emailTaken(email: string, exceptId?: number): boolean {
 
 const DUPLICATE_EMAIL = '같은 이메일의 사용자가 이미 있습니다.'
 
+/** 사용자를 추가하고 고칠 수 있는 역할(명세의 createUser·updateUser). 화면 쪽 접근 규칙의 추가·수정 화면과 같다. */
+const MANAGER_ROLES: readonly Role[] = ['admin']
+
+/**
+ * 요청한 사용자를 accessToken으로 확인해, 거절할 요청이면 그 응답을 돌려준다. accessToken이 없거나 만료되었으면 401,
+ * roles가 있는데 그 가운데 어느 역할도 없으면 403이다. 들어줄 요청이면 undefined
+ */
+function rejectionOf(request: Request, roles?: readonly Role[]) {
+  const user = mockUserOf(request)
+  if (user === undefined) return HttpResponse.json({ message: 'accessToken이 없거나 만료되었습니다.' }, { status: 401 })
+  if (roles !== undefined && !roles.some((role) => user.roles.includes(role))) {
+    return HttpResponse.json({ message: '사용자를 추가하고 고치는 것은 관리자만 할 수 있습니다.' }, { status: 403 })
+  }
+  return undefined
+}
+
 async function jsonBody(request: Request): Promise<unknown> {
   return request.json().catch(() => undefined)
 }
 
 export const usersHandlers = [
   // /users/:userId보다 앞에 두어 stats를 사용자 id로 읽지 않게 한다.
-  http.get(`${MOCK_API_BASE_URL}/users/stats`, () => HttpResponse.json(statsOf(users))),
+  http.get(`${MOCK_API_BASE_URL}/users/stats`, ({ request }) => {
+    const rejection = rejectionOf(request)
+    if (rejection !== undefined) return rejection
+    return HttpResponse.json(statsOf(users))
+  }),
 
   http.get(`${MOCK_API_BASE_URL}/users`, ({ request }) => {
+    const rejection = rejectionOf(request)
+    if (rejection !== undefined) return rejection
     // 실제 백엔드처럼 명세에 없는 값(알 수 없는 정렬 항목 등)은 400으로 거절한다.
     const params = ListUsersParams.safeParse(readParams(new URL(request.url)))
     if (!params.success) return HttpResponse.json({ message: params.error.message }, { status: 400 })
@@ -193,6 +218,8 @@ export const usersHandlers = [
   }),
 
   http.post(`${MOCK_API_BASE_URL}/users`, async ({ request }) => {
+    const rejection = rejectionOf(request, MANAGER_ROLES)
+    if (rejection !== undefined) return rejection
     const body = CreateUserBody.safeParse(await jsonBody(request))
     if (!body.success) return HttpResponse.json({ message: body.error.message }, { status: 400 })
     if (emailTaken(body.data.email)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
@@ -206,7 +233,9 @@ export const usersHandlers = [
     return HttpResponse.json(created, { status: 201 })
   }),
 
-  http.get(`${MOCK_API_BASE_URL}/users/:userId`, ({ params }) => {
+  http.get(`${MOCK_API_BASE_URL}/users/:userId`, ({ params, request }) => {
+    const rejection = rejectionOf(request)
+    if (rejection !== undefined) return rejection
     const user = userAt(params['userId'])
     return user === undefined
       ? HttpResponse.json({ message: '그런 사용자가 없습니다.' }, { status: 404 })
@@ -214,6 +243,8 @@ export const usersHandlers = [
   }),
 
   http.put(`${MOCK_API_BASE_URL}/users/:userId`, async ({ params, request }) => {
+    const rejection = rejectionOf(request, MANAGER_ROLES)
+    if (rejection !== undefined) return rejection
     const current = userAt(params['userId'])
     if (current === undefined) return HttpResponse.json({ message: '그런 사용자가 없습니다.' }, { status: 404 })
     const body = UpdateUserBody.safeParse(await jsonBody(request))

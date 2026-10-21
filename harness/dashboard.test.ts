@@ -26,8 +26,8 @@ test('대시보드 Archetype은 server만 지원하는 auth Recipe를 쓰므로 
 })
 
 // 하네스 매트릭스: Base에 대시보드 Archetype을 넣은 server Starter를 만들어, Starter 자신의 스크립트와 Archetype이 함께 넣은
-// 테스트(사용자 통계, 정렬·필터가 되는 사용자 목록, 사용자 추가·수정 폼, 역할 규칙, e2e/dashboard.spec.ts)가 Archetype이 쓰는
-// Recipe(auth, chart, table)의 테스트와 함께 통과하는지 본다. 모든 Recipe·Archetype을 켠 조합은 showcase-starter.test.ts가 본다.
+// 테스트(로그인과 역할을 확인하는 목 백엔드, 사용자 통계, 정렬·필터가 되는 사용자 목록, 사용자 추가·수정 폼, 역할 규칙,
+// e2e/dashboard.spec.ts)가 Archetype이 쓰는 Recipe(auth, chart, table)의 테스트와 함께 통과하는지 본다. 모든 Recipe·Archetype을 켠 조합은 showcase-starter.test.ts가 본다.
 describe('Rendering Mode server에 대시보드 Archetype을 넣은 Starter', () => {
   const starter = useStarter({
     prefix: 'dcgen-dashboard-',
@@ -70,12 +70,14 @@ describe('Rendering Mode server에 대시보드 Archetype을 넣은 Starter', ()
     expect(readTree(users)).toEqual(archetype)
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트(통계, 목록의 정렬·필터, 추가·수정 폼, 역할 규칙), 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(목 백엔드의 401·403, 통계, 목록의 정렬·필터, 추가·수정 폼, 역할 규칙), 스토리 검사를 통과한다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
     const report = runVitestScript(starter, ['test'])
     for (const file of [
+      // 목 백엔드는 실제 백엔드처럼 로그인하지 않은 요청을 401로, 관리자가 아닌 사용자의 추가·수정을 403으로 거절한다.
+      'src/shared/mocks/users.test.ts',
       'src/features/user-stats/user-stats-overview.test.tsx',
       'src/features/user-table/user-table.test.tsx',
       'src/features/user-form/create-user-form.test.tsx',
@@ -83,6 +85,7 @@ describe('Rendering Mode server에 대시보드 Archetype을 넣은 Starter', ()
       'src/shared/dashboard/dashboard-routes.test.ts',
       // Archetype이 쓰는 Recipe의 테스트도 함께 돈다.
       'src/shared/auth/access-rules.test.ts',
+      'src/shared/auth/mock-session.test.ts',
       'src/features/member-table/member-table.test.tsx',
       'src/features/stats-charts/stats-charts.test.tsx',
     ]) {
@@ -99,7 +102,7 @@ describe('Rendering Mode server에 대시보드 Archetype을 넣은 Starter', ()
     }
   })
 
-  test('빌드를 통과하고, 빌드한 앱에서 E2E(로그인 → 통계 확인 → 사용자 추가 → 목록 반영, 역할 확인)가 통과한다', async () => {
+  test('빌드를 통과하고, 빌드한 앱에서 E2E(로그인 → 통계 확인 → 사용자 추가 → 목록 반영, 역할 확인, 백엔드의 401·403)가 통과한다', async () => {
     const build = starter.expectNpmSuccess(['run', 'build'])
 
     // 세션을 읽는 대시보드 화면은 요청마다 렌더링하고(ƒ), 데이터를 미리 가져오지 않는 추가 화면은 미리 렌더링한다(○).

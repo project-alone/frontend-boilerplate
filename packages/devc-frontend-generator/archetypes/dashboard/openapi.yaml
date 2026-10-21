@@ -1,6 +1,7 @@
 # 대시보드 Archetype이 Base 명세에 더하는 명세 조각(docs/archetypes.md). 관리자 대시보드가 다루는 사용자와 사용자 통계
 # operation이다. 사용자의 역할(Role)과 인증(bearerAuth)은 auth Recipe의 명세 조각에 있는 것을 그대로 쓰므로, 로그인한
-# 사용자(auth의 User)와 같은 역할로 관리한다. 목록은 table Recipe의 listMembers처럼 정렬·필터·페이지를 쿼리 파라미터로 받는다.
+# 사용자(auth의 User)와 같은 역할로 관리한다. 모든 operation은 로그인한 사용자의 accessToken이 있어야 하고(401), 사용자를
+# 추가하고 고치는 것은 관리자만 한다(403). 목록은 table Recipe의 listMembers처럼 정렬·필터·페이지를 쿼리 파라미터로 받는다.
 tags:
   - name: users
     description: 사용자 관리
@@ -92,7 +93,7 @@ paths:
                 page: 1
                 pageSize: 10
         '401':
-          description: 로그인하지 않았다.
+          description: 로그인하지 않았거나 accessToken이 만료되었다.
     post:
       operationId: createUser
       summary: 사용자 추가
@@ -120,6 +121,8 @@ paths:
                 role: user
                 status: invited
                 joinedAt: '2026-10-21'
+        '401':
+          description: 로그인하지 않았거나 accessToken이 만료되었다.
         '403':
           description: 관리자가 아니다.
         '409':
@@ -153,6 +156,8 @@ paths:
                     count: 3
                   - role: user
                     count: 9
+        '401':
+          description: 로그인하지 않았거나 accessToken이 만료되었다.
   /users/{userId}:
     get:
       operationId: getUser
@@ -180,6 +185,8 @@ paths:
                 role: user
                 status: active
                 joinedAt: '2025-01-15'
+        '401':
+          description: 로그인하지 않았거나 accessToken이 만료되었다.
         '404':
           description: 그런 사용자가 없다.
     put:
@@ -215,6 +222,8 @@ paths:
                 role: user
                 status: suspended
                 joinedAt: '2025-01-15'
+        '401':
+          description: 로그인하지 않았거나 accessToken이 만료되었다.
         '403':
           description: 관리자가 아니다.
         '404':
