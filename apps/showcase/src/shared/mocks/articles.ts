@@ -2,6 +2,7 @@
 // 원본(packages/devc-frontend-generator/): recipes/infinite-list/src/shared/mocks/articles.ts
 
 import { http, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { type Article, type ArticleCount, ListArticlesParams } from '@/shared/api/generated/model'
 
 // infinite-list Recipe: 게시글 목록(listArticles)과 게시글 수(countArticles)를 흉내 내는 MSW 핸들러. 명세에서 생성한
@@ -44,7 +45,7 @@ function readParams(url: URL): Record<string, unknown> {
 }
 
 export const articlesHandlers = [
-  http.get('*/articles', ({ request }) => {
+  http.get(`${MOCK_API_BASE_URL}/articles`, ({ request }) => {
     // 실제 백엔드처럼 명세에 없는 값(0쪽, 너무 큰 pageSize 등)은 400으로 거절한다.
     const params = ListArticlesParams.safeParse(readParams(new URL(request.url)))
     if (!params.success) return HttpResponse.json({ message: params.error.message }, { status: 400 })
@@ -53,5 +54,7 @@ export const articlesHandlers = [
     const start = (page - 1) * pageSize
     return HttpResponse.json(ARTICLES.slice(start, start + pageSize))
   }),
-  http.get('*/articles/count', () => HttpResponse.json({ total: ARTICLES.length } satisfies ArticleCount)),
+  http.get(`${MOCK_API_BASE_URL}/articles/count`, () =>
+    HttpResponse.json({ total: ARTICLES.length } satisfies ArticleCount),
+  ),
 ]

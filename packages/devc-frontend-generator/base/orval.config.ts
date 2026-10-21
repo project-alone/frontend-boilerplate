@@ -1,11 +1,13 @@
 import { defineConfig } from 'orval'
+import { MOCK_API_BASE_URL } from './src/shared/api/base-url'
 
 // `npm run api:gen`이 읽는 설정. openapi.yaml에서 재생성 계층(src/shared/api/generated)을 만든다(ADR-0003).
 // 재생성 계층은 손으로 고치지 않고, 명세를 고친 뒤 다시 생성한다.
 //
 // - 타입과 Zod 스키마: model/<스키마>.zod.ts. 타입은 Zod 스키마에서 뽑는다.
 // - fetch 함수: <tag>/<tag>.ts. 모든 요청이 src/shared/api/api-fetch.ts의 apiFetch를 거치고, 응답은 Zod 스키마로 검증된다.
-// - MSW 핸들러: <tag>/<tag>.msw.ts. src/shared/mocks/handlers.ts가 index.msw.ts를 통해 모두 모아 쓴다.
+// - MSW 핸들러: <tag>/<tag>.msw.ts. src/shared/mocks/handlers.ts가 index.msw.ts를 통해 모두 모아 쓴다. 핸들러는 목 백엔드
+//   주소(MOCK_API_BASE_URL)로 가는 요청만 받아 앱의 페이지 주소와 겹치지 않는다.
 //
 // TanStack Query 훅은 만들지 않는다(client: 'fetch'). 캐시 무효화 같은 판단이 들어가는 쿼리 키·queryOptions·
 // 뮤테이션 훅은 src/queries/<Query Domain>에 두고 프로젝트가 직접 소유한다.
@@ -21,7 +23,7 @@ export default defineConfig({
       clean: true,
       formatter: 'prettier',
       // 명세의 example을 목 응답으로 쓴다. example이 없는 응답은 faker가 만든다.
-      mock: { indexMockFiles: true, generators: [{ type: 'msw', useExamples: true }] },
+      mock: { indexMockFiles: true, generators: [{ type: 'msw', useExamples: true, baseUrl: MOCK_API_BASE_URL }] },
       override: {
         mutator: { path: './src/shared/api/api-fetch.ts', name: 'apiFetch' },
         fetch: { includeHttpResponseReturnType: false, runtimeValidation: true },

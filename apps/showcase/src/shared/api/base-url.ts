@@ -7,10 +7,12 @@
 export const BFF_PROXY_PATH = '/api/proxy'
 
 /**
- * MSW가 요청을 받을 때 백엔드 주소가 없으면 대신 쓰는 주소(샘플 명세 openapi.yaml의 servers).
- * 이 주소로 가는 요청은 MSW가 받으므로 실제로 나가지 않는다.
+ * 목 백엔드(MSW)의 주소. MSW가 켜져 있고 백엔드 주소가 없으면 API 요청을 이 주소로 보내고, MSW 핸들러(src/shared/mocks/handlers.ts)는
+ * 이 주소로 가는 요청만 받는다(orval.config.ts가 생성된 핸들러를 이 주소로 만든다). 앱과 다른 출처라 핸들러가 페이지 주소
+ * (/products 등)와 겹치지 않으므로, 브라우저의 MSW(서비스 워커)가 페이지를 열거나 새로 고치는 요청에 목 응답을 돌려주지 않는다.
+ * .test는 실제로 쓰이지 않도록 남겨 둔 최상위 도메인(RFC 6761)이라 MSW가 받지 않은 요청은 어디에도 닿지 않는다.
  */
-export const MOCK_API_BASE_URL = 'https://api.example.com'
+export const MOCK_API_BASE_URL = 'https://mock.api.test'
 
 /**
  * 서버(서버 컴포넌트, Route Handler)가 백엔드를 직접 부를 때 쓰는 주소. BFF 프록시도 이 주소로 전달한다.

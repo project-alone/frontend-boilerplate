@@ -14,8 +14,8 @@ export const routing = defineRouting({
   // 번역한 페이지만 [locale] 아래에 있으므로, locale이 없는 주소를 기본 locale의 페이지로 보거나 그쪽으로 보내지 않는다.
   localePrefix: 'always',
   // next-intl proxy가 응답 헤더로 보내는 hreflang 링크는 locale이 없는 주소(x-default)도 가리키는데, 이 Starter에서 그런
-  // 주소는 홈(/) 말고는 번역한 페이지로 이어지지 않는다. 검색 엔진에 알리는 locale별 주소는 번역한 페이지의 metadata가
-  // 적는다(locale-alternates.ts).
+  // 주소는 홈(/) 말고는 번역한 페이지로 이어지지 않는다. 검색 엔진에 알리는 locale별 주소와 x-default(기본 locale의 주소)는
+  // 번역한 페이지의 metadata가 적는다(locale-alternates.ts).
   alternateLinks: false,
 })
 
@@ -23,11 +23,11 @@ export type Locale = (typeof routing.locales)[number]
 
 /**
  * sitemap 규칙(확장 지점 sitemap, src/app/sitemap-rules.ts). sitemap을 만드는 Recipe(seo 등)가 있으면 [locale] 아래 페이지를
- * locale마다 알리고 서로를 언어별 주소(hreflang)로 묶는다. 홈(/)은 고른 locale의 홈으로 보내는 주소이고(i18n-proxy.ts),
+ * locale마다 알리고 서로를 언어별 주소(hreflang)로 묶으며, 기본 locale의 주소를 x-default로 알린다. 홈(/)은 고른 locale의 홈으로 보내는 주소이고(i18n-proxy.ts),
  * proxy가 없는 static-export에서도 기본 locale의 홈과 같은 화면이므로 알리지 않는다. sitemap이 없는 Starter에서는 쓰이지 않는다.
  */
 export const i18nSitemapRules = {
-  locales: { param: 'locale', values: routing.locales },
+  locales: { param: 'locale', values: routing.locales, defaultValue: routing.defaultLocale },
   exclude: ['/'],
 }
 

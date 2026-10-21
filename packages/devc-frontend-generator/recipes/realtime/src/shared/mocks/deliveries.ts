@@ -1,4 +1,5 @@
 import { http, type HttpHandler, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import type { Delivery } from '@/shared/api/generated/model'
 import { createMockEventStream, type MockEventStream, type MockServerSentEvent } from './event-stream'
 
@@ -117,14 +118,14 @@ export function createMockDeliveryBackend({
 
   return {
     handlers: [
-      http.get('*/deliveries', async () => {
+      http.get(`${MOCK_API_BASE_URL}/deliveries`, async () => {
         listRequests += 1
         const snapshot = deliveries
         await listGate.pass()
         onListResponse?.()
         return HttpResponse.json(snapshot)
       }),
-      http.get('*/deliveries/events', async ({ request }) => {
+      http.get(`${MOCK_API_BASE_URL}/deliveries/events`, async ({ request }) => {
         await connectionGate.pass()
         onConnect?.({ lastEventId: request.headers.get('last-event-id') })
         const stream = createMockEventStream()

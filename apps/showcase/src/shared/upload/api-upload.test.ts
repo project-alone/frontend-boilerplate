@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { ApiError, apiFetch } from '@/shared/api/api-fetch'
 import { getUploadFileUrl } from '@/shared/api/generated'
 import { UploadedFile } from '@/shared/api/generated/model'
+import { setMockReadiness } from '@/shared/mocks/mock-readiness'
 import { server } from '@/shared/mocks/node'
 import { apiUpload, type UploadProgress } from './api-upload'
 
@@ -130,4 +131,22 @@ test('이미 취소된 signal을 넘기면 요청을 보내지 않는다', async
     apiUpload(getUploadFileUrl(), { body: multipart(textFile('never.txt')), signal: AbortSignal.abort() }),
   ).rejects.toMatchObject({ name: 'AbortError' })
   expect(requests).toEqual([])
+})
+
+test('브라우저의 MSW가 요청을 받을 준비가 될 때까지 기다린 뒤 보낸다', async () => {
+  const requests = recordUploadRequests()
+  // static-export의 브라우저 MSW(서비스 워커)가 아직 준비되지 않은 페이지를 흉내 낸다(src/shared/mocks/mock-readiness.ts).
+  const { promise: ready, resolve } = Promise.withResolvers<undefined>()
+  setMockReadiness(ready)
+  onTestFinished(() => {
+    setMockReadiness(Promise.resolve())
+  })
+
+  const upload = apiUpload(getUploadFileUrl(), { body: multipart(textFile('early.txt')) })
+  await new Promise((wait) => setTimeout(wait, 50))
+  expect(requests).toEqual([])
+
+  resolve(undefined)
+  await expect(upload).resolves.toMatchObject({ name: 'early.txt' })
+  expect(requests).toHaveLength(1)
 })

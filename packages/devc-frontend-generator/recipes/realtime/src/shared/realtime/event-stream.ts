@@ -1,4 +1,5 @@
 import { browserBaseUrl } from '@/shared/api/base-url'
+import { waitForMocks } from '@/shared/mocks/mock-readiness'
 
 // realtime Recipe: 백엔드가 Server-Sent Events(text/event-stream)로 보내는 이벤트를 받는 클라이언트(README의 "실시간 이벤트").
 // 브라우저의 EventSource 대신 fetch로 읽는다. EventSource는 2xx가 아닌 응답을 받으면 다시 연결하지 않고, 다시 연결하는 간격을
@@ -82,6 +83,9 @@ export function connectEventStream({
       let openedAt: number | undefined
       let eventsReceived = 0
       try {
+        // 브라우저의 MSW(static-export의 서비스 워커)가 켜진 빌드에서는 MSW가 요청을 받을 준비가 될 때까지 기다린다. 페이지를 열자마자
+        // 연결해도 MSW를 거치지 않고 나가지 않는다(waitForMocks). 서비스 워커를 띄우지 못하면 실패한 연결로 보고 다시 연결한다.
+        await waitForMocks()
         const response = await fetch(`${browserBaseUrl()}${path}`, {
           headers: { accept: 'text/event-stream', ...(lastEventId === '' ? {} : { 'last-event-id': lastEventId }) },
           cache: 'no-store',

@@ -42,7 +42,7 @@ export const getListDeliveriesMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/deliveries',
+    'https://mock.api.test/deliveries',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -62,7 +62,7 @@ export const getStreamDeliveryEventsMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/deliveries/events',
+    'https://mock.api.test/deliveries/events',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       if (typeof overrideResponse === 'function') {
         await overrideResponse(info)

@@ -1,4 +1,5 @@
 import { delay, http, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { type Todo, TodoUpdate } from '@/shared/api/generated/model'
 import { getListTodosResponseMock } from '@/shared/api/generated/todos/todos.msw'
 
@@ -23,8 +24,8 @@ const REJECTED_TODO_ID = 4
 let todos: Todo[] = getListTodosResponseMock()
 
 export const todosHandlers = [
-  http.get('*/todos', () => HttpResponse.json(todos)),
-  http.patch<{ todoId: string }>('*/todos/:todoId', async ({ params, request }) => {
+  http.get(`${MOCK_API_BASE_URL}/todos`, () => HttpResponse.json(todos)),
+  http.patch<{ todoId: string }>(`${MOCK_API_BASE_URL}/todos/:todoId`, async ({ params, request }) => {
     await delay(SAVE_DELAY_MS)
     const todo = todos.find(({ id }) => String(id) === params.todoId)
     if (todo === undefined) return HttpResponse.json({ message: '할 일이 없습니다.' }, { status: 404 })

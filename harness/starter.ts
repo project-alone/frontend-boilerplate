@@ -281,8 +281,8 @@ export const SAMPLE_PRODUCTS = [
 /** 서버 컴포넌트가 렌더링할 때마다 샘플 API를 부르는 탐침 페이지의 경로. Next.js 서버 안에서 MSW가 요청을 받는지 볼 때 쓴다. */
 export const MSW_PROBE_ROUTE = '/harness-msw'
 
-/** 샘플 API 주소. 샘플 명세의 servers이고, MSW가 켜져 있으면 이 주소로 가는 요청을 MSW가 받는다. */
-export const SAMPLE_API_URL = 'https://api.example.com/products'
+/** 샘플 API 주소. Starter의 목 백엔드 주소(src/shared/api/base-url.ts의 MOCK_API_BASE_URL)라 MSW가 켜져 있으면 이 주소로 가는 요청을 MSW가 받는다. */
+export const SAMPLE_API_URL = 'https://mock.api.test/products'
 
 /** MSW_PROBE_ROUTE에 탐침 페이지를 만든다. 페이지는 SAMPLE_API_URL의 응답에 담긴 상품 이름을 목록으로 보여 준다. */
 export function writeMswProbePage(starter: Pick<Starter, 'writeFile'>): void {

@@ -46,6 +46,9 @@ ARG NEXT_PUBLIC_API_BASE_URL
 # 사이트의 공개 주소(seo Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). 빌드할 때 페이지와 번들에 박힌다.
 # seo Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 무엇을 넣어야 하는지 알리며 실패한다. 넣지 않은 Starter에서는 쓰이지 않는다.
 ARG NEXT_PUBLIC_SITE_URL
+# 브라우저가 오류를 보낼 Sentry DSN(sentry Recipe). 빌드할 때 브라우저 번들에 박히고, 빠지면 브라우저는 오류를 보내지 않는다.
+# 서버의 DSN(SENTRY_DSN)은 실행할 때 컨테이너의 환경 변수로 넣는다. 넣지 않은 Starter에서는 쓰이지 않는다.
+ARG NEXT_PUBLIC_SENTRY_DSN
 RUN npm run build
 
 # 로컬 확인용 목 빌드: docker build --target mock -t my-app:mock . 빌드와 서버의 API 요청을 MSW가 받는다. 배포하지 않는다.

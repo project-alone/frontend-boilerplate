@@ -401,14 +401,15 @@ function mockHandlers(pieces: readonly ExtensionPiece[]): GeneratedFile {
       ...imports(path, pieces),
       '',
       GENERATED_NOTICE,
-      '// MSW가 가로챌 요청과 돌려줄 응답의 목록. Vitest, Playwright, 개발 서버, 목 빌드가 모두 이 목록을 쓴다.',
+      '// MSW가 가로챌 요청과 돌려줄 응답의 목록. Vitest, Playwright, 개발 서버, 목 빌드가 모두 이 목록을 쓴다. 핸들러는 목 백엔드',
+      '// 주소(src/shared/api/base-url.ts의 MOCK_API_BASE_URL)로 가는 요청만 받아 앱의 페이지 주소와 겹치지 않는다.',
       '// openapi.yaml에서 생성한 핸들러(src/shared/api/generated/<tag>/<tag>.msw.ts)를 모두 담으므로 명세가 바뀌어도',
       '// 고칠 필요가 없다. 응답은 명세의 example이고, example이 없으면 faker가 스키마에 맞춰 만든다.',
       ...(pieces.length === 0
         ? []
         : [
-            '// Recipe가 직접 만든 핸들러(예: 파라미터대로 거르는 목록, 발급한 토큰을 기억하는 인증)는 생성된 핸들러보다 앞에 둔다.',
-            '// MSW는 앞의 핸들러가 먼저 응답하므로, 같은 요청이면 생성된 핸들러 대신 Recipe의 핸들러가 받는다.',
+            '// Base와 Recipe가 직접 만든 핸들러(예: 페이지 탐색 요청 거르기, 파라미터대로 거르는 목록, 발급한 토큰을 기억하는 인증)는',
+            '// 생성된 핸들러보다 앞에 둔다. MSW는 앞의 핸들러가 먼저 응답하므로, 같은 요청이면 생성된 핸들러 대신 이 핸들러가 받는다.',
           ]),
       '// 테스트 하나에서만 응답을 바꾸려면 server.use(...)를 쓴다(README의 "API 목킹").',
       pieces.length === 0
@@ -434,8 +435,11 @@ function sitemapRules(pieces: readonly ExtensionPiece[]): GeneratedFile {
       '  exclude?: readonly string[]',
       '  /** robots.txt가 검색 엔진에 막을 주소. 그 아래 주소도 막고, sitemap에도 넣지 않는다. */',
       '  disallow?: readonly string[]',
-      '  /** locale을 값으로 받는 동적 세그먼트의 이름(`[locale]`이면 locale)과 그 값. 그 아래 페이지를 locale마다 넣고 서로를 언어별 주소(hreflang)로 알린다. */',
-      '  locales?: { param: string; values: readonly string[] }',
+      '  /**',
+      '   * locale을 값으로 받는 동적 세그먼트의 이름(`[locale]`이면 locale)과 그 값. 그 아래 페이지를 locale마다 넣고 서로를 언어별 주소(hreflang)로',
+      '   * 알린다. defaultValue가 있으면 그 값의 주소를 지원하지 않는 언어의 사용자에게 보일 주소(hreflang="x-default")로도 알린다.',
+      '   */',
+      '  locales?: { param: string; values: readonly string[]; defaultValue?: string }',
       '}',
       '',
       `export const sitemapRules: readonly SitemapRules[] = [${pieces.map((piece) => piece.export).join(', ')}]`,

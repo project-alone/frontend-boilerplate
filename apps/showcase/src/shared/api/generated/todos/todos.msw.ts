@@ -26,7 +26,7 @@ export const getListTodosMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/todos',
+    'https://mock.api.test/todos',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -46,7 +46,7 @@ export const getUpdateTodoMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.patch(
-    '*/todos/:todoId',
+    'https://mock.api.test/todos/:todoId',
     async (info: Parameters<Parameters<typeof http.patch>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined

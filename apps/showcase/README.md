@@ -170,12 +170,14 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
 
-- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
+목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. MSW를 켜고 `API_BASE_URL`을 넣지 않으면 서버가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`orval.config.ts`). 그래서 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고, 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`는 페이지를 열거나 새로 고치는 요청을 목 응답 없이 그대로 보냅니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다. MSW를 켜 둬도 `API_BASE_URL`을 넣으면 그 백엔드를 부르고, MSW는 그 요청을 받지 않습니다.
+
+- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 브라우저 코드(jsdom)의 요청도 BFF 프록시 대신 목 백엔드로 보냅니다(`vitest.setup.ts`). 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
 - 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다.
 - E2E: `playwright.config.ts`가 서버를 `API_MOCKING=enabled`로 띄웁니다.
 - 빌드: `API_MOCKING=enabled`로 빌드하면(목 빌드) 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다. 목 빌드의 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").
 
-MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저의 요청도 BFF 프록시를 거쳐 서버에서 나가므로 MSW가 받습니다. `NEXT_PUBLIC_API_BASE_URL`로 브라우저가 백엔드를 직접 부르면 MSW가 받지 않습니다. 서버의 MSW(`msw/node`)는 번들에 넣지 않고 `node_modules`에서 불러옵니다(`next.config.ts`의 `serverExternalPackages`).
+MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저의 요청도 BFF 프록시를 거쳐 서버에서 나가므로 MSW가 받습니다. 브라우저의 MSW(서비스 워커)를 쓰는 Rendering Mode(`static-export`)에서 fetch를 쓰지 않는 요청(XMLHttpRequest 등)은 `src/shared/mocks/mock-readiness.ts`의 `waitForMocks()`로 서비스 워커가 준비되기를 기다린 뒤 보냅니다. 이 Rendering Mode에서는 바로 끝나므로 두 Rendering Mode에서 같은 코드를 씁니다. `NEXT_PUBLIC_API_BASE_URL`로 브라우저가 백엔드를 직접 부르면 MSW가 받지 않습니다. 서버의 MSW(`msw/node`)는 번들에 넣지 않고 `node_modules`에서 불러옵니다(`next.config.ts`의 `serverExternalPackages`).
 
 실제 백엔드로 바꾸려면 `.env.development.local`에 다음 두 줄을 적고 개발 서버를 다시 띄웁니다. `API_MOCKING`만 끄고 `API_BASE_URL`을 빠뜨리면 개발 서버가 오류를 내고 요청을 처리하지 않습니다. 배포 환경에서는 `API_MOCKING`을 켜지 않습니다(MSW는 devDependency입니다).
 
@@ -421,7 +423,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - refresh(`src/shared/auth/refresh-session.ts`): 동시에 여러 요청이 401을 받아도 같은 refreshToken의 refresh는 백엔드에 한 번만 보내고 결과를 나눠 씁니다. 백엔드가 쓴 refreshToken을 다시 받지 않는(rotation) 경우에도 로그아웃되지 않도록, 끝난 refresh의 결과도 10초 동안 남겨 이전 쿠키로 늦게 온 요청에 줍니다. 묶는 범위는 서버 프로세스 하나라서, 서버를 여러 대 띄우면 백엔드가 같은 refreshToken을 잠시 다시 받아 주게 하거나(reuse interval) 같은 사용자의 요청을 한 서버로 보냅니다.
 - 머리글의 사용자 메뉴(`src/features/user-menu`)는 로그인했으면 이름과 로그아웃 버튼을, 아니면 로그인 링크를 보여 줍니다. 로그인 여부는 브라우저가 `/api/session`에 물어봅니다. 루트 레이아웃이 쿠키를 읽으면 모든 페이지가 요청마다 렌더링되기 때문입니다. 로그인 폼은 `src/features/login-form`, 로그인 페이지는 `src/app/login/page.tsx`입니다.
 - 다른 사이트에서 보낸 POST·DELETE 요청에는 세션 쿠키가 실리지 않으므로(`SameSite=Lax`) 다른 사이트가 BFF 프록시와 로그아웃을 대신 보낼 수 없습니다. 쿠키가 필요 없는 로그인(`POST /api/session`)은 JSON 본문만 받아, 다른 사이트의 HTML 폼(JSON을 보낼 수 없음)이나 fetch(CORS 사전 요청에서 막힘)가 공격자의 계정으로 로그인시키지 못하게 합니다. 상태를 바꾸는 API를 GET으로 만들지 않습니다. 같은 사이트(하위 도메인)의 다른 앱은 막지 못하므로 그런 앱과 도메인을 나눠 쓰면 따로 막습니다.
-- 검색 엔진: 로그인, 내 정보, 관리자, 접근 권한 없음 페이지는 metadata의 `robots: { index: false }`로 검색 결과에서 뺍니다. 새 보호된 라우트의 페이지에도 적습니다. sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `PROTECTED_ROUTES`의 경로는 robots.txt가 막고(`Disallow`, 공개된 내용 없이 로그인 페이지로 보냄), 로그인·접근 권한 없음 페이지는 sitemap에서만 뺍니다. 두 페이지는 검색 엔진이 읽어 `noindex`를 따르도록 막지 않습니다(`access-rules.ts`의 `authSitemapRules`, 확장 지점 sitemap 규칙).
+- 검색 엔진: 로그인, 내 정보, 관리자, 접근 권한 없음 페이지는 metadata의 `robots: { index: false }`로 검색 결과에서 뺍니다. 새 보호된 라우트의 페이지에도 적습니다. sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `PROTECTED_ROUTES`의 경로와 로그인·접근 권한 없음 페이지를 sitemap에서 뺍니다(`access-rules.ts`의 `authSitemapRules`, 확장 지점 sitemap 규칙). robots.txt(`Disallow`)로는 막지 않습니다. 보호된 라우트는 로그인하지 않은 요청을 로그인 페이지로 보내고 모두 `noindex`이므로, robots.txt에 적으면 누구나 읽는 파일에 보호된 주소를 알려 줄 뿐입니다. 로그인 페이지도 막지 않아야 검색 엔진이 `noindex`를 읽습니다.
 - 로그아웃하면 백엔드에 로그아웃을 중계하고 세션 쿠키를 지웁니다. accessToken이 만료되어 백엔드가 받지 않으면 refresh한 뒤 다시 중계해 refreshToken까지 끝냅니다.
 
 ### 환경 변수
@@ -490,14 +492,15 @@ curl http://localhost:3000/api/health                                 # {"status
 
 ### 빌드 인자와 환경 변수
 
-| 이름                       | 넣는 곳                                                 | 값                                                                                                                                                                                                                                            |
-| -------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_BASE_URL`             | 실행(`docker run -e`), 빌드(`docker build --build-arg`) | 서버가 부르는 백엔드 주소. 실행할 때는 꼭 넣습니다. 빌드할 때는 데이터를 가져오는 SSG·ISR 페이지가 있을 때만 필요하고, 그런 페이지가 있는데 빠지면 빌드가 실패합니다.                                                                         |
-| `NEXT_PUBLIC_SITE_URL`     | 빌드(`--build-arg`)                                     | 사이트의 공개 주소(`seo` Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). `seo` Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 실패합니다. 페이지와 번들에 박히므로 바꾸면 이미지를 다시 만듭니다. 그 Recipe가 없으면 쓰이지 않습니다. |
-| `NEXT_PUBLIC_API_BASE_URL` | 빌드(`--build-arg`)                                     | 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만듭니다.                                                                                                                                     |
-| `API_MOCKING`              | 빌드(`--build-arg`)                                     | `disabled`(기본값)만 됩니다. 다른 값이면 빌드를 거부합니다(아래 "목 이미지").                                                                                                                                                                 |
-| `NODE_IMAGE`               | 빌드(`--build-arg`)                                     | 기반 Node 이미지. 기본값은 `Dockerfile`에 고정한 버전입니다.                                                                                                                                                                                  |
-| `PORT`                     | 실행(`docker run -e`)                                   | 서버의 포트(기본 `3000`). 서버는 `HOSTNAME=0.0.0.0`으로 모든 주소에서 받고, `HEALTHCHECK`가 `127.0.0.1`로 부르므로 `HOSTNAME`은 바꾸지 않습니다.                                                                                              |
+| 이름                       | 넣는 곳                                                 | 값                                                                                                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `API_BASE_URL`             | 실행(`docker run -e`), 빌드(`docker build --build-arg`) | 서버가 부르는 백엔드 주소. 실행할 때는 꼭 넣습니다. 빌드할 때는 데이터를 가져오는 SSG·ISR 페이지가 있을 때만 필요하고, 그런 페이지가 있는데 빠지면 빌드가 실패합니다.                                                                                  |
+| `NEXT_PUBLIC_SITE_URL`     | 빌드(`--build-arg`)                                     | 사이트의 공개 주소(`seo` Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). `seo` Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 실패합니다. 페이지와 번들에 박히므로 바꾸면 이미지를 다시 만듭니다. 그 Recipe가 없으면 쓰이지 않습니다.          |
+| `NEXT_PUBLIC_SENTRY_DSN`   | 빌드(`--build-arg`)                                     | 브라우저가 오류를 보낼 Sentry DSN(`sentry` Recipe). 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만들고, 빠지면 브라우저의 오류는 보내지 않습니다. 서버의 DSN `SENTRY_DSN`은 실행할 때(`docker run -e`) 넣습니다. 그 Recipe가 없으면 쓰이지 않습니다. |
+| `NEXT_PUBLIC_API_BASE_URL` | 빌드(`--build-arg`)                                     | 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만듭니다.                                                                                                                                              |
+| `API_MOCKING`              | 빌드(`--build-arg`)                                     | `disabled`(기본값)만 됩니다. 다른 값이면 빌드를 거부합니다(아래 "목 이미지").                                                                                                                                                                          |
+| `NODE_IMAGE`               | 빌드(`--build-arg`)                                     | 기반 Node 이미지. 기본값은 `Dockerfile`에 고정한 버전입니다.                                                                                                                                                                                           |
+| `PORT`                     | 실행(`docker run -e`)                                   | 서버의 포트(기본 `3000`). 서버는 `HOSTNAME=0.0.0.0`으로 모든 주소에서 받고, `HEALTHCHECK`가 `127.0.0.1`로 부르므로 `HOSTNAME`은 바꾸지 않습니다.                                                                                                       |
 
 - 비밀 값은 `ARG`나 `ENV`로 이미지에 넣지 않습니다. 그 값은 이미지의 설정과 빌드 기록에 남습니다. 실행할 때 쓰는 비밀 값은 배포 환경이 컨테이너의 환경 변수로 넣고(Kubernetes Secret 등), 빌드할 때 필요한 비밀 값(사내 npm 레지스트리의 토큰 등)은 `docker build --secret id=npmrc,src=$HOME/.npmrc`로 넘깁니다. 이 파일은 `npm ci`를 실행하는 동안에만 마운트되고 이미지에는 남지 않습니다.
 - `.dockerignore`가 `node_modules`, 빌드 결과, 로컬 환경 변수 파일(`.env*.local`), 프로젝트의 `.npmrc`(토큰이 있을 수 있음)를 빌드 컨텍스트에서 뺍니다. 로컬 파일을 받으면 `next build`가 그 값을 읽어 브라우저 번들(`NEXT_PUBLIC_*`)과 미리 렌더링한 페이지에 담을 수 있고, 빌드 단계의 층(빌드 캐시)에도 남기 때문입니다. standalone 출력은 커밋하는 `.env.production`을 이미지에 함께 복사하므로 그 파일에도 비밀 값을 적지 않습니다.
@@ -515,7 +518,7 @@ docker run -p 3000:3000 my-app:mock  # 빌드와 서버의 API 요청을 MSW가 
 
 ### GitLab CI에서 이미지 만들기
 
-`.gitlab-ci.yml`에는 이미지를 만드는 잡을 넣지 않았습니다. 이미지를 만들려면 privileged 러너(Docker-in-Docker)나 Buildah 같은 도구가 필요하고, 이미지를 올릴 레지스트리와 배포 방식은 아직 정하지 않았기 때문입니다. 정해지면 다음과 같은 잡을 더합니다. GitLab Container Registry에 올리는 예이고, 러너 설정은 GitLab 문서의 "Use Docker to build Docker images"를 따릅니다. Buildah로 만들 때는 `--format docker`를 붙입니다. 기본 형식(OCI)은 `HEALTHCHECK`를 담지 않습니다. `API_BASE_URL`과 `NEXT_PUBLIC_SITE_URL`(`seo` Recipe)은 CI/CD 변수로 넣습니다.
+`.gitlab-ci.yml`에는 이미지를 만드는 잡을 넣지 않았습니다. 이미지를 만들려면 privileged 러너(Docker-in-Docker)나 Buildah 같은 도구가 필요하고, 이미지를 올릴 레지스트리와 배포 방식은 아직 정하지 않았기 때문입니다. 정해지면 다음과 같은 잡을 더합니다. GitLab Container Registry에 올리는 예이고, 러너 설정은 GitLab 문서의 "Use Docker to build Docker images"를 따릅니다. Buildah로 만들 때는 `--format docker`를 붙입니다. 기본 형식(OCI)은 `HEALTHCHECK`를 담지 않습니다. `API_BASE_URL`, `NEXT_PUBLIC_SITE_URL`(`seo` Recipe), `NEXT_PUBLIC_SENTRY_DSN`(`sentry` Recipe)은 CI/CD 변수로 넣습니다.
 
 ```yaml
 docker:
@@ -530,7 +533,7 @@ docker:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build --build-arg API_BASE_URL="$API_BASE_URL" --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    - docker build --build-arg API_BASE_URL="$API_BASE_URL" --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN" --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -555,6 +558,7 @@ docker:
 
 - 명세: `openapi.yaml`의 `uploadFile`(`POST /files`, tag `files`)이 `multipart/form-data`의 `file` 필드로 파일 하나를 받아 `UploadedFile`(`id`, `name`, `size`, `contentType`)을 돌려줍니다. 5MB보다 크면 413, PNG·JPEG·PDF·텍스트가 아니면 415로 거절하고, 이유는 `UploadError`(`message`)에 담깁니다. 받는 형식은 `encoding.file.contentType`에, 크기 제한은 OpenAPI에 정해진 표기가 없어 `file` 필드의 확장 필드 `x-max-bytes`에 적었습니다. 재생성 계층이 이 기준을 만들지 않으므로 `src/shared/upload/upload-policy.ts`에 같은 값을 두고, 업로더와 목 백엔드가 함께 씁니다. 백엔드의 기준이 바뀌면 명세와 이 파일을 함께 고칩니다. 둘이 다르면 `upload-policy.test.ts`가 실패합니다.
 - 진행률: 생성된 fetch 함수(`uploadFile`)는 fetch로 보내는데, fetch는 보낸 본문의 양을 알려 주지 않습니다(요청 본문 스트림은 Chromium의 HTTP/2에서만 됩니다). 그래서 `useUploadFileMutation`은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꿨습니다. `apiUpload`는 같은 요청(operation의 경로, `file` 필드를 담은 `FormData`, 응답 스키마)을 XMLHttpRequest로 보내고 `upload`의 `progress` 이벤트로 보낸 바이트 수를 알립니다. 보내는 곳과 결과는 `apiFetch`와 같습니다. 브라우저의 `apiFetch`처럼 `server`는 BFF 프록시(`/api/proxy`)를, `static-export`는 `NEXT_PUBLIC_API_BASE_URL`의 백엔드를 부르고, 2xx가 아니면 `ApiError`로 실패하며, 응답은 명세의 Zod 스키마로 검증합니다. 다른 파일 업로드 operation에도 `apiUpload(get<Operation>Url(), { body, schema, onProgress, signal })`로 씁니다. `onProgress`를 넘길 때만 `upload` 이벤트를 듣습니다(아래의 CORS preflight).
+- 목 준비: 브라우저의 MSW(`static-export`의 서비스 워커)를 켠 빌드에서는 `apiUpload`가 Base의 `waitForMocks()`(`src/shared/mocks/mock-readiness.ts`)로 서비스 워커가 준비될 때까지 기다린 뒤 보냅니다. fetch와 달리 XMLHttpRequest는 준비되는 동안 붙잡아 둘 수 없어, 페이지를 열자마자 올리면 MSW를 거치지 않고 나가기 때문입니다. 목을 끈 빌드와 `server`에서는 기다리지 않습니다.
 - 취소: 뮤테이션에 `signal`을 넘기고, 업로더가 항목마다 `AbortController`로 취소합니다. 취소한 업로드는 `AbortError`로 실패하고, 업로더는 이를 실패 대신 취소로 보여 줍니다. 업로더가 화면에서 사라지면 올리던 업로드를 모두 취소합니다. 뮤테이션은 `networkMode: 'always'`라서 브라우저가 오프라인이라고 알려도 멈춰 기다리지 않고 보냅니다. 기본값(`online`)이면 보내기 전에 멈춰 취소도, 실패 뒤의 다시 시도도 할 수 없습니다.
 - 업로더: 파일 선택 버튼(Tab·Enter·Space)으로 파일 고르기 창을 열고, 놓는 곳에 파일을 끌어 놓아도 됩니다. 끌어 놓기는 마우스로만 할 수 있으므로 같은 일을 하는 버튼을 안에 둡니다. 여러 파일을 한꺼번에 더하면 파일마다 따로 올립니다. 진행률은 진행 막대(`role="progressbar"`, 이름 "<파일 이름> 업로드 진행률", 값 `aria-valuenow`·`aria-valuetext`)로 보여 주고, 항목마다 상태 문구(올리는 중, 올림, 실패와 그 이유, 취소, 거절)를 둡니다. 업로드가 끝나거나 거절되면 업로더의 알림 영역(`role="status"`, 화면에는 보이지 않음)이 "<파일 이름>: <상태 문구>"를 읽어 줍니다. 알림 영역은 내용이 바뀌어야 읽히므로 항목과 함께 생기지 않도록 처음부터 둡니다. 진행률 숫자는 바뀔 때마다 읽으면 다른 내용을 들을 수 없으므로 알리지 않고, 진행 막대의 값으로 언제든 읽을 수 있습니다. 취소 버튼과 다시 시도 버튼은 같은 자리의 같은 버튼이라 누른 뒤에도 포커스가 남고(더블 클릭의 두 번째 클릭은 무시합니다), 항목을 지우면 파일 선택 버튼으로 포커스를 옮깁니다.
 - BFF 프록시(`server`): Base의 프록시는 multipart를 포함한 모든 본문을 바이트 그대로 백엔드에 넘깁니다(경계가 담긴 `content-type`도 그대로). 다만 본문을 다 받은 뒤 넘기므로 파일 크기만큼 서버 메모리를 쓰고, 진행률은 브라우저가 프록시에 보낸 양입니다. 지금 기준(5MB)에서는 문제없지만 훨씬 큰 파일을 받게 되면 프록시를 거치지 않고 백엔드나 저장소로 바로 올리는 방식(미리 서명한 URL 등)을 검토합니다.
@@ -577,11 +581,11 @@ docker:
 - 머리글의 locale 전환 UI(`src/features/locale-switcher`)는 번역한 페이지에서는 같은 페이지의 다른 locale 주소로 가고(`/ko/i18n` → `/en/i18n`), 번역하지 않은 페이지에서는 고른 locale의 홈으로 갑니다. 고른 locale은 `NEXT_LOCALE` 쿠키(브라우저를 닫으면 지워짐)에 저장됩니다.
 - 홈(`/`): server Starter에서는 proxy 처리기(`src/shared/i18n/i18n-proxy.ts`, `src/proxy.ts`)가 저장한 locale, 브라우저 언어(`Accept-Language`), 기본 locale 순으로 고른 locale의 홈으로 보냅니다. 브라우저 언어를 따르지 않으려면 `src/shared/i18n/routing.ts`에 `localeDetection: false`를 적습니다. static-export Starter에는 요청을 받는 서버가 없어 `/`가 기본 locale의 홈을 보여 줍니다(`src/app/page.tsx`).
 - 문서의 언어: 루트 레이아웃은 locale을 모르므로 `<html lang="ko">`로 그리고, `[locale]` 레이아웃이 페이지 내용을 `<div lang>`으로 감싸며, `I18nProvider`가 브라우저에서 `<html lang>`을 지금 locale로 바꿉니다. 기본 locale을 바꾸면 루트 레이아웃의 `lang`도 함께 바꿉니다.
-- 검색 엔진: 번역한 페이지는 metadata에 `alternates: localeAlternates('<locale을 뺀 주소>')`(`src/shared/i18n/locale-alternates.ts`)를 적어 자기 주소를 canonical로, 같은 페이지의 locale별 주소를 hreflang(`<link rel="alternate" hreflang>`)으로 알립니다. 새 번역 페이지에도 적습니다. 주소는 사이트 주소(metadataBase, 예: `seo` Recipe)가 있으면 절대 주소가 됩니다. next-intl proxy가 응답 헤더로 보내는 hreflang 링크는 locale이 없는 주소도 가리키므로 끕니다(`routing.ts`의 `alternateLinks: false`).
+- 검색 엔진: 번역한 페이지는 metadata에 `alternates: localeAlternates('<locale을 뺀 주소>')`(`src/shared/i18n/locale-alternates.ts`)를 적어 자기 주소를 canonical로, 같은 페이지의 locale별 주소를 hreflang(`<link rel="alternate" hreflang>`)으로, 기본 locale의 주소를 지원하지 않는 언어의 사용자에게 보일 주소(`hreflang="x-default"`)로 알립니다. 새 번역 페이지에도 적습니다. 공유 카드의 언어(og:locale)는 `[locale]` 레이아웃이 locale마다(`ko_KR`, `en_US`, `OPEN_GRAPH_LOCALES`) 알립니다. 위 레이아웃이 정한 OpenGraph(예: `seo` Recipe의 og:url, 공유 이미지)는 그대로 두고 locale만 바꿉니다(`localeOpenGraph`). 주소는 사이트 주소(metadataBase, 예: `seo` Recipe)가 있으면 절대 주소가 됩니다. next-intl proxy가 응답 헤더로 보내는 hreflang 링크는 locale이 없는 주소도 가리키므로 끕니다(`routing.ts`의 `alternateLinks: false`).
 - sitemap: sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `[locale]` 아래 페이지가 locale마다 sitemap에 들어가 서로를 언어별 주소로 알리고, locale을 골라 보내는 홈(`/`)은 빠집니다(`routing.ts`의 `i18nSitemapRules`, 확장 지점 sitemap 규칙).
 - 날짜·시각은 `Asia/Seoul` 시간대로 보여 줍니다(`src/shared/i18n/messages.ts`의 `TIME_ZONE`). locale을 더하려면 `routing.ts`의 `locales`와 `LOCALE_NAMES`, 카탈로그(`<locale>.json`)와 `messages.ts`의 `MESSAGES`에 더합니다.
 - 다른 Recipe가 더한 화면(예: 머리글의 테마 전환)은 번역하지 않았습니다.
-- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `locale-alternates.test.ts`(번역한 페이지의 locale별 주소), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `src/features/locale-switcher/locale-switcher.stories.tsx`(locale 전환), `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, canonical과 hreflang, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).
+- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `locale-alternates.test.ts`(번역한 페이지의 locale별 주소와 x-default, og:locale), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `src/features/locale-switcher/locale-switcher.stories.tsx`(locale 전환), `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, canonical과 hreflang, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).
 
 ## 무한 스크롤과 페이지네이션
 
@@ -691,6 +695,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 
 - 생성된 MSW 핸들러는 명세의 `example`을 돌려줄 뿐이므로, `src/shared/mocks/deliveries.ts`의 목 백엔드가 `src/shared/mocks/handlers.ts`(확장 지점 MSW 핸들러의 조립 파일)에서 생성된 핸들러보다 앞에 들어가 이벤트로 바뀐 목록을 돌려줍니다. 개발 서버와 E2E에서는 새로 연 화면마다(`Last-Event-ID` 없이 연결하면) 처음 목록으로 되돌리고, 그 화면이 연결한 뒤 목록을 받은 때부터 1.5초 뒤 D-1002가 배송 중으로 바뀌고, 2.5초 뒤 D-1004가 접수되고, 3.5초 뒤 D-1001이 배송 완료로 바뀌지만 그 이벤트를 보내기 전에 연결이 끊깁니다(다시 연결한 뒤 목록을 다시 가져와야 보입니다). `server`에서는 Next.js 서버의 목 백엔드 하나를 모든 화면이 함께 쓰므로, 화면을 새로 열면 이미 열린 화면도 새 순서의 이벤트를 받습니다.
 - MSW의 `sse()`는 핸들러를 만들 때 전역 `EventSource`가 있어야 해서 Node.js(Vitest, Next.js 서버)에서는 쓸 수 없습니다. 그래서 응답 본문을 흘려보내는 보통의 HTTP 핸들러로 흉내 냅니다(`src/shared/mocks/event-stream.ts`). 테스트에서 이벤트를 직접 보내려면 `createMockDeliveryBackend()`로 새 목 백엔드를 만들어 `server.use(...backend.handlers)`로 쓰고 `publish`, `changeSilently`, `disconnect`를 부릅니다.
+- 브라우저의 MSW(`static-export`의 서비스 워커)를 켠 빌드에서는 `connectEventStream`이 Base의 `waitForMocks()`(`src/shared/mocks/mock-readiness.ts`)로 서비스 워커가 준비될 때까지 기다린 뒤 연결합니다. 페이지를 열자마자 연결해도 MSW를 거치지 않고 나가지 않습니다. 목을 끈 빌드와 `server`에서는 기다리지 않습니다.
 - 실제 백엔드로 바꾸면 `src/shared/mocks/deliveries.ts`와 `handlers.ts`의 `deliveriesHandlers`를 지웁니다.
 
 ### 테스트와 샘플 지우기
@@ -728,7 +733,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 
 세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일").
 
-- 켜기: 배포 환경에 DSN을 넣습니다(`.env.example`). 서버의 `SENTRY_DSN`은 서버를 띄울 때 읽고, 브라우저의 `NEXT_PUBLIC_SENTRY_DSN`은 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다. 보통 두 값은 같은 DSN입니다. `static-export`에는 서버가 없어 `NEXT_PUBLIC_SENTRY_DSN`만 씁니다. DSN은 브라우저에 드러나도 되는 값이지만 아래의 인증 토큰은 비밀 값입니다.
+- 켜기: 배포 환경에 DSN을 넣습니다(`.env.example`). 서버의 `SENTRY_DSN`은 서버를 띄울 때 읽고, 브라우저의 `NEXT_PUBLIC_SENTRY_DSN`은 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다. 보통 두 값은 같은 DSN입니다. `static-export`에는 서버가 없어 `NEXT_PUBLIC_SENTRY_DSN`만 씁니다. 컨테이너 이미지(`docker` Recipe)는 `docker build --build-arg NEXT_PUBLIC_SENTRY_DSN=<DSN>`으로 만들고 `docker run -e SENTRY_DSN=<DSN>`으로 띄웁니다. DSN은 브라우저에 드러나도 되는 값이지만 아래의 인증 토큰은 비밀 값입니다.
 - 개발과 테스트: SDK는 `NODE_ENV`가 `production`일 때만 초기화하므로 개발 서버(`npm run dev`)와 단위 테스트는 DSN을 넣어도 보내지 않습니다. 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`. E2E와 GitLab CI의 `build` 잡)도 배포하지 않는 빌드라 빌드하는 환경에 DSN이 있어도 초기화하지 않습니다. `sentry-next-config.ts`가 빌드할 때 목 빌드인지를 코드에 박아 두기 때문입니다(`SENTRY_MOCK_BUILD`). 실제로 보내지는지 확인하려면 목을 끈 배포용 빌드를 DSN과 함께 만들고 `npm start`로 띄워 오류를 냅니다.
 - 소스맵: 빌드하는 환경에 Sentry 인증 토큰(`SENTRY_AUTH_TOKEN`)과 `SENTRY_ORG`, `SENTRY_PROJECT`가 있을 때만 브라우저 소스맵을 만들어 Sentry에 올리고, 올린 뒤에는 빌드 결과에서 지웁니다. 토큰이 없으면 소스맵을 만들지도 올리지도 않으므로 개발과 CI의 빌드는 토큰 없이 통과하고 Sentry에 접속하지 않습니다. 토큰은 GitLab CI/CD 변수(masked)로 배포용 빌드를 만드는 잡에만 넣습니다. 빌드 도구가 Sentry에 사용 통계를 보내는 기능(`telemetry`)은 꺼 두었습니다.
 - 개인정보: `sendDefaultPii: false`(Sentry의 기본값)라 IP 주소, 쿠키, 요청 헤더 같은 정보는 이벤트에 담지 않습니다. 성능 추적(`tracesSampleRate`)과 Session Replay는 켜지 않았습니다. 켜려면 `sentry-options.ts`의 `SENTRY_OPTIONS`에 더합니다(Replay의 `Sentry.replayIntegration()`은 브라우저 쪽 `sentry-instrumentation-client.ts`에만). 페이지 이동은 `onRouterTransitionStart`가 이미 SDK에 알리므로 성능 추적을 켜면 함께 남습니다.
@@ -781,10 +786,10 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
   - 글꼴은 함께 넣은 Pretendard Bold(한글 11,172자, SIL Open Font License 1.1. `src/shared/seo/pretendard-license.txt`)입니다. next/og는 글꼴에 없는 글자를 만나면 빌드 중에 Google Fonts에서 글꼴을 받으므로, 네트워크가 막힌 CI에서도 같은 이미지가 나오도록 글꼴을 함께 둡니다. 한자, 일본어, 이모지는 이 글꼴에 없어 받으러 가므로 공유 이미지의 글에 쓰지 않습니다. 라이선스는 글꼴을 나눠 줄 때 저작권 표시와 라이선스를 함께 담게 하므로, 글꼴 옆에 둔 라이선스 파일(`pretendard-license.txt`)을 지우지 않습니다. server Starter의 빌드 결과(`.next/standalone`, 그것으로 만든 컨테이너 이미지)에도 글꼴이 담기므로 `withSeo`가 라이선스 파일을 함께 담습니다(`outputFileTracingIncludes`). 글꼴을 바꾸면 라이선스 파일과 `next-config.ts`의 경로도 함께 바꿉니다.
 - **sitemap**: 빌드할 때 `src/app`의 페이지를 찾아 `/sitemap.xml`에 넣습니다. 다른 Recipe나 `npm run g -- page`가 더한 페이지도 `sitemap.ts`를 고치지 않고 들어갑니다.
   - 경로 그룹(`(admin)`)은 주소에서 빠집니다. 동적 세그먼트가 있는 페이지(`products/[productId]`)는 빌드할 때 주소를 알 수 없어 빠지므로, `sitemap.ts`에서 데이터를 가져와 주소를 더합니다(예: `listProducts`의 상품마다 `/products/<id>`).
-  - 다른 Recipe가 더한 페이지의 규칙은 `src/app/sitemap-rules.ts`의 `sitemapRules`에 있습니다(Starter를 만들 때 Generator가 Recipe의 선언을 모아 씀). 규칙이 뺀 주소(`exclude`)와 robots.txt가 막는 주소(`disallow`)는 그 아래 주소까지 sitemap에 넣지 않고, locale을 받는 세그먼트(`locales`) 아래 페이지는 locale마다 넣어 같은 페이지의 locale별 주소를 서로 알립니다(`<xhtml:link rel="alternate" hreflang>`). 이 프로젝트의 규칙은 `sitemap.ts`의 `EXCLUDED_ROUTES`에 적거나 이 파일을 직접 고칩니다.
+  - 다른 Recipe가 더한 페이지의 규칙은 `src/app/sitemap-rules.ts`의 `sitemapRules`에 있습니다(Starter를 만들 때 Generator가 Recipe의 선언을 모아 씀). 규칙이 뺀 주소(`exclude`)와 robots.txt가 막는 주소(`disallow`)는 그 아래 주소까지 sitemap에 넣지 않고, locale을 받는 세그먼트(`locales`) 아래 페이지는 locale마다 넣어 같은 페이지의 locale별 주소를 서로 알리고(`<xhtml:link rel="alternate" hreflang>`), 기본 locale(`defaultValue`)이 있으면 그 주소를 지원하지 않는 언어의 사용자에게 보일 주소(`hreflang="x-default"`)로도 알립니다. 이 프로젝트의 규칙은 `sitemap.ts`의 `EXCLUDED_ROUTES`에 적거나 이 파일을 직접 고칩니다.
   - sitemap에는 다른 주소로 보내지 않고 200으로 응답하는 페이지만 넣습니다(`e2e/seo.spec.ts`가 하나씩 받아 봅니다). 로그인 페이지로 보내는 페이지나 다른 주소로 보내는 페이지는 규칙으로 뺍니다.
   - 빌드할 때 만들어 두므로 페이지를 더하거나 지우면 다시 빌드해야 반영됩니다.
-- **robots.txt**: 모든 검색 엔진에 사이트를 열고 sitemap의 주소를 알립니다. 다른 Recipe가 규칙으로 막은 주소(`sitemapRules`의 `disallow`)만 `Disallow`로 막습니다. 스테이징처럼 검색에 노출하지 않을 배포라면 `src/app/robots.ts`의 `rules`를 `{ userAgent: '*', disallow: '/' }`로 바꿉니다.
+- **robots.txt**: 모든 검색 엔진에 사이트를 열고 sitemap의 주소를 알립니다. 다른 Recipe가 규칙으로 막은 주소(`sitemapRules`의 `disallow`)만 `Disallow`로 막습니다. 로그인해야 들어가는 페이지는 robots.txt에 적지 않고 sitemap에서만 뺍니다(auth Recipe). robots.txt는 누구나 읽으므로 적으면 숨길 주소를 알려 줄 뿐이고, 그런 페이지는 로그인 페이지로 보내며 `noindex`로 검색 결과에서 빠집니다. 스테이징처럼 검색에 노출하지 않을 배포라면 `src/app/robots.ts`의 `rules`를 `{ userAgent: '*', disallow: '/' }`로 바꿉니다.
 - Rendering Mode `server`와 `static-export` 모두에서 sitemap.xml, robots.txt, 공유 이미지를 빌드할 때 만듭니다. static-export는 `out/sitemap.xml`, `out/robots.txt`, `out/**/opengraph-image/image.png`로 내보냅니다.
 - 사이트 이름, 설명, locale은 `src/shared/seo/site.ts`에서 바꿉니다. 루트 레이아웃의 `<html lang>`과 locale을 맞춥니다.
 - `/products` 샘플을 지우면(위 "샘플 명세 바꾸기") `src/app/sitemap.test.ts`와 `e2e/seo.spec.ts`에서 `/products`를 확인하는 부분도 지웁니다.

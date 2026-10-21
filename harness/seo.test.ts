@@ -42,8 +42,8 @@ interface Combination {
   disallow?: readonly string[]
   /** sitemap에는 없고 검색 결과에서 빠지도록 noindex를 알리는 페이지 */
   noindex?: readonly string[]
-  /** locale마다 넣은 페이지와 그 페이지가 HTML과 sitemap에서 알릴 locale별 경로 */
-  localized?: { page: string; languages: Readonly<Record<string, string>> }
+  /** locale마다 넣은 페이지와 그 페이지가 HTML과 sitemap에서 알릴 locale별 경로(x-default 포함), HTML의 og:locale */
+  localized?: { page: string; languages: Readonly<Record<string, string>>; ogLocale: string }
 }
 
 // Starter를 만든 뒤 Schematic이 더한 페이지(/about)와 다른 Recipe가 더한 페이지(table의 /members)도 sitemap.ts를 고치지 않고 들어간다.
@@ -51,16 +51,19 @@ const COMBINATIONS: readonly Combination[] = [
   { renderingMode: 'server', recipes: ['seo'], generatedPages: ['about'], pages: ['/', '/about', '/products'] },
   { renderingMode: 'static-export', recipes: ['seo'], generatedPages: [], pages: ['/', '/products'] },
   { renderingMode: 'static-export', recipes: ['seo', 'table'], generatedPages: [], pages: ['/', '/members', '/products'] },
-  // i18n은 [locale] 아래 페이지를 locale마다 넣게 하고 locale을 골라 보내는 홈(/)을 빼며, auth는 보호된 라우트를 robots.txt로
-  // 막고 로그인·접근 권한 없음 페이지를 뺀다(확장 지점 sitemap 규칙).
+  // i18n은 [locale] 아래 페이지를 locale마다 넣고 기본 locale을 x-default로 알리게 하며 locale을 골라 보내는 홈(/)을 빼고,
+  // auth는 보호된 라우트와 로그인·접근 권한 없음 페이지를 뺀다(확장 지점 sitemap 규칙). 보호된 라우트는 robots.txt에 적지 않는다.
   {
     renderingMode: 'server',
     recipes: ['seo', 'i18n', 'auth'],
     generatedPages: [],
     pages: ['/en', '/en/i18n', '/ko', '/ko/i18n', '/products'],
-    disallow: ['/admin', '/account'],
     noindex: ['/login', '/forbidden'],
-    localized: { page: '/en/i18n', languages: { ko: '/ko/i18n', en: '/en/i18n' } },
+    localized: {
+      page: '/en/i18n',
+      languages: { ko: '/ko/i18n', en: '/en/i18n', 'x-default': '/ko/i18n' },
+      ogLocale: 'en_US',
+    },
   },
 ]
 
@@ -129,6 +132,9 @@ for (const { renderingMode, recipes, generatedPages, pages, disallow = [], noind
           const absolute = Object.entries(localized.languages).map(([locale, path]) => [locale, `${SITE_URL}${path}`])
           const pageHtml = await (await fetch(`${origin}${localized.page}`)).text()
           expect(pageHtml).toContain(`<link rel="canonical" href="${SITE_URL}${localized.page}"/>`)
+          expect(pageHtml).toContain(`<meta property="og:locale" content="${localized.ogLocale}"/>`)
+          // 위 레이아웃(seo)이 정한 OpenGraph는 그대로 남는다.
+          expect(pageHtml).toContain(`<meta property="og:url" content="${SITE_URL}${localized.page}"/>`)
           // React는 hreflang을 hrefLang으로 쓴다.
           for (const [locale, url] of absolute) {
             expect(pageHtml).toContain(`<link rel="alternate" hrefLang="${locale ?? ''}" href="${url ?? ''}"/>`)

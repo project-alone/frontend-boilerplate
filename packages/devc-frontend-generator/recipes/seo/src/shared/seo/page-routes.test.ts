@@ -91,6 +91,19 @@ test('locale 세그먼트 아래 페이지는 locale마다 넣고, 같은 페이
   ])
 })
 
+test('기본 locale이 있으면 그 locale의 주소를 x-default로도 알리고, 그 주소를 뺐으면 알리지 않는다', () => {
+  addFiles('[locale]/i18n/page.tsx')
+  const locales = { param: 'locale', values: ['ko', 'en'], defaultValue: 'ko' }
+
+  expect(findPageRoutes(appDir, { locales })).toEqual([
+    { path: '/en/i18n', languages: { ko: '/ko/i18n', en: '/en/i18n', 'x-default': '/ko/i18n' } },
+    { path: '/ko/i18n', languages: { ko: '/ko/i18n', en: '/en/i18n', 'x-default': '/ko/i18n' } },
+  ])
+  expect(findPageRoutes(appDir, { locales, exclude: ['/ko'] })).toEqual([
+    { path: '/en/i18n', languages: { en: '/en/i18n' } },
+  ])
+})
+
 test('locale 세그먼트 아래에 있어도 다른 동적 세그먼트가 있는 페이지는 넣지 않고, 뺀 주소는 언어별 주소에서도 뺀다', () => {
   addFiles('[locale]/page.tsx', '[locale]/posts/[postId]/page.tsx', '[slug]/page.tsx')
 

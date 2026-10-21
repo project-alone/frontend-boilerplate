@@ -23,6 +23,8 @@ function respondToAll(body: JsonBodyType, status = 200): string[] {
 }
 
 test('브라우저에서는 BFF 프록시(/api/proxy)를 거쳐 요청한다', async () => {
+  // 테스트는 브라우저의 요청도 목 백엔드로 보내므로(vitest.setup.ts) 기본값인 BFF 프록시를 보려고 비운다.
+  vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', '')
   const urls = respondToAll([])
 
   await apiFetch('/products?q=셔츠')

@@ -32,7 +32,7 @@ export const getLoginMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.post(
-    '*/auth/login',
+    'https://mock.api.test/auth/login',
     async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -53,7 +53,7 @@ export const getRefreshTokensMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.post(
-    '*/auth/refresh',
+    'https://mock.api.test/auth/refresh',
     async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -73,7 +73,7 @@ export const getGetMeMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.get(
-    '*/auth/me',
+    'https://mock.api.test/auth/me',
     async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {
       return HttpResponse.json(
         overrideResponse !== undefined
@@ -93,7 +93,7 @@ export const getLogoutMockHandler = (
   options?: RequestHandlerOptions,
 ) => {
   return http.post(
-    '*/auth/logout',
+    'https://mock.api.test/auth/logout',
     async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {
       if (typeof overrideResponse === 'function') {
         await overrideResponse(info)

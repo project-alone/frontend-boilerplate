@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { createMockEventStream, type MockEventStream } from '@/shared/mocks/event-stream'
+import { setMockReadiness } from '@/shared/mocks/mock-readiness'
 import { server } from '@/shared/mocks/node'
 import {
   connectEventStream,
@@ -72,6 +73,23 @@ test('백엔드의 경로로 이벤트 스트림을 요청하고, 받은 이벤�
   // server는 BFF 프록시(/api/proxy/test/events), static-export는 백엔드 주소(/test/events)로 보낸다.
   expect(new URL(request.url).pathname).toMatch(/^(\/api\/proxy)?\/test\/events$/)
   expect(request.headers.get('accept')).toBe('text/event-stream')
+})
+
+test('브라우저의 MSW가 요청을 받을 준비가 될 때까지 기다린 뒤 연결한다', async () => {
+  const connections = serveEventStreams()
+  // static-export의 브라우저 MSW(서비스 워커)가 아직 준비되지 않은 페이지를 흉내 낸다(src/shared/mocks/mock-readiness.ts).
+  const { promise: ready, resolve } = Promise.withResolvers<undefined>()
+  setMockReadiness(ready)
+  onTestFinished(() => {
+    setMockReadiness(Promise.resolve())
+  })
+  connect({ onEvent: () => undefined })
+
+  await new Promise((wait) => setTimeout(wait, 50))
+  expect(connections).toEqual([])
+
+  resolve(undefined)
+  await connection(connections, 1)
 })
 
 test('여러 줄 데이터, CRLF·CR 줄 끝, 주석, 여러 조각으로 나뉘어 온 줄을 표준(HTML의 event stream 형식)대로 읽는다', async () => {

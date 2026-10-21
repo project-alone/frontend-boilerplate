@@ -2,6 +2,7 @@
 // 원본(packages/devc-frontend-generator/): recipes/table/src/shared/mocks/members.ts
 
 import { http, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import {
   ListMembersParams,
   type ListMembersParamsOutput,
@@ -70,7 +71,7 @@ function readParams(url: URL): Record<string, unknown> {
 }
 
 export const membersHandlers = [
-  http.get('*/members', ({ request }) => {
+  http.get(`${MOCK_API_BASE_URL}/members`, ({ request }) => {
     // 실제 백엔드처럼 명세에 없는 값(알 수 없는 정렬 항목 등)은 400으로 거절한다.
     const params = ListMembersParams.safeParse(readParams(new URL(request.url)))
     if (!params.success) return HttpResponse.json({ message: params.error.message }, { status: 400 })

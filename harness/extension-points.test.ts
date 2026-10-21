@@ -171,21 +171,25 @@ describe('Provider, 머리글, proxy, next.config, instrumentation, sitemap 규�
     },
   )
 
-  test('MSW 핸들러 목록(mockHandlers)은 Recipe가 직접 만든 핸들러를 order 순으로 생성된 핸들러 앞에 두고, 조각이 없어도 Base의 MSW가 쓰므로 늘 만든다', () => {
+  test('MSW 핸들러 목록(mockHandlers)은 Base와 Recipe가 직접 만든 핸들러를 order 순으로 생성된 핸들러 앞에 두고, Base의 MSW가 쓰므로 늘 만든다', () => {
     const fixtures = dcgenNew(FIXTURES, 'fixtures')
     const base = dcgenNew([], 'base')
     expect(fixtures.status, fixtures.output).toBe(0)
     expect(base.status, base.output).toBe(0)
 
-    // MSW는 앞의 핸들러가 먼저 응답하므로, b(order 100) → a(order 200) → 명세에서 생성된 핸들러 순으로 놓인다.
+    // MSW는 앞의 핸들러가 먼저 응답하므로, Base의 페이지 탐색 거르기(order 0) → b(order 100) → a(order 200) → 명세에서
+    // 생성된 핸들러 순으로 놓인다.
     const spreads = (starter: string) =>
       [...readFileSync(join(starter, 'src/shared/mocks/handlers.ts'), 'utf8').matchAll(/\.\.\.([\w.]+)/g)].map(
         ([, name]) => name,
       )
-    expect(spreads(fixtures.starter)).toEqual(['fixtureBMockHandlers', 'fixtureAMockHandlers', 'Object.values'])
-    expect(readFileSync(join(base.starter, 'src/shared/mocks/handlers.ts'), 'utf8')).toContain(
-      'export const handlers = Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers())',
-    )
+    expect(spreads(fixtures.starter)).toEqual([
+      'pageNavigationHandlers',
+      'fixtureBMockHandlers',
+      'fixtureAMockHandlers',
+      'Object.values',
+    ])
+    expect(spreads(base.starter)).toEqual(['pageNavigationHandlers', 'Object.values'])
   })
 
   test('sitemap 규칙(sitemap)은 sitemap(src/app/sitemap.ts)이 있는 Starter에만 order 순으로 조립하고, sitemap이 있으면 조각이 없어도 만든다', () => {

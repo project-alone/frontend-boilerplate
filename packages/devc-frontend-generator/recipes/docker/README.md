@@ -16,14 +16,15 @@ curl http://localhost:3000/api/health                                 # {"status
 
 ### 빌드 인자와 환경 변수
 
-| 이름                       | 넣는 곳                                                 | 값                                                                                                                                                                                                                                            |
-| -------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_BASE_URL`             | 실행(`docker run -e`), 빌드(`docker build --build-arg`) | 서버가 부르는 백엔드 주소. 실행할 때는 꼭 넣습니다. 빌드할 때는 데이터를 가져오는 SSG·ISR 페이지가 있을 때만 필요하고, 그런 페이지가 있는데 빠지면 빌드가 실패합니다.                                                                         |
-| `NEXT_PUBLIC_SITE_URL`     | 빌드(`--build-arg`)                                     | 사이트의 공개 주소(`seo` Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). `seo` Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 실패합니다. 페이지와 번들에 박히므로 바꾸면 이미지를 다시 만듭니다. 그 Recipe가 없으면 쓰이지 않습니다. |
-| `NEXT_PUBLIC_API_BASE_URL` | 빌드(`--build-arg`)                                     | 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만듭니다.                                                                                                                                     |
-| `API_MOCKING`              | 빌드(`--build-arg`)                                     | `disabled`(기본값)만 됩니다. 다른 값이면 빌드를 거부합니다(아래 "목 이미지").                                                                                                                                                                 |
-| `NODE_IMAGE`               | 빌드(`--build-arg`)                                     | 기반 Node 이미지. 기본값은 `Dockerfile`에 고정한 버전입니다.                                                                                                                                                                                  |
-| `PORT`                     | 실행(`docker run -e`)                                   | 서버의 포트(기본 `3000`). 서버는 `HOSTNAME=0.0.0.0`으로 모든 주소에서 받고, `HEALTHCHECK`가 `127.0.0.1`로 부르므로 `HOSTNAME`은 바꾸지 않습니다.                                                                                              |
+| 이름                       | 넣는 곳                                                 | 값                                                                                                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `API_BASE_URL`             | 실행(`docker run -e`), 빌드(`docker build --build-arg`) | 서버가 부르는 백엔드 주소. 실행할 때는 꼭 넣습니다. 빌드할 때는 데이터를 가져오는 SSG·ISR 페이지가 있을 때만 필요하고, 그런 페이지가 있는데 빠지면 빌드가 실패합니다.                                                                                  |
+| `NEXT_PUBLIC_SITE_URL`     | 빌드(`--build-arg`)                                     | 사이트의 공개 주소(`seo` Recipe의 sitemap, robots.txt, canonical, 공유 이미지의 주소). `seo` Recipe를 넣었으면 꼭 넣고, 빠지면 빌드가 실패합니다. 페이지와 번들에 박히므로 바꾸면 이미지를 다시 만듭니다. 그 Recipe가 없으면 쓰이지 않습니다.          |
+| `NEXT_PUBLIC_SENTRY_DSN`   | 빌드(`--build-arg`)                                     | 브라우저가 오류를 보낼 Sentry DSN(`sentry` Recipe). 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만들고, 빠지면 브라우저의 오류는 보내지 않습니다. 서버의 DSN `SENTRY_DSN`은 실행할 때(`docker run -e`) 넣습니다. 그 Recipe가 없으면 쓰이지 않습니다. |
+| `NEXT_PUBLIC_API_BASE_URL` | 빌드(`--build-arg`)                                     | 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소. 브라우저 번들에 박히므로 바꾸면 이미지를 다시 만듭니다.                                                                                                                                              |
+| `API_MOCKING`              | 빌드(`--build-arg`)                                     | `disabled`(기본값)만 됩니다. 다른 값이면 빌드를 거부합니다(아래 "목 이미지").                                                                                                                                                                          |
+| `NODE_IMAGE`               | 빌드(`--build-arg`)                                     | 기반 Node 이미지. 기본값은 `Dockerfile`에 고정한 버전입니다.                                                                                                                                                                                           |
+| `PORT`                     | 실행(`docker run -e`)                                   | 서버의 포트(기본 `3000`). 서버는 `HOSTNAME=0.0.0.0`으로 모든 주소에서 받고, `HEALTHCHECK`가 `127.0.0.1`로 부르므로 `HOSTNAME`은 바꾸지 않습니다.                                                                                                       |
 
 - 비밀 값은 `ARG`나 `ENV`로 이미지에 넣지 않습니다. 그 값은 이미지의 설정과 빌드 기록에 남습니다. 실행할 때 쓰는 비밀 값은 배포 환경이 컨테이너의 환경 변수로 넣고(Kubernetes Secret 등), 빌드할 때 필요한 비밀 값(사내 npm 레지스트리의 토큰 등)은 `docker build --secret id=npmrc,src=$HOME/.npmrc`로 넘깁니다. 이 파일은 `npm ci`를 실행하는 동안에만 마운트되고 이미지에는 남지 않습니다.
 - `.dockerignore`가 `node_modules`, 빌드 결과, 로컬 환경 변수 파일(`.env*.local`), 프로젝트의 `.npmrc`(토큰이 있을 수 있음)를 빌드 컨텍스트에서 뺍니다. 로컬 파일을 받으면 `next build`가 그 값을 읽어 브라우저 번들(`NEXT_PUBLIC_*`)과 미리 렌더링한 페이지에 담을 수 있고, 빌드 단계의 층(빌드 캐시)에도 남기 때문입니다. standalone 출력은 커밋하는 `.env.production`을 이미지에 함께 복사하므로 그 파일에도 비밀 값을 적지 않습니다.
@@ -41,7 +42,7 @@ docker run -p 3000:3000 my-app:mock  # 빌드와 서버의 API 요청을 MSW가 
 
 ### GitLab CI에서 이미지 만들기
 
-`.gitlab-ci.yml`에는 이미지를 만드는 잡을 넣지 않았습니다. 이미지를 만들려면 privileged 러너(Docker-in-Docker)나 Buildah 같은 도구가 필요하고, 이미지를 올릴 레지스트리와 배포 방식은 아직 정하지 않았기 때문입니다. 정해지면 다음과 같은 잡을 더합니다. GitLab Container Registry에 올리는 예이고, 러너 설정은 GitLab 문서의 "Use Docker to build Docker images"를 따릅니다. Buildah로 만들 때는 `--format docker`를 붙입니다. 기본 형식(OCI)은 `HEALTHCHECK`를 담지 않습니다. `API_BASE_URL`과 `NEXT_PUBLIC_SITE_URL`(`seo` Recipe)은 CI/CD 변수로 넣습니다.
+`.gitlab-ci.yml`에는 이미지를 만드는 잡을 넣지 않았습니다. 이미지를 만들려면 privileged 러너(Docker-in-Docker)나 Buildah 같은 도구가 필요하고, 이미지를 올릴 레지스트리와 배포 방식은 아직 정하지 않았기 때문입니다. 정해지면 다음과 같은 잡을 더합니다. GitLab Container Registry에 올리는 예이고, 러너 설정은 GitLab 문서의 "Use Docker to build Docker images"를 따릅니다. Buildah로 만들 때는 `--format docker`를 붙입니다. 기본 형식(OCI)은 `HEALTHCHECK`를 담지 않습니다. `API_BASE_URL`, `NEXT_PUBLIC_SITE_URL`(`seo` Recipe), `NEXT_PUBLIC_SENTRY_DSN`(`sentry` Recipe)은 CI/CD 변수로 넣습니다.
 
 ```yaml
 docker:
@@ -56,7 +57,7 @@ docker:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build --build-arg API_BASE_URL="$API_BASE_URL" --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    - docker build --build-arg API_BASE_URL="$API_BASE_URL" --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN" --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
