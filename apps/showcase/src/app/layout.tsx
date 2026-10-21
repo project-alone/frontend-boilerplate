@@ -1,14 +1,15 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/src/app/layout.tsx
+// 원본(packages/devc-frontend-generator/): base/src/app/layout.tsx, recipes/seo/src/app/layout.tsx.patch
 
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { siteMetadata } from '@/shared/seo/metadata'
 import { AppShell } from './app-shell'
 import '@/shared/ui/styles.css'
 
-export const metadata: Metadata = {
-  title: 'Starter',
-}
+// seo Recipe: 사이트 주소(NEXT_PUBLIC_SITE_URL), 제목 뒤의 사이트 이름, 페이지마다 자기 주소를 알리는 canonical·OG·Twitter의
+// 기본값(src/shared/seo/metadata.ts). 페이지는 metadata에 title과 description만 적는다.
+export const metadata: Metadata = siteMetadata()
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

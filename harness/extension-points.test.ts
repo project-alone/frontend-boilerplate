@@ -141,7 +141,7 @@ describe('환경 변수', () => {
   })
 })
 
-describe('Provider, 머리글, proxy, next.config, instrumentation의 선언(extensions.json)', () => {
+describe('Provider, 머리글, proxy, next.config, instrumentation, sitemap 규칙의 선언(extensions.json)', () => {
   test('proxy는 요청을 받는 서버가 있는 server Starter에만 만들고, static-export Starter에는 만들지 않는다', () => {
     const server = dcgenNew(['--rendering-mode', 'server', ...FIXTURES], 'server')
     const staticExport = dcgenNew(['--rendering-mode', 'static-export', ...FIXTURES], 'static-export')
@@ -185,6 +185,24 @@ describe('Provider, 머리글, proxy, next.config, instrumentation의 선언(ext
     expect(spreads(fixtures.starter)).toEqual(['fixtureBMockHandlers', 'fixtureAMockHandlers', 'Object.values'])
     expect(readFileSync(join(base.starter, 'src/shared/mocks/handlers.ts'), 'utf8')).toContain(
       'export const handlers = Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers())',
+    )
+  })
+
+  test('sitemap 규칙(sitemap)은 sitemap(src/app/sitemap.ts)이 있는 Starter에만 order 순으로 조립하고, sitemap이 있으면 조각이 없어도 만든다', () => {
+    const withSitemap = dcgenNew([...FIXTURES, '--recipe', 'seo'], 'with-sitemap')
+    const withoutSitemap = dcgenNew(FIXTURES, 'without-sitemap')
+    const seoOnly = dcgenNew(['--recipe', 'seo'], 'seo-only')
+    expect(withSitemap.status, withSitemap.output).toBe(0)
+    expect(withoutSitemap.status, withoutSitemap.output).toBe(0)
+    expect(seoOnly.status, seoOnly.output).toBe(0)
+
+    // b(order 100) → a(order 200) 순으로 놓인다.
+    expect(readFileSync(join(withSitemap.starter, 'src/app/sitemap-rules.ts'), 'utf8')).toContain(
+      'export const sitemapRules: readonly SitemapRules[] = [fixtureBSitemapRules, fixtureASitemapRules]',
+    )
+    expect(existsSync(join(withoutSitemap.starter, 'src/app/sitemap-rules.ts'))).toBe(false)
+    expect(readFileSync(join(seoOnly.starter, 'src/app/sitemap-rules.ts'), 'utf8')).toContain(
+      'export const sitemapRules: readonly SitemapRules[] = []',
     )
   })
 

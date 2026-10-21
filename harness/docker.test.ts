@@ -104,13 +104,9 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
   })
 
   describe.skipIf(skipImages)(`Dockerfile로 만든 이미지${skipImages ? '(Docker가 없어 건너뜀)' : ''}`, () => {
-    // 하네스가 만든 이미지와 컨테이너. 이름이 겹치지 않게 하고, 끝나면 이 이름의 것만 지운다.
-    const name = `dcgen-harness-docker-${randomUUID().slice(0, 8)}`
-    const label = `dcgen-harness=${name}`
+    const { name, label, docker, expectDockerSuccess, buildImage, runInImage, startContainer } = useImages('docker')
     const deployImage = `${name}:deploy`
     const mockImage = `${name}:mock`
-    const images: string[] = []
-    const containers: string[] = []
     let context = ''
 
     // 개발자의 로컬 환경 변수 파일에 든 비밀 값. 이미지 어디에도 들어가면 안 된다.
@@ -118,53 +114,17 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     // public 파일이 이미지에 복사되어 standalone 서버가 내주는지 볼 파일
     const PUBLIC_FILE = { path: 'harness-public.txt', content: 'public 파일입니다' }
 
-    const docker = (args: readonly string[]): RunResult => run('docker', args, tmpdir())
-    const expectDockerSuccess = (args: readonly string[]): RunResult => {
-      const result = docker(args)
-      expect(result.status, `docker ${args.join(' ')}\n${result.output}`).toBe(0)
-      return result
-    }
-    const buildImage = (tag: string, args: readonly string[] = []) => {
-      images.push(tag)
-      expectDockerSuccess(['build', '--progress=plain', '--label', label, '--tag', tag, ...args, context])
-    }
-    /** 이미지에서 명령 하나를 실행하고 컨테이너를 지운다. */
-    const runInImage = (image: string, command: string, args: readonly string[]): RunResult =>
-      docker(['run', '--rm', '--label', label, '--entrypoint', command, image, ...args])
-
-    /** 컨테이너를 띄우고 호스트에서 부를 주소를 돌려준다. 포트는 호스트의 빈 포트에 이어 다른 서버와 겹치지 않는다. */
-    const startContainer = (image: string, args: readonly string[] = []) => {
-      const container = `${name}-${String(containers.length + 1)}`
-      // 만들어졌지만 뜨지 못한 컨테이너도 afterAll에서 지우도록 먼저 적어 둔다.
-      containers.push(container)
-      expectDockerSuccess(['run', '--detach', '--name', container, '--label', label, '--publish', '127.0.0.1::3000', ...args, image])
-      const address = expectDockerSuccess(['port', container, '3000']).output.trim().split('\n')[0] ?? ''
-      const logs = { output: () => docker(['logs', container]).output }
-      return { container, origin: `http://${address}`, logs }
-    }
-
     beforeAll(() => {
       if (dockerMissing !== undefined) throw new Error(dockerMissing)
 
-      // 빌드 컨텍스트는 Starter의 사본이다. 사본에만 개발자가 둔 파일(public 파일, 로컬 환경 변수 파일)을 더한다.
-      context = join(starter.workdir, 'image-context')
-      cpSync(starter.dir, context, {
-        recursive: true,
-        // node_modules와 빌드 결과는 .dockerignore가 빼지만, 복사하는 시간을 줄이려고 처음부터 뺀다.
-        filter: (source) => !['node_modules', '.next'].includes(relative(starter.dir, source).split(sep)[0] ?? ''),
-      })
-      unlinkPackedGenerator(context)
+      // 사본에만 개발자가 둔 파일(public 파일, 로컬 환경 변수 파일)을 더한다.
+      context = imageContext(starter)
       mkdirSync(join(context, 'public'), { recursive: true })
       writeFileSync(join(context, 'public', PUBLIC_FILE.path), PUBLIC_FILE.content)
       writeFileSync(join(context, '.env.production.local'), `HARNESS_LOCAL_SECRET=${LOCAL_SECRET}\n`)
 
-      buildImage(deployImage)
-      buildImage(mockImage, ['--target', 'mock'])
-    })
-
-    afterAll(() => {
-      if (containers.length > 0) docker(['rm', '--force', ...containers])
-      if (images.length > 0) docker(['rmi', '--force', ...images])
+      buildImage(deployImage, context)
+      buildImage(mockImage, context, ['--target', 'mock'])
     })
 
     test('Dockerfile은 hadolint 검사를 통과한다', () => {
@@ -230,7 +190,7 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
       // 빌드 단계가 이 파일을 받으면 next build가 읽어 브라우저 번들과 미리 렌더링한 페이지에 담을 수 있고, 빌드 캐시의 층에도 남는다.
       // 빌드 단계는 위에서 만든 층을 그대로 쓰므로 다시 빌드하지 않고 이름만 붙는다.
       const buildStage = `${name}:build-stage`
-      buildImage(buildStage, ['--target', 'build'])
+      buildImage(buildStage, context, ['--target', 'build'])
 
       // 빌드 컨텍스트는 /app에 복사되고 standalone 서버도 /app에서 뜬다. grep은 찾으면 0, 찾지 못하면 1, 오류면 2로 끝난다.
       for (const [image, exclude] of [
@@ -275,4 +235,105 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     }
   })
 })
+
+// seo Recipe와 함께 넣으면 배포용 이미지는 빌드 인자로 사이트 주소(NEXT_PUBLIC_SITE_URL)를 받아야 하고, 공유 이미지의 글꼴과
+// 함께 그 라이선스도 담아야 한다. Starter의 스크립트는 seo.test.ts가 보므로 여기서는 이미지만 본다.
+describe.skipIf(skipImages)(`docker와 seo Recipe를 함께 넣은 Starter의 배포용 이미지${skipImages ? '(Docker가 없어 건너뜀)' : ''}`, () => {
+  const starter = useStarter({ prefix: 'dcgen-docker-seo-', renderingMode: 'server', recipes: ['docker', 'seo'], install: true })
+  const { name, buildImage, docker, runInImage, startContainer } = useImages('docker-seo')
+  const SITE_URL = 'https://www.example.com'
+  const image = `${name}:deploy`
+  let context = ''
+
+  beforeAll(() => {
+    if (dockerMissing !== undefined) throw new Error(dockerMissing)
+    context = imageContext(starter)
+  })
+
+  test('사이트 주소(NEXT_PUBLIC_SITE_URL)를 빌드 인자로 넣지 않으면 무엇을 넣어야 하는지 알리며 빌드하지 않는다', () => {
+    const result = docker(['build', '--progress=plain', context])
+
+    expect(result.status).not.toBe(0)
+    expect(result.output).toContain('NEXT_PUBLIC_SITE_URL 환경 변수가 없습니다')
+  })
+
+  test('빌드 인자로 넣은 사이트 주소로 sitemap.xml과 canonical을 만들고, 글꼴 옆에 그 라이선스를 담는다', async () => {
+    buildImage(image, context, ['--build-arg', `NEXT_PUBLIC_SITE_URL=${SITE_URL}`])
+    const { origin, logs } = startContainer(image, ['--env', 'API_BASE_URL=https://backend.example.com'])
+
+    const home = await waitForServer(`${origin}/`, logs, 60_000)
+    expect(home.status, logs.output()).toBe(200)
+    expect(await home.text()).toContain(`<link rel="canonical" href="${SITE_URL}"/>`)
+    const sitemap = await (await fetch(`${origin}/sitemap.xml`)).text()
+    expect(sitemap).toContain(`<loc>${SITE_URL}/products</loc>`)
+
+    // standalone 서버는 /app에서 뜨고, 소스의 상대 경로 그대로 글꼴을 담는다.
+    for (const file of ['pretendard-bold.woff', 'pretendard-license.txt']) {
+      const found = runInImage(image, 'test', ['-s', `/app/src/shared/seo/${file}`])
+      expect(found.status, `${file}\n${found.output}`).toBe(0)
+    }
+  })
+})
+
+/**
+ * 하네스가 만드는 이미지와 컨테이너. 이름이 겹치지 않게 하고, 그 describe가 끝나면 이 이름의 것만 지운다(다른 이미지와
+ * 컨테이너는 건드리지 않는다).
+ */
+function useImages(prefix: string) {
+  const name = `dcgen-harness-${prefix}-${randomUUID().slice(0, 8)}`
+  const label = `dcgen-harness=${name}`
+  const images: string[] = []
+  const containers: string[] = []
+
+  const docker = (args: readonly string[]): RunResult => run('docker', args, tmpdir())
+  const expectDockerSuccess = (args: readonly string[]): RunResult => {
+    const result = docker(args)
+    expect(result.status, `docker ${args.join(' ')}\n${result.output}`).toBe(0)
+    return result
+  }
+
+  afterAll(() => {
+    if (containers.length > 0) docker(['rm', '--force', ...containers])
+    if (images.length > 0) docker(['rmi', '--force', ...images])
+  })
+
+  return {
+    name,
+    label,
+    docker,
+    expectDockerSuccess,
+    buildImage: (tag: string, context: string, args: readonly string[] = []) => {
+      images.push(tag)
+      expectDockerSuccess(['build', '--progress=plain', '--label', label, '--tag', tag, ...args, context])
+    },
+    /** 이미지에서 명령 하나를 실행하고 컨테이너를 지운다. */
+    runInImage: (image: string, command: string, args: readonly string[]): RunResult =>
+      docker(['run', '--rm', '--label', label, '--entrypoint', command, image, ...args]),
+    /** 컨테이너를 띄우고 호스트에서 부를 주소를 돌려준다. 포트는 호스트의 빈 포트에 이어 다른 서버와 겹치지 않는다. */
+    startContainer: (image: string, args: readonly string[] = []) => {
+      const container = `${name}-${String(containers.length + 1)}`
+      // 만들어졌지만 뜨지 못한 컨테이너도 afterAll에서 지우도록 먼저 적어 둔다.
+      containers.push(container)
+      expectDockerSuccess(['run', '--detach', '--name', container, '--label', label, '--publish', '127.0.0.1::3000', ...args, image])
+      const address = expectDockerSuccess(['port', container, '3000']).output.trim().split('\n')[0] ?? ''
+      const logs = { output: () => docker(['logs', container]).output }
+      return { container, origin: `http://${address}`, logs }
+    },
+  }
+}
+
+/**
+ * 이미지의 빌드 컨텍스트로 쓸 Starter의 사본을 만든다. 빌드 컨텍스트에서는 아직 npm에 없는 Generator를 package.json과
+ * package-lock.json에서 뺀다(unlinkPackedGenerator).
+ */
+function imageContext(starter: { dir: string; workdir: string }): string {
+  const context = join(starter.workdir, 'image-context')
+  cpSync(starter.dir, context, {
+    recursive: true,
+    // node_modules와 빌드 결과는 .dockerignore가 빼지만, 복사하는 시간을 줄이려고 처음부터 뺀다.
+    filter: (source) => !['node_modules', '.next'].includes(relative(starter.dir, source).split(sep)[0] ?? ''),
+  })
+  unlinkPackedGenerator(context)
+  return context
+}
 

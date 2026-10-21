@@ -1,0 +1,3 @@
+{
+  "nextConfig": [{ "path": "src/shared/seo/next-config.ts", "export": "withSeo", "order": 300 }]
+}

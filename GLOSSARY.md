@@ -15,7 +15,7 @@ _Avoid_: core, skeleton, 템플릿
 _Avoid_: 케이스, 예제, 모듈, 플러그인
 
 **확장 지점**:
-여러 Recipe가 Base의 같은 자리(앱 Provider와 머리글, proxy, `next.config`, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수)에 끼어들 때, Base 파일을 고치지 않고 자기 조각만 더하는 곳. Generator가 Base와 Recipe의 조각을 모아 조립한다.
+여러 Recipe가 Base의 같은 자리(앱 Provider와 머리글, proxy, `next.config`, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수)나 다른 Recipe가 더한 sitemap의 규칙에 끼어들 때, 그 파일을 고치지 않고 자기 조각만 더하는 곳. Generator가 Base와 Recipe의 조각을 모아 조립한다.
 _Avoid_: 훅, 슬롯, 플러그인 포인트
 
 **Rendering Mode**:

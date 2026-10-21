@@ -116,6 +116,7 @@ const EXTENSION_FILES: Record<string, readonly string[]> = {
   'src/proxy.ts': ['proxy'],
   'src/shared/api/backend-fetch.ts': ['backendFetch'],
   'src/shared/mocks/handlers.ts': ['mockHandlers'],
+  'src/app/sitemap-rules.ts': ['sitemap'],
 }
 
 const OPENAPI_SPEC = 'openapi.yaml'

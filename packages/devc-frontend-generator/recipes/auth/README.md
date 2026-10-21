@@ -17,6 +17,7 @@
 - refresh(`src/shared/auth/refresh-session.ts`): 동시에 여러 요청이 401을 받아도 같은 refreshToken의 refresh는 백엔드에 한 번만 보내고 결과를 나눠 씁니다. 백엔드가 쓴 refreshToken을 다시 받지 않는(rotation) 경우에도 로그아웃되지 않도록, 끝난 refresh의 결과도 10초 동안 남겨 이전 쿠키로 늦게 온 요청에 줍니다. 묶는 범위는 서버 프로세스 하나라서, 서버를 여러 대 띄우면 백엔드가 같은 refreshToken을 잠시 다시 받아 주게 하거나(reuse interval) 같은 사용자의 요청을 한 서버로 보냅니다.
 - 머리글의 사용자 메뉴(`src/features/user-menu`)는 로그인했으면 이름과 로그아웃 버튼을, 아니면 로그인 링크를 보여 줍니다. 로그인 여부는 브라우저가 `/api/session`에 물어봅니다. 루트 레이아웃이 쿠키를 읽으면 모든 페이지가 요청마다 렌더링되기 때문입니다. 로그인 폼은 `src/features/login-form`, 로그인 페이지는 `src/app/login/page.tsx`입니다.
 - 다른 사이트에서 보낸 POST·DELETE 요청에는 세션 쿠키가 실리지 않으므로(`SameSite=Lax`) 다른 사이트가 BFF 프록시와 로그아웃을 대신 보낼 수 없습니다. 쿠키가 필요 없는 로그인(`POST /api/session`)은 JSON 본문만 받아, 다른 사이트의 HTML 폼(JSON을 보낼 수 없음)이나 fetch(CORS 사전 요청에서 막힘)가 공격자의 계정으로 로그인시키지 못하게 합니다. 상태를 바꾸는 API를 GET으로 만들지 않습니다. 같은 사이트(하위 도메인)의 다른 앱은 막지 못하므로 그런 앱과 도메인을 나눠 쓰면 따로 막습니다.
+- 검색 엔진: 로그인, 내 정보, 관리자, 접근 권한 없음 페이지는 metadata의 `robots: { index: false }`로 검색 결과에서 뺍니다. 새 보호된 라우트의 페이지에도 적습니다. sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `PROTECTED_ROUTES`의 경로는 robots.txt가 막고(`Disallow`, 공개된 내용 없이 로그인 페이지로 보냄), 로그인·접근 권한 없음 페이지는 sitemap에서만 뺍니다. 두 페이지는 검색 엔진이 읽어 `noindex`를 따르도록 막지 않습니다(`access-rules.ts`의 `authSitemapRules`, 확장 지점 sitemap 규칙).
 - 로그아웃하면 백엔드에 로그아웃을 중계하고 세션 쿠키를 지웁니다. accessToken이 만료되어 백엔드가 받지 않으면 refresh한 뒤 다시 중계해 refreshToken까지 끝냅니다.
 
 ### 환경 변수
@@ -35,4 +36,4 @@
 
 ### 테스트
 
-`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
+`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).

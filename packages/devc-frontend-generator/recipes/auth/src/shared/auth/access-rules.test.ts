@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { returnPathOf } from './access-rules'
+import { authSitemapRules, FORBIDDEN_PATH, LOGIN_PATH, PROTECTED_ROUTES, returnPathOf } from './access-rules'
 
 test('로그인한 뒤 돌아갈 주소는 이 앱 안의 경로를 쿼리와 함께 그대로 쓴다', () => {
   expect(returnPathOf('/account?tab=orders#recent')).toBe('/account?tab=orders#recent')
@@ -20,4 +20,9 @@ test.each([
 
 test('돌아갈 주소가 없으면 홈으로 보낸다', () => {
   expect(returnPathOf(undefined)).toBe('/')
+})
+
+test('sitemap 규칙은 보호된 라우트를 robots.txt로 막고, 로그인·접근 권한 없음 페이지는 sitemap에서만 뺀다', () => {
+  for (const { path } of PROTECTED_ROUTES) expect(authSitemapRules.disallow).toContain(path)
+  expect(authSitemapRules.exclude).toEqual([LOGIN_PATH, FORBIDDEN_PATH])
 })

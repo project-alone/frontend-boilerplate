@@ -34,7 +34,9 @@ test('Showcase는 타입 검사, 린트, 포맷 검사, 단위 테스트, 스토
 })
 
 test('Showcase는 빌드를 통과하고, 빌드한 앱에서 모든 Recipe의 E2E가 통과한다', async () => {
-  starter.expectNpmSuccess(['run', 'build'])
+  // Starter의 GitLab CI처럼 E2E는 배포하지 않는 목 빌드로 돈다(README의 "배포용 빌드와 목 빌드"). 배포용 빌드에 넣어야 하는
+  // 값(seo Recipe의 사이트 주소 등)이 없어도 빌드된다.
+  starter.expectNpmSuccess(['run', 'build'], { API_MOCKING: 'enabled' })
 
   starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
 })

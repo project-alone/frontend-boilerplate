@@ -47,13 +47,14 @@ test('서버 컴포넌트는 같은 메시지를 locale마다 다른 문장과 �
   request,
 }) => {
   const ko = await (await request.get('/ko/i18n')).text()
-  expect(ko).toContain('<title>다국어 예시</title>')
+  // 루트 레이아웃이 제목 뒤에 사이트 이름을 붙이는 Recipe(seo의 `%s | Starter`)와 함께 넣어도 페이지의 제목으로 시작한다.
+  expect(ko).toMatch(/<title>다국어 예시(?: \| [^<]+)?<\/title>/)
   expect(ko).toContain('<div lang="ko">')
   expect(ko).toContain('출시일: 2026년 3월 2일 월요일')
   expect(ko).toContain('가격: ₩19,000')
 
   const en = await (await request.get('/en/i18n')).text()
-  expect(en).toContain('<title>Internationalization example</title>')
+  expect(en).toMatch(/<title>Internationalization example(?: \| [^<]+)?<\/title>/)
   expect(en).toContain('<div lang="en">')
   expect(en).toContain('Released: Monday, March 2, 2026')
   expect(en).toContain('Price: ₩19,000')
@@ -84,6 +85,26 @@ test('번역한 페이지의 링크는 지금 locale의 주소로 간다', async
 
   await expect(page).toHaveURL(/\/en$/)
   await expect(page.getByText('This Starter supports Korean and English.', { exact: false })).toBeVisible()
+})
+
+test('번역한 페이지는 자기 주소를 canonical로, 같은 페이지의 locale별 주소를 hreflang으로 검색 엔진에 알린다', async ({
+  page,
+}) => {
+  // 주소는 사이트 주소(metadataBase)가 있으면 절대 주소, 없으면 경로다. 어느 쪽이든 경로만 비교한다.
+  const pathOf = (href: string | null) => new URL(href ?? '', page.url()).pathname
+
+  for (const [path, alternates] of [
+    ['/en', { ko: '/ko', en: '/en' }],
+    ['/ko/i18n', { ko: '/ko/i18n', en: '/en/i18n' }],
+  ] as const) {
+    await page.goto(path)
+
+    expect(pathOf(await page.locator('link[rel="canonical"]').getAttribute('href'))).toBe(path)
+    for (const [locale, alternate] of Object.entries(alternates)) {
+      const link = page.locator(`link[rel="alternate"][hreflang="${locale}"]`)
+      expect(pathOf(await link.getAttribute('href')), `${path}의 ${locale}`).toBe(alternate)
+    }
+  }
 })
 
 test('번역하지 않은 페이지는 주소 그대로 열리고, 거기서 다른 locale을 고르면 그 locale의 홈으로 간다', async ({

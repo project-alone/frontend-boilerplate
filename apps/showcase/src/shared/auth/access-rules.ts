@@ -28,6 +28,16 @@ export const PROTECTED_ROUTES: readonly ProtectedRoute[] = [
   { path: ACCOUNT_PATH },
 ]
 
+/**
+ * sitemap 규칙(확장 지점 sitemap, src/app/sitemap-rules.ts). sitemap을 만드는 Recipe(seo 등)가 있으면 공개된 내용이 없는 보호된
+ * 라우트는 robots.txt로 막고, 로그인·접근 권한 없음 페이지는 sitemap에 넣지 않는다. 두 페이지는 검색 엔진이 읽어 metadata의
+ * robots: { index: false }를 따르도록 막지 않는다. sitemap이 없는 Starter에서는 쓰이지 않는다.
+ */
+export const authSitemapRules = {
+  disallow: PROTECTED_ROUTES.map(({ path }) => path),
+  exclude: [LOGIN_PATH, FORBIDDEN_PATH],
+}
+
 /** pathname을 보호하는 규칙. 보호하지 않는 경로면 undefined */
 export function protectedRouteOf(pathname: string): ProtectedRoute | undefined {
   return PROTECTED_ROUTES.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`))

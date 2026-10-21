@@ -34,5 +34,12 @@
       "export": "fixtureBMockHandlers",
       "order": 100
     }
+  ],
+  "sitemap": [
+    {
+      "path": "src/shared/extension-b-fixture/fixture-b-sitemap-rules.ts",
+      "export": "fixtureBSitemapRules",
+      "order": 100
+    }
   ]
 }

@@ -5,8 +5,10 @@ import { getMeQueryOptions } from '@/queries/auth/auth.queries'
 import { requireServerSession } from '@/shared/auth/server-session'
 import { getQueryClient } from '@/shared/query-client/get-query-client'
 
+// 검색 결과에 보이지 않을 페이지다.
 export const metadata: Metadata = {
   title: '내 정보',
+  robots: { index: false },
 }
 
 // auth Recipe: 로그인한 사용자만 들어오는 보호된 라우트(src/shared/auth/access-rules.ts). 서버 컴포넌트가 세션의 accessToken을
