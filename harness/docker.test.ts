@@ -236,12 +236,22 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
   })
 })
 
-// seo Recipe와 함께 넣으면 배포용 이미지는 빌드 인자로 사이트 주소(NEXT_PUBLIC_SITE_URL)를 받아야 하고, 공유 이미지의 글꼴과
-// 함께 그 라이선스도 담아야 한다. Starter의 스크립트는 seo.test.ts가 보므로 여기서는 이미지만 본다.
-describe.skipIf(skipImages)(`docker와 seo Recipe를 함께 넣은 Starter의 배포용 이미지${skipImages ? '(Docker가 없어 건너뜀)' : ''}`, () => {
-  const starter = useStarter({ prefix: 'dcgen-docker-seo-', renderingMode: 'server', recipes: ['docker', 'seo'], install: true })
-  const { name, buildImage, docker, runInImage, startContainer } = useImages('docker-seo')
+// 빌드할 때 페이지와 번들에 박히는 값을 쓰는 Recipe와 함께 넣으면 배포용 이미지는 그 값을 빌드 인자로 받는다. seo는 사이트
+// 주소(NEXT_PUBLIC_SITE_URL)가 꼭 있어야 하고 공유 이미지의 글꼴과 함께 그 라이선스도 담아야 하며, sentry는 브라우저가 오류를
+// 보낼 DSN(NEXT_PUBLIC_SENTRY_DSN)을 브라우저 번들에 담아야 한다. Starter의 스크립트는 seo.test.ts와 sentry.test.ts가 보므로
+// 여기서는 이미지만 본다.
+describe.skipIf(skipImages)(`docker와 seo, sentry Recipe를 함께 넣은 Starter의 배포용 이미지${skipImages ? '(Docker가 없어 건너뜀)' : ''}`, () => {
+  const starter = useStarter({
+    prefix: 'dcgen-docker-build-args-',
+    renderingMode: 'server',
+    recipes: ['docker', 'seo', 'sentry'],
+    install: true,
+  })
+  const { name, buildImage, docker, runInImage, startContainer } = useImages('docker-build-args')
   const SITE_URL = 'https://www.example.com'
+  // 이 테스트에서만 쓰는 가짜 DSN(.test는 실제로 쓰이지 않는 최상위 도메인). 브라우저를 띄우지 않고 서버에는 DSN(SENTRY_DSN)을
+  // 넣지 않으므로 Sentry로 아무것도 보내지 않는다.
+  const SENTRY_DSN = 'http://public@sentry.test/1'
   const image = `${name}:deploy`
   let context = ''
 
@@ -257,8 +267,13 @@ describe.skipIf(skipImages)(`docker와 seo Recipe를 함께 넣은 Starter의 �
     expect(result.output).toContain('NEXT_PUBLIC_SITE_URL 환경 변수가 없습니다')
   })
 
-  test('빌드 인자로 넣은 사이트 주소로 sitemap.xml과 canonical을 만들고, 글꼴 옆에 그 라이선스를 담는다', async () => {
-    buildImage(image, context, ['--build-arg', `NEXT_PUBLIC_SITE_URL=${SITE_URL}`])
+  test('빌드 인자로 넣은 사이트 주소로 sitemap.xml과 canonical을, Sentry DSN으로 브라우저 번들을 만들고, 글꼴 옆에 그 라이선스를 담는다', async () => {
+    buildImage(image, context, [
+      '--build-arg',
+      `NEXT_PUBLIC_SITE_URL=${SITE_URL}`,
+      '--build-arg',
+      `NEXT_PUBLIC_SENTRY_DSN=${SENTRY_DSN}`,
+    ])
     const { origin, logs } = startContainer(image, ['--env', 'API_BASE_URL=https://backend.example.com'])
 
     const home = await waitForServer(`${origin}/`, logs, 60_000)
@@ -272,6 +287,10 @@ describe.skipIf(skipImages)(`docker와 seo Recipe를 함께 넣은 Starter의 �
       const found = runInImage(image, 'test', ['-s', `/app/src/shared/seo/${file}`])
       expect(found.status, `${file}\n${found.output}`).toBe(0)
     }
+
+    // 브라우저의 SDK는 빌드할 때 브라우저 번들(.next/static)에 박힌 DSN으로 초기화한다. grep은 찾으면 0, 찾지 못하면 1로 끝난다.
+    const bundled = runInImage(image, 'grep', ['-rlF', SENTRY_DSN, '/app/.next/static'])
+    expect(bundled.status, bundled.output).toBe(0)
   })
 })
 
