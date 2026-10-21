@@ -47,7 +47,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 
 ### MSW와 실제 백엔드
 
-- 생성된 MSW 핸들러는 명세의 `example`을 돌려줄 뿐이므로, `src/shared/mocks/deliveries.ts`의 목 백엔드가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 들어가 이벤트로 바뀐 목록을 돌려줍니다. 개발 서버와 E2E에서는 새로 연 화면마다(`Last-Event-ID` 없이 연결하면) 처음 목록으로 되돌리고, 그 화면이 연결한 뒤 목록을 받은 때부터 1.5초 뒤 D-1002가 배송 중으로 바뀌고, 2.5초 뒤 D-1004가 접수되고, 3.5초 뒤 D-1001이 배송 완료로 바뀌지만 그 이벤트를 보내기 전에 연결이 끊깁니다(다시 연결한 뒤 목록을 다시 가져와야 보입니다). `server`에서는 Next.js 서버의 목 백엔드 하나를 모든 화면이 함께 쓰므로, 화면을 새로 열면 이미 열린 화면도 새 순서의 이벤트를 받습니다.
+- 생성된 MSW 핸들러는 명세의 `example`을 돌려줄 뿐이므로, `src/shared/mocks/deliveries.ts`의 목 백엔드가 `src/shared/mocks/handlers.ts`(확장 지점 MSW 핸들러의 조립 파일)에서 생성된 핸들러보다 앞에 들어가 이벤트로 바뀐 목록을 돌려줍니다. 개발 서버와 E2E에서는 새로 연 화면마다(`Last-Event-ID` 없이 연결하면) 처음 목록으로 되돌리고, 그 화면이 연결한 뒤 목록을 받은 때부터 1.5초 뒤 D-1002가 배송 중으로 바뀌고, 2.5초 뒤 D-1004가 접수되고, 3.5초 뒤 D-1001이 배송 완료로 바뀌지만 그 이벤트를 보내기 전에 연결이 끊깁니다(다시 연결한 뒤 목록을 다시 가져와야 보입니다). `server`에서는 Next.js 서버의 목 백엔드 하나를 모든 화면이 함께 쓰므로, 화면을 새로 열면 이미 열린 화면도 새 순서의 이벤트를 받습니다.
 - MSW의 `sse()`는 핸들러를 만들 때 전역 `EventSource`가 있어야 해서 Node.js(Vitest, Next.js 서버)에서는 쓸 수 없습니다. 그래서 응답 본문을 흘려보내는 보통의 HTTP 핸들러로 흉내 냅니다(`src/shared/mocks/event-stream.ts`). 테스트에서 이벤트를 직접 보내려면 `createMockDeliveryBackend()`로 새 목 백엔드를 만들어 `server.use(...backend.handlers)`로 쓰고 `publish`, `changeSilently`, `disconnect`를 부릅니다.
 - 실제 백엔드로 바꾸면 `src/shared/mocks/deliveries.ts`와 `handlers.ts`의 `deliveriesHandlers`를 지웁니다.
 
