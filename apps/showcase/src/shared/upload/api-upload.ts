@@ -3,6 +3,7 @@
 
 import { ApiError, type ApiRequestInit } from '@/shared/api/api-fetch'
 import { browserBaseUrl } from '@/shared/api/base-url'
+import { waitForMocks } from '@/shared/mocks/mock-readiness'
 
 /** 업로드 요청의 본문을 보낸 정도. 바이트 단위이고, total은 multipart 경계 등을 포함한 본문 전체의 크기다. */
 export interface UploadProgress {
@@ -33,14 +34,19 @@ export interface ApiUploadInit<T> {
  * 브라우저에서만 쓴다. XMLHttpRequest는 서버에 없으므로 서버 컴포넌트에서는 생성된 fetch 함수로 올린다.
  * 다른 출처로 보낼 때(static-export) upload 이벤트를 들으면 브라우저가 먼저 preflight(OPTIONS)를 보내므로, 백엔드는 이 operation의
  * CORS preflight에 답해야 한다(README의 "파일 업로드"). 그래서 onProgress가 있을 때만 upload 이벤트를 듣는다.
+ * 브라우저의 MSW(static-export의 서비스 워커)가 켜진 빌드에서는 MSW가 요청을 받을 준비가 될 때까지 기다린 뒤 보낸다. fetch와 달리
+ * XMLHttpRequest는 준비되는 동안 붙잡아 둘 수 없어, 페이지를 열자마자 올리면 MSW를 거치지 않고 나가기 때문이다(waitForMocks).
  */
-export function apiUpload<T>(path: string, { body, schema, signal, onProgress }: ApiUploadInit<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      throw new Error('apiUpload는 브라우저에서만 씁니다. 서버에서는 생성된 fetch 함수로 올립니다.')
-    }
-    signal?.throwIfAborted()
+export async function apiUpload<T>(path: string, { body, schema, signal, onProgress }: ApiUploadInit<T>): Promise<T> {
+  if (typeof window === 'undefined') {
+    throw new Error('apiUpload는 브라우저에서만 씁니다. 서버에서는 생성된 fetch 함수로 올립니다.')
+  }
+  signal?.throwIfAborted()
+  await waitForMocks()
+  // 기다리는 동안 취소했으면 보내지 않는다.
+  signal?.throwIfAborted()
 
+  return new Promise<T>((resolve, reject) => {
     const request = new XMLHttpRequest()
     const abort = () => {
       request.abort()
