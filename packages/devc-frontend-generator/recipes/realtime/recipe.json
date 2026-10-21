@@ -1,0 +1,5 @@
+{
+  "description": "SSE로 받은 실시간 이벤트를 TanStack Query 캐시에 반영하는 실시간 배송 현황(/realtime). 끊기면 다시 연결하고 캐시를 맞춘다",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}

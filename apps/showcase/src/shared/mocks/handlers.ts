@@ -1,9 +1,10 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/file-upload/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/table/extensions.json
+// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/file-upload/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/realtime/extensions.json, recipes/table/extensions.json
 
 import * as generatedMocks from '@/shared/api/generated/index.msw'
 import { authMockHandlers } from '@/shared/auth/auth-mock-handlers'
 import { articlesHandlers } from '@/shared/mocks/articles'
+import { deliveriesHandlers } from '@/shared/mocks/deliveries'
 import { filesHandlers } from '@/shared/mocks/files'
 import { membersHandlers } from '@/shared/mocks/members'
 import { todosHandlers } from '@/shared/mocks/todos'
@@ -20,6 +21,7 @@ export const handlers = [
   ...filesHandlers,
   ...articlesHandlers,
   ...todosHandlers,
+  ...deliveriesHandlers,
   ...membersHandlers,
   ...Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers()),
 ]

@@ -1,5 +1,5 @@
 # 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/file-upload/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/table/openapi.yaml
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/file-upload/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/realtime/openapi.yaml, recipes/table/openapi.yaml
 
 # API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
 # 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
@@ -24,6 +24,8 @@ tags:
     description: 입점 파트너
   - name: todos
     description: 할 일
+  - name: deliveries
+    description: 배송
   - name: members
     description: 회원
 paths:
@@ -455,6 +457,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TodoError'
+  /deliveries:
+    get:
+      operationId: listDeliveries
+      summary: 배송 현황
+      description: 최근에 접수한 배송부터 돌려준다.
+      tags: [deliveries]
+      responses:
+        '200':
+          description: 최근에 접수한 순서의 배송 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Delivery'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 realtime Recipe의 목 백엔드(src/shared/mocks/deliveries.ts)가
+              # 이벤트로 바뀐 목록을 대신 돌려준다.
+              example:
+                - id: D-1003
+                  recipient: 박서연
+                  item: 무선 키보드
+                  status: preparing
+                  updatedAt: '2026-10-21T09:20:00+09:00'
+                - id: D-1002
+                  recipient: 이도윤
+                  item: 블루투스 스피커
+                  status: preparing
+                  updatedAt: '2026-10-21T09:10:00+09:00'
+                - id: D-1001
+                  recipient: 김하늘
+                  item: 무선 이어폰
+                  status: shipping
+                  updatedAt: '2026-10-21T09:00:00+09:00'
+  /deliveries/events:
+    get:
+      operationId: streamDeliveryEvents
+      summary: 배송 이벤트 스트림
+      description: >-
+        배송이 접수되거나 바뀔 때마다 그 배송을 Server-Sent Events(text/event-stream)로 보낸다. 이벤트 이름(event)은 delivery.created(접수)나 delivery.updated(변경)이고, 데이터(data)는 바뀐 뒤의 Delivery JSON, id는 이벤트 번호다. 연결하자마자 주석 한 줄(`:`)을 보내 응답을 바로 시작하고, 다시 연결할 때 받는 Last-Event-ID 헤더는 마지막으로 받은 이벤트 번호다. 이 operation은 생성된 fetch 함수 대신 src/shared/realtime/event-stream.ts가 연결한다.
+      tags: [deliveries]
+      responses:
+        '200':
+          description: 배송 이벤트 스트림
+          content:
+            # 이벤트 하나의 데이터는 Delivery다. OpenAPI 3.1에는 스트림의 항목마다 스키마를 적는 방법이 없고, 응답 전체에
+            # 스키마를 적으면 생성된 fetch 함수가 응답을 한 번에 읽어 검증하려 하므로 비워 둔다.
+            text/event-stream: {}
   /members:
     get:
       operationId: listMembers
@@ -777,6 +826,29 @@ components:
         message:
           type: string
           description: 사람이 읽을 수 있는 실패 이유
+    DeliveryStatus:
+      type: string
+      enum: [preparing, shipping, delivered]
+      description: 상품 준비 중(preparing), 배송 중(shipping), 배송 완료(delivered)
+    Delivery:
+      type: object
+      required: [id, recipient, item, status, updatedAt]
+      properties:
+        id:
+          type: string
+          description: 운송장 번호
+        recipient:
+          type: string
+          description: 받는 사람
+        item:
+          type: string
+          description: 보내는 상품
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        updatedAt:
+          type: string
+          format: date-time
+          description: 마지막으로 바뀐 시각. 이보다 오래된 이벤트는 캐시에 반영하지 않는다.
     MemberRole:
       type: string
       enum: [admin, editor, viewer]

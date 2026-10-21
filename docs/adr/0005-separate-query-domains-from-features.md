@@ -5,3 +5,4 @@
 ## Consequences
 
 - Query Domain마다 `<domain>.keys.ts`와 `<domain>.queries.ts` 한 쌍에 코드가 모이므로, `query`·`mutation` Schematic은 새 파일을 만드는 대신 기존 파일에 코드를 끼워 넣는다(AST 편집).
+- 실시간 이벤트로 캐시를 고치는 코드(이벤트 스트림에 연결해 `setQueryData`·무효화를 하는 훅)도 캐시 정책이므로 Query Domain에 두되, Schematic이 끼워 넣는 두 파일과 섞이지 않게 `<domain>.events.ts`에 둔다(`realtime` Recipe의 `deliveries.events.ts`). 이 훅은 UI 없이 연결 상태만 돌려준다.
