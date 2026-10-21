@@ -304,7 +304,7 @@ Recipe는 자기 테스트를 Starter에 함께 넣는다. Starter의 스크립�
 | 스토리(접근성·상호작용) | `src/**/*.stories.tsx` | `npm run test:storybook` |
 | E2E                     | `e2e/*.spec.ts`        | `npm run test:e2e`       |
 
-E2E는 모든 Rendering Mode에서 같은 spec이 돌아야 한다. `server`는 빌드 결과를 `next start`로, `static-export`는 다시 빌드한 `out/`을 정적 파일 서버로 띄운다. 모든 Recipe를 켠 Showcase에서도 다른 Recipe의 E2E와 함께 돌므로, 다른 Recipe가 더한 화면 요소(예: dark-mode의 머리글)가 있어도 통과하게 쓴다.
+E2E는 모든 Rendering Mode에서 같은 spec이 돌아야 한다. `server`는 빌드 결과를 `next start`로, `static-export`는 다시 빌드한 `out/`을 정적 파일 서버로 띄운다. 모든 Recipe·Archetype을 켠 Showcase에서도 다른 Recipe와 Archetype의 E2E와 함께 돌므로, 다른 Recipe가 더한 화면 요소(예: dark-mode의 머리글)가 있어도 통과하게 쓴다.
 
 레포의 하네스(`harness/`)에는 Recipe마다 조합 매트릭스 테스트를 더한다. 지원하는 Rendering Mode마다 Recipe를 넣은 Starter를 만들고 Starter의 스크립트를 실행한다. `harness/dark-mode.test.ts`처럼 `useStarter({ prefix: 'dcgen-<이름>-', renderingMode, recipes: ['<이름>'], install: true, playwright: true })`를 쓴다(`playwright`는 `test:storybook`과 `test:e2e`가 쓰는 Chromium을 받는다). 지원하지 않는 조합의 거부와 `requires`는 `recipe.json`만으로 동작하므로 Recipe마다 따로 시험하지 않아도 된다(`harness/recipes.test.ts`가 시험용 Recipe로 검증한다). 확장 지점의 조립과 병합도 마찬가지다(`harness/extension-points.test.ts`). Recipe의 하네스는 자기 조각이 Starter에서 동작하는지만 본다. Starter의 스크립트로 검사할 수 없는 조각(예: Docker가 있어야 만드는 `docker` Recipe의 이미지)은 Recipe의 하네스가 대신 검사하고, Starter의 README에 사람이 확인하는 방법을 적는다.
 
@@ -336,7 +336,7 @@ Recipe 티켓은 Showcase에 반영된 것으로 완료를 확인한다.
 1. Recipe를 고치는 동안 `npm run showcase:watch`와 `npm run showcase:dev`를 터미널 두 개에 띄워 두면, 고친 결과가 Showcase에 다시 생성되고 개발 서버에 바로 보인다.
 2. 끝나면 `npm run showcase`로 다시 만들어 Recipe의 변경과 `apps/showcase/`의 변경을 같은 PR에 올린다. 생성 결과는 따로 커밋해 두면 리뷰하기 쉽다.
 3. Showcase가 원본과 다르면 CI의 `showcase:check`가 실패한다. `apps/showcase/`를 직접 고쳐 맞추지 말고 원본을 고친 뒤 다시 만든다.
-4. 다른 Recipe와 부딪치는 패치나 테스트는 `harness/showcase-starter.test.ts`(모든 Recipe를 켠 Showcase)에서 드러난다.
+4. 다른 Recipe와 부딪치는 패치나 테스트는 `harness/showcase-starter.test.ts`(모든 Recipe·Archetype을 켠 Showcase)에서 드러난다.
 
 ## 릴리스
 

@@ -4,7 +4,6 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Controller } from 'react-hook-form'
 import { getUserQueryOptions, useUpdateUserMutation } from '@/queries/users/users.queries'
-import { ApiError } from '@/shared/api/api-fetch'
 import { UpdateUserBody, type UserAccount } from '@/shared/api/generated/model'
 import { USERS_PATH } from '@/shared/dashboard/dashboard-routes'
 import { ROLE_OPTIONS, USER_STATUS_OPTIONS } from '@/shared/dashboard/user-labels'
@@ -14,7 +13,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/shared/ui/fie
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { useToast } from '@/shared/ui/toast'
-import { DUPLICATE_EMAIL_MESSAGE } from './create-user-form'
+import { DUPLICATE_EMAIL_MESSAGE, isDuplicateEmail } from './duplicate-email'
 
 export interface UpdateUserFormProps {
   /** 요청 경로의 userId */
@@ -54,7 +53,7 @@ export function UpdateUserForm({ userId }: UpdateUserFormProps) {
           router.push(USERS_PATH)
         },
         onError: (error) => {
-          if (error instanceof ApiError && error.status === 409) {
+          if (isDuplicateEmail(error)) {
             setError('email', { message: DUPLICATE_EMAIL_MESSAGE }, { shouldFocus: true })
             return
           }
@@ -66,6 +65,9 @@ export function UpdateUserForm({ userId }: UpdateUserFormProps) {
 
   return (
     <form noValidate className="flex max-w-md flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
+      <p className="text-sm text-muted-foreground">
+        {user.name}({user.email})님의 정보를 고칩니다.
+      </p>
       <Field invalid={errors.name !== undefined}>
         <FieldLabel>이름</FieldLabel>
         <Input {...register('name')} />

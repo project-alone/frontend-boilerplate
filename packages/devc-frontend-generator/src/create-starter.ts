@@ -33,8 +33,8 @@ export interface StarterChoices {
   renderingMode: RenderingMode
   /** 덧입힐 순서대로 늘어놓은 Recipe(resolveSelection의 결과) */
   recipes: readonly Recipe[]
-  /** Recipe를 모두 덧입힌 뒤에 덧입힐 Archetype(resolveSelection의 결과). 없으면 빈 배열이다. */
-  archetypes?: readonly Archetype[]
+  /** Recipe를 모두 덧입힌 뒤에 덧입힐 Archetype(resolveSelection의 결과) */
+  archetypes: readonly Archetype[]
 }
 
 /** Starter를 만들 디렉터리의 절대 경로. 이미 내용이 있으면 TargetNotEmptyError를 던진다. 아무것도 쓰지 않는다. */
@@ -55,7 +55,7 @@ export async function prepareTarget(name: string, cwd: string): Promise<string> 
  */
 export async function createStarter(
   target: string,
-  { renderingMode, recipes, archetypes = [] }: StarterChoices,
+  { renderingMode, recipes, archetypes }: StarterChoices,
 ): Promise<void> {
   const overlays = [
     renderingModeOverlay(renderingMode),

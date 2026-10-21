@@ -6,6 +6,7 @@ import { getUserQueryOptions } from '@/queries/users/users.queries'
 import { getUser } from '@/shared/api/generated'
 import { resetMockUsers } from '@/shared/mocks/users'
 import { ToastProvider } from '@/shared/ui/toast'
+import { DUPLICATE_EMAIL_MESSAGE } from './duplicate-email'
 import { UpdateUserForm } from './update-user-form'
 
 // 요청은 Vitest의 MSW(@/shared/mocks/node)가 받고, 대시보드의 목 백엔드(src/shared/mocks/users.ts)가 고친 사용자를 기억한다.
@@ -30,9 +31,10 @@ async function renderForm(userId: number) {
   )
 }
 
-test('사용자의 지금 값으로 입력을 채운다', async () => {
+test('누구를 고치는지 알리고, 사용자의 지금 값으로 입력을 채운다', async () => {
   await renderForm(1)
 
+  expect(screen.getByText('김사용(user@example.com)님의 정보를 고칩니다.')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: '이름' })).toHaveValue('김사용')
   expect(screen.getByRole('textbox', { name: '이메일' })).toHaveValue('user@example.com')
   expect(screen.getByRole('combobox', { name: '역할' })).toHaveTextContent('사용자')
@@ -70,7 +72,7 @@ test('다른 사용자의 이메일로 바꾸려 하면 이메일 입력에 알�
   await user.type(email, 'admin@example.com')
   await user.click(screen.getByRole('button', { name: '사용자 수정' }))
 
-  expect(await screen.findByText('이미 다른 사용자가 쓰는 이메일입니다.')).toBeInTheDocument()
+  expect(await screen.findByText(DUPLICATE_EMAIL_MESSAGE)).toBeInTheDocument()
   expect(email).toHaveAttribute('aria-invalid', 'true')
   expect(router.push).not.toHaveBeenCalled()
 })

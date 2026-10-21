@@ -17,7 +17,7 @@ import { SAMPLE_PRODUCTS } from './starter.ts'
 
 // Showcase(apps/showcase): Base에 Rendering Mode server와 모든 Recipe·Archetype을 덧입혀 생성하고 커밋한 Starter(ADR-0002).
 // 레포 최상위의 npm 스크립트(showcase, showcase:check, showcase:watch, showcase:dev)를 실행해 검증한다.
-// Showcase를 설치해 Starter의 스크립트를 실행하는 검사(모든 Recipe를 켠 조합)는 showcase-starter.test.ts에 있다.
+// Showcase를 설치해 Starter의 스크립트를 실행하는 검사(모든 Recipe·Archetype을 켠 조합)는 showcase-starter.test.ts에 있다.
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
 const SHOWCASE_DIR = join(REPO_ROOT, 'apps', 'showcase')

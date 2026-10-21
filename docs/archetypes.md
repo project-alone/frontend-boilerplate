@@ -21,7 +21,7 @@ Archetype은 `packages/devc-frontend-generator/archetypes/<이름>/` 디렉터�
 
 ```
 archetypes/<이름>/
-├── archetype.json   선언: 설명, 쓰는 Recipe, (좁힐 때만) 지원하는 Rendering Mode (필수)
+├── archetype.json   선언: 설명, 쓰는 Recipe, (좁힐 때만) 지원하는 Rendering Mode (필수). 화면은 따로 적지 않고 아래 overlay의 파일이 곧 화면이다
 ├── extensions.json  확장 지점에 더할 조각(예: 머리글의 링크, MSW 핸들러)
 ├── openapi.yaml     Base 명세에 병합할 명세 조각(Archetype의 화면이 쓰는 operation)
 ├── README.md        Starter의 README.md에 덧입힐 절

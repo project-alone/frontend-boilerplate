@@ -43,12 +43,12 @@ export interface Selection {
  */
 export function resolveSelection(catalog: Catalog, choices: UserChoices): Selection {
   const { renderingMode } = choices
-  const recipeNames = new Map(catalog.recipes.map((recipe) => [recipe.name, recipe]))
-  const archetypeNames = new Map(catalog.archetypes.map((archetype) => [archetype.name, archetype]))
-  rejectUnknown('Recipe', choices.recipes, recipeNames)
-  rejectUnknown('Archetype', choices.archetypes, archetypeNames)
+  const recipesByName = new Map(catalog.recipes.map((recipe) => [recipe.name, recipe]))
+  const archetypesByName = new Map(catalog.archetypes.map((archetype) => [archetype.name, archetype]))
+  rejectUnknown('Recipe', choices.recipes, recipesByName)
+  rejectUnknown('Archetype', choices.archetypes, archetypesByName)
 
-  const archetypes = [...new Set(choices.archetypes)].sort().flatMap((name) => archetypeNames.get(name) ?? [])
+  const archetypes = [...new Set(choices.archetypes)].sort().flatMap((name) => archetypesByName.get(name) ?? [])
   // Archetype이 쓰는 Recipe는 그 Archetype이 필요로 한 것으로 알린다. 여러 Archetype이 쓰면 이름순으로 앞의 Archetype이다.
   const neededBy = new Map<string, string>()
   for (const archetype of archetypes) {
@@ -59,7 +59,7 @@ export function resolveSelection(catalog: Catalog, choices: UserChoices): Select
   const added: Selection['added'] = []
   const visiting = new Set<string>()
   const visit = (name: string, requiredBy: string | undefined) => {
-    const recipe = recipeNames.get(name)
+    const recipe = recipesByName.get(name)
     if (recipe === undefined || ordered.includes(recipe)) return
     if (visiting.has(name)) throw new RecipeDefinitionError(`Recipe의 requires가 순환합니다: ${[...visiting, name].join(' → ')}`)
     visiting.add(name)
@@ -73,21 +73,13 @@ export function resolveSelection(catalog: Catalog, choices: UserChoices): Select
   const reasons = [
     ...archetypes
       .filter((archetype) => !archetype.renderingModes.includes(renderingMode))
-      .map((archetype) =>
-        [
-          `Archetype ${archetype.name}은(는) Rendering Mode ${renderingMode}에서 쓸 수 없습니다` +
-            `(지원: ${archetype.renderingModes.join(', ')}).`,
-          ...(archetype.renderingModesReason === undefined ? [] : [archetype.renderingModesReason]),
-        ].join(' '),
-      ),
+      .map((archetype) => unsupportedReason(`Archetype ${archetype.name}`, archetype, renderingMode)),
     ...ordered
       .filter((recipe) => !recipe.renderingModes.includes(renderingMode))
       .map((recipe) => {
         const requiredBy = added.find(({ name }) => name === recipe.name)?.requiredBy
         return [
-          `Recipe ${recipe.name}은(는) Rendering Mode ${renderingMode}에서 쓸 수 없습니다` +
-            `(지원: ${recipe.renderingModes.join(', ')}).`,
-          ...(recipe.renderingModesReason === undefined ? [] : [recipe.renderingModesReason]),
+          unsupportedReason(`Recipe ${recipe.name}`, recipe, renderingMode),
           ...(requiredBy === undefined ? [] : [`${requiredBy}에 필요해 함께 넣으려던 Recipe입니다.`]),
         ].join(' ')
       }),
@@ -100,6 +92,18 @@ export function resolveSelection(catalog: Catalog, choices: UserChoices): Select
   }
 
   return { recipes: ordered, archetypes, added }
+}
+
+/** label(예: 'Recipe auth')이 renderingMode를 지원하지 않는다는 이유. 지원하는 Rendering Mode와 선언에 적은 이유를 함께 쓴다. */
+function unsupportedReason(
+  label: string,
+  { renderingModes, renderingModesReason }: Pick<Recipe | Archetype, 'renderingModes' | 'renderingModesReason'>,
+  renderingMode: RenderingMode,
+): string {
+  return [
+    `${label}은(는) Rendering Mode ${renderingMode}에서 쓸 수 없습니다(지원: ${renderingModes.join(', ')}).`,
+    ...(renderingModesReason === undefined ? [] : [renderingModesReason]),
+  ].join(' ')
 }
 
 function rejectUnknown(kind: 'Recipe' | 'Archetype', selected: readonly string[], known: ReadonlyMap<string, unknown>): void {
