@@ -1,0 +1,6 @@
+{
+  "description": "standalone 출력으로 Next.js 서버를 담는 멀티스테이지 Dockerfile과 상태 확인 주소(/api/health). root가 아닌 사용자로 실행한다",
+  "requires": [],
+  "renderingModes": ["server"],
+  "renderingModesReason": "이미지는 standalone 출력으로 Next.js 서버를 띄웁니다. static-export는 서버 없이 정적 파일(out/)만 만들므로 정적 파일 서버나 CDN에 올립니다."
+}

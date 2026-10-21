@@ -39,6 +39,35 @@ export function linkPackedGenerator(starterDir: string): void {
   writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
 }
 
+/**
+ * 설치한 Starter의 package.json과 package-lock.json에서 Generator를 뺀다. 이미지를 빌드하는 docker Recipe의 Dockerfile은 두 파일만
+ * 먼저 복사해 npm ci로 설치하는데, linkPackedGenerator가 고정한 tarball은 Starter 밖에 있어 이미지 안에서 설치할 수 없기 때문이다.
+ * Generator는 코드 생성(npm run g)에만 쓰고 빌드와 실행에는 쓰지 않는다. `npm uninstall --package-lock-only`는 Generator와 상관없는
+ * 선택 의존성(@emnapi 등)까지 lock에서 지워 npm ci가 실패하므로 Generator의 항목만 직접 지운다. Generator만 쓰던 의존성은 lock에 남는다.
+ */
+export function unlinkPackedGenerator(starterDir: string): void {
+  interface Manifest {
+    devDependencies?: Record<string, string>
+  }
+  const update = <T>(file: string, edit: (json: T) => void) => {
+    const path = join(starterDir, file)
+    const json = JSON.parse(readFileSync(path, 'utf8')) as T
+    edit(json)
+    writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`)
+  }
+  const removeGenerator = (manifest: Manifest | undefined) => {
+    expect(manifest?.devDependencies?.[GENERATOR_PACKAGE], 'Starter가 Generator를 devDependencies에 고정하지 않았습니다').toBeDefined()
+    delete manifest?.devDependencies?.[GENERATOR_PACKAGE]
+  }
+
+  update<Manifest>('package.json', removeGenerator)
+  update<{ packages: Record<string, Manifest> }>('package-lock.json', ({ packages }) => {
+    removeGenerator(packages[''])
+    expect(packages[`node_modules/${GENERATOR_PACKAGE}`]).toBeDefined()
+    delete packages[`node_modules/${GENERATOR_PACKAGE}`]
+  })
+}
+
 export interface NpmResult extends RunResult {
   /** 실행한 npm 명령과 출력. 실패했을 때 보여 준다. */
   failureMessage: string

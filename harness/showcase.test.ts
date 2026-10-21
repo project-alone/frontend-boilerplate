@@ -107,7 +107,8 @@ const COMMENT_STARTS: readonly (readonly [RegExp, string])[] = [
   [/(?:^|\/)tsconfig\.json$/, '// '],
   [/\.css$/, '/*'],
   [/\.ya?ml$/, '# '],
-  [/(?:^|\/)\.(?:env\.[\w.]+|gitignore|prettierignore)$/, '# '],
+  [/(?:^|\/)\.(?:env\.[\w.]+|gitignore|prettierignore|dockerignore)$/, '# '],
+  [/(?:^|\/)Dockerfile$/, '# '],
 ]
 
 test('주석을 달 수 있는 Showcase 파일은 생성된 파일이니 고치지 말라는 안내로 시작하고, 나머지는 README가 알린다', () => {
