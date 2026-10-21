@@ -2,19 +2,27 @@
 
 import { Progress } from '@base-ui/react/progress'
 import { cx } from 'class-variance-authority'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/shared/ui/button'
-import { formatFileSize, UPLOAD_ACCEPT, UPLOAD_ACCEPTED_TYPES, UPLOAD_MAX_BYTES } from '@/shared/upload/upload-policy'
-import { type Upload, useUploads } from './use-uploads'
+import {
+  formatFileSize,
+  UPLOAD_ACCEPT,
+  UPLOAD_ACCEPTED_TYPE_NAMES,
+  UPLOAD_MAX_BYTES,
+} from '@/shared/upload/upload-policy'
+import { type Upload, type UploadStatus, useUploads } from './use-uploads'
 
 // file-upload Recipe: 파일을 고르거나 끌어 놓아 올리는 업로더. 파일마다 진행률을 보여 주고, 올리는 중에는 취소하고, 실패하거나
 // 취소한 업로드는 다시 시도한다. 받지 않는 크기·형식의 파일은 보내지 않고 이유를 알린다(src/shared/upload/upload-policy.ts).
 
-const POLICY_HINT = `${Object.values(UPLOAD_ACCEPTED_TYPES).join(', ')} 파일을 ${formatFileSize(UPLOAD_MAX_BYTES)}까지 올릴 수 있습니다.`
+const POLICY_HINT = `${UPLOAD_ACCEPTED_TYPE_NAMES} 파일을 ${formatFileSize(UPLOAD_MAX_BYTES)}까지 올릴 수 있습니다.`
+
+// 알림 영역에 남겨 두는 최근 알림의 수
+const ANNOUNCEMENT_COUNT = 5
 
 /**
  * 파일 업로더. 파일 선택 버튼(키보드로 누를 수 있다)이나 끌어 놓기로 여러 파일을 한꺼번에 더하고, 파일마다 따로 올린다.
- * 진행률은 진행 막대(role="progressbar")의 값으로, 상태가 바뀌면 항목의 상태 문구(role="status")로 알린다.
+ * 진행률은 진행 막대(role="progressbar")의 값으로 보여 주고, 업로드가 끝나거나 거절되면 알림 영역(role="status")으로 알린다.
  */
 export function FileUploader() {
   const { uploads, add, cancel, retry, remove } = useUploads()
@@ -90,6 +98,40 @@ export function FileUploader() {
           ))}
         </ul>
       )}
+      <UploadAnnouncer uploads={uploads} />
+    </div>
+  )
+}
+
+/**
+ * 업로드가 끝나거나(올림, 실패, 취소) 거절될 때마다 "<파일 이름>: <상태 문구>"를 보조 기술에 읽어 준다. 알림 영역은 내용이 바뀌어야
+ * 읽히므로 항목과 함께 생기지 않도록 처음부터 비워 둔다. 알림을 덧붙이고(aria-atomic="false") 새로 붙은 알림만 읽히게 한다.
+ * 진행률은 바뀔 때마다 읽으면 다른 내용을 들을 수 없으므로 알리지 않는다. 진행 막대의 값으로 언제든 읽을 수 있다.
+ */
+function UploadAnnouncer({ uploads }: Readonly<{ uploads: readonly Upload[] }>) {
+  // 업로드마다 마지막으로 본 상태. 올리는 중이 아닌 상태로 바뀐 업로드만 알린다.
+  const lastStatuses = useRef(new Map<number, UploadStatus>())
+  const nextKey = useRef(0)
+  const [announcements, setAnnouncements] = useState<readonly { key: number; text: string }[]>([])
+
+  useEffect(() => {
+    const settled = uploads.filter(
+      ({ id, status }) => status !== 'uploading' && lastStatuses.current.get(id) !== status,
+    )
+    lastStatuses.current = new Map(uploads.map(({ id, status }) => [id, status]))
+    if (settled.length === 0) return
+    const added = settled.map((upload) => {
+      nextKey.current += 1
+      return { key: nextKey.current, text: `${upload.file.name}: ${statusMessage(upload)}` }
+    })
+    setAnnouncements((current) => [...current, ...added].slice(-ANNOUNCEMENT_COUNT))
+  }, [uploads])
+
+  return (
+    <div role="status" aria-atomic="false" className="sr-only">
+      {announcements.map(({ key, text }) => (
+        <p key={key}>{text}</p>
+      ))}
     </div>
   )
 }
@@ -120,13 +162,22 @@ function UploadItem({ upload, onCancel, onRetry, onRemove }: Readonly<UploadItem
         </span>
         <span className="text-sm text-muted-foreground">{formatFileSize(file.size)}</span>
       </div>
-      {status === 'uploading' && <UploadProgress nameId={nameId} progress={upload.progress} />}
-      <p role="status" className={cx('text-sm', (status === 'failed' || status === 'rejected') && 'text-danger')}>
+      {status === 'uploading' && <UploadProgressBar nameId={nameId} progress={upload.progress} />}
+      <p className={cx('text-sm', (status === 'failed' || status === 'rejected') && 'text-danger')}>
         {statusMessage(upload)}
       </p>
       <div className="flex gap-2">
         {action !== undefined && (
-          <Button key="action" variant="secondary" size="sm" aria-label={action.name} onClick={action.onClick}>
+          <Button
+            key="action"
+            variant="secondary"
+            size="sm"
+            aria-label={action.name}
+            onClick={(event) => {
+              // 더블 클릭의 두 번째 클릭이 바뀐 동작(취소한 뒤의 다시 시도)을 누르지 않게 한다. 키보드로 누르면 detail은 0이다.
+              if (event.detail <= 1) action.onClick()
+            }}
+          >
             {action.label}
           </Button>
         )}
@@ -141,7 +192,7 @@ function UploadItem({ upload, onCancel, onRetry, onRemove }: Readonly<UploadItem
 }
 
 /** 요청 본문을 보낸 정도. 진행 막대의 이름은 "<파일 이름> 업로드 진행률"이다. */
-function UploadProgress({ nameId, progress }: Readonly<{ nameId: string; progress: number }>) {
+function UploadProgressBar({ nameId, progress }: Readonly<{ nameId: string; progress: number }>) {
   const labelId = useId()
   return (
     <Progress.Root

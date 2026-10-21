@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
@@ -68,6 +68,11 @@ function uploadItem(name: string): HTMLElement {
   return item
 }
 
+/** 업로드가 끝나거나 거절될 때 보조 기술에 읽어 주는 알림 영역 */
+function announcements(): HTMLElement {
+  return screen.getByRole('status')
+}
+
 test('파일 선택으로 고른 파일을 올리는 동안 진행률을 보여 주고, 다 올리면 알린다', async () => {
   const user = userEvent.setup()
   const release = holdUploads()
@@ -79,12 +84,13 @@ test('파일 선택으로 고른 파일을 올리는 동안 진행률을 보여 
   const progress = within(item).getByRole('progressbar', { name: 'notes.txt 업로드 진행률' })
   expect(progress).toHaveAttribute('aria-valuenow', '0')
   expect(progress).toHaveAttribute('aria-valuetext', '0%')
-  expect(within(item).getByRole('status')).toHaveTextContent('올리는 중입니다.')
+  expect(within(item).getByText('올리는 중입니다.')).toBeInTheDocument()
 
   release()
 
   expect(await within(item).findByText('올렸습니다.')).toBeInTheDocument()
   expect(within(item).queryByRole('progressbar')).not.toBeInTheDocument()
+  expect(announcements()).toHaveTextContent('notes.txt: 올렸습니다.')
 })
 
 test('끌어 놓은 파일도 올린다', async () => {
@@ -97,9 +103,11 @@ test('끌어 놓은 파일도 올린다', async () => {
   expect(await within(uploadItem('dropped.txt')).findByText('올렸습니다.')).toBeInTheDocument()
 })
 
-test('명세가 받지 않는 크기·형식의 파일은 보내지 않고 이유를 알린다', async () => {
+test('명세가 받지 않는 크기·형식의 파일은 보내지 않고, 처음부터 있던 알림 영역으로 이유를 알린다', async () => {
   const requests = recordUploadRequests()
   renderFileUploader()
+  // 알림 영역은 내용이 바뀌어야 읽히므로, 거절된 항목과 함께 생기지 않고 처음부터 비어 있다.
+  expect(announcements()).toBeEmptyDOMElement()
 
   // 파일 고르기 창은 accept로 받는 형식만 보여 주지만, 끌어 놓은 파일은 걸러지지 않는다.
   fireEvent.drop(dropZone(), {
@@ -111,12 +119,12 @@ test('명세가 받지 않는 크기·형식의 파일은 보내지 않고 이�
     },
   })
 
-  expect(within(uploadItem('huge.png')).getByRole('status')).toHaveTextContent(
-    '올릴 수 없는 파일입니다. 5MB 이하의 파일만 올릴 수 있습니다.',
-  )
-  expect(within(uploadItem('setup.exe')).getByRole('status')).toHaveTextContent(
-    '올릴 수 없는 파일입니다. PNG, JPEG, PDF, 텍스트 파일만 올릴 수 있습니다.',
-  )
+  const tooLarge = '올릴 수 없는 파일입니다. 5MB 이하의 파일만 올릴 수 있습니다.'
+  const unsupported = '올릴 수 없는 파일입니다. PNG, JPEG, PDF, 텍스트 파일만 올릴 수 있습니다.'
+  expect(within(uploadItem('huge.png')).getByText(tooLarge)).toBeInTheDocument()
+  expect(within(uploadItem('setup.exe')).getByText(unsupported)).toBeInTheDocument()
+  expect(announcements()).toHaveTextContent(`huge.png: ${tooLarge}`)
+  expect(announcements()).toHaveTextContent(`setup.exe: ${unsupported}`)
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   expect(within(uploadItem('huge.png')).queryByRole('button', { name: /다시 시도/ })).not.toBeInTheDocument()
   // 보낸 요청이 있다면 응답을 기다리는 동안 목록에 남는다.
@@ -136,17 +144,53 @@ test('올리는 중에 취소하면 요청을 멈추고 알리며, 같은 자리
 
   expect(await within(item).findByText('업로드를 취소했습니다.')).toBeInTheDocument()
   expect(within(item).queryByRole('progressbar')).not.toBeInTheDocument()
+  expect(announcements()).toHaveTextContent('draft.txt: 업로드를 취소했습니다.')
   // 누른 버튼이 다시 시도 버튼이 되어 포커스가 남는다.
   const retry = within(item).getByRole('button', { name: 'draft.txt 다시 시도' })
   expect(retry).toHaveFocus()
 
   await user.keyboard('{Enter}')
 
-  expect(within(item).getByRole('status')).toHaveTextContent('올리는 중입니다.')
+  expect(within(item).getByText('올리는 중입니다.')).toBeInTheDocument()
   expect(within(item).getByRole('button', { name: 'draft.txt 업로드 취소' })).toHaveFocus()
   release()
   expect(await within(item).findByText('올렸습니다.')).toBeInTheDocument()
   expect(requests).toHaveLength(2)
+})
+
+test('취소 버튼을 더블 클릭해도 두 번째 클릭이 다시 시도를 누르지 않는다', async () => {
+  const user = userEvent.setup()
+  const requests = recordUploadRequests()
+  holdUploads()
+  renderFileUploader()
+  await user.upload(screen.getByLabelText('올릴 파일'), textFile('twice.txt'))
+  const item = uploadItem('twice.txt')
+
+  await user.dblClick(within(item).getByRole('button', { name: 'twice.txt 업로드 취소' }))
+
+  expect(await within(item).findByText('업로드를 취소했습니다.')).toBeInTheDocument()
+  expect(within(item).getByRole('button', { name: 'twice.txt 다시 시도' })).toBeInTheDocument()
+  expect(requests).toHaveLength(1)
+})
+
+test('브라우저가 오프라인이라고 알려도 기다리지 않고 보내므로, 취소하거나 실패한 뒤 다시 시도할 수 있다', async () => {
+  const user = userEvent.setup()
+  const requests = recordUploadRequests()
+  holdUploads()
+  onlineManager.setOnline(false)
+  onTestFinished(() => {
+    onlineManager.setOnline(true)
+  })
+  renderFileUploader()
+
+  await user.upload(screen.getByLabelText('올릴 파일'), textFile('offline.txt'))
+
+  await vi.waitFor(() => {
+    expect(requests).toHaveLength(1)
+  })
+  const item = uploadItem('offline.txt')
+  await user.click(within(item).getByRole('button', { name: 'offline.txt 업로드 취소' }))
+  expect(await within(item).findByText('업로드를 취소했습니다.')).toBeInTheDocument()
 })
 
 test('백엔드가 거절하면 알려 준 이유를 보여 주고, 다시 시도해 올린다', async () => {
@@ -157,13 +201,14 @@ test('백엔드가 거절하면 알려 준 이유를 보여 주고, 다시 시�
   await user.upload(screen.getByLabelText('올릴 파일'), textFile('flaky-report.txt'))
 
   const item = uploadItem('flaky-report.txt')
-  expect(
-    await within(item).findByText('올리지 못했습니다. 일시적인 오류로 파일을 받지 못했습니다.'),
-  ).toBeInTheDocument()
+  const failure = '올리지 못했습니다. 일시적인 오류로 파일을 받지 못했습니다.'
+  expect(await within(item).findByText(failure)).toBeInTheDocument()
+  expect(announcements()).toHaveTextContent(`flaky-report.txt: ${failure}`)
 
   await user.click(within(item).getByRole('button', { name: 'flaky-report.txt 다시 시도' }))
 
   expect(await within(item).findByText('올렸습니다.')).toBeInTheDocument()
+  expect(announcements()).toHaveTextContent('flaky-report.txt: 올렸습니다.')
 })
 
 test('여러 파일을 한꺼번에 고르면 파일마다 따로 올리고, 지운 항목의 버튼 대신 파일 선택 버튼에 포커스를 둔다', async () => {

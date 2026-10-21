@@ -562,7 +562,7 @@ SDK는 `NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 �
 
 ## 예: file-upload
 
-진행률, 취소, 실패 후 재시도를 갖춘 파일 업로드(`/upload`)를 보여 주는 Recipe다. 명세 조각으로 파일 하나를 `multipart/form-data`로 받는 업로드 operation `uploadFile`(tag `files`)을 더하고, 받는 형식은 `encoding.file.contentType`에, 크기 제한(5MB)은 OpenAPI에 정해진 표기가 없어 operation의 설명에 적는다. 재생성 계층이 이 기준을 만들지 않으므로 `src/shared/upload/upload-policy.ts`에 같은 값을 두고, 업로더가 올리기 전에 검사하고 목 백엔드도 같은 기준으로 413·415를 돌려준다.
+진행률, 취소, 실패 후 재시도를 갖춘 파일 업로드(`/upload`)를 보여 주는 Recipe다. 명세 조각으로 파일 하나를 `multipart/form-data`로 받는 업로드 operation `uploadFile`(tag `files`)을 더하고, 받는 형식은 `encoding.file.contentType`에, 크기 제한(5MB)은 OpenAPI에 정해진 표기가 없어 `file` 필드의 확장 필드 `x-max-bytes`에 적는다. 재생성 계층이 이 기준을 만들지 않으므로 `src/shared/upload/upload-policy.ts`에 같은 값을 두고(명세와 다르면 `upload-policy.test.ts`가 실패한다), 업로더가 올리기 전에 검사하고 목 백엔드도 같은 기준으로 413·415를 돌려준다.
 
 fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요한 업로드는 `src/shared/upload/api-upload.ts`의 `apiUpload`가 XMLHttpRequest로 보낸다. 보내는 곳과 결과는 Base의 `apiFetch`와 같다. 브라우저의 `apiFetch`처럼 `base-url.ts`의 `browserBaseUrl`(`server`는 BFF 프록시, `static-export`는 백엔드)로 보내고, 2xx가 아니면 `ApiError`로 실패하며, 응답을 명세의 Zod 스키마로 검증한다. Query Domain(`src/queries/files/`)은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꾸고 진행률과 취소(`signal`)를 `mutate`의 값으로 받는다. Base의 BFF 프록시는 multipart를 포함한 본문을 바이트 그대로 넘기므로 고치지 않는다. 다만 본문을 다 받은 뒤 넘기므로, 훨씬 큰 파일을 받게 되면 프록시를 거치지 않는 방식을 검토한다(Recipe의 README 절).
 
@@ -570,12 +570,12 @@ fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요
 
 `static-export`에서는 브라우저가 다른 출처의 백엔드를 직접 부르고, XMLHttpRequest에 `upload` 이벤트를 달면 브라우저가 CORS preflight를 먼저 보낸다. 그래서 목 백엔드는 preflight에 답하고 응답에 CORS 헤더를 붙인다(Vitest의 jsdom도 CORS를 검사한다). 브라우저의 MSW(서비스 워커)는 본문을 네트워크로 보내지 않고 받아 진행률이 중간값 없이 끝나므로, E2E는 Chromium의 네트워크 흉내로 업로드를 늦추고 중간값은 요청이 네트워크를 지나는 `server`에서만 본다.
 
-| 선언하는 것    | `recipes/file-upload/`                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts` |
-| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`                        |
-| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                                              |
-| npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                              |
-| 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `e2e/file-upload.spec.ts`            |
-| 필요한 Recipe  | 없음                                                                                                                              |
-| Rendering Mode | `server`, `static-export`                                                                                                         |
+| 선언하는 것    | `recipes/file-upload/`                                                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`                                            |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`                                                                   |
+| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                                                                                         |
+| npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                                                                         |
+| 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `upload-policy.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `file-uploader.stories.tsx`, `e2e/file-upload.spec.ts` |
+| 필요한 Recipe  | 없음                                                                                                                                                                         |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                    |

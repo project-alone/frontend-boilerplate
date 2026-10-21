@@ -1,7 +1,7 @@
-// file-upload Recipe: 업로드 operation(uploadFile, POST /files)이 받는 파일. openapi.yaml의 uploadFile 설명(5MB)과
-// encoding.file.contentType(받는 형식)에 적힌 값이다. 명세에 정해진 표기가 없어 재생성 계층이 만들지 않으므로 여기에 옮겨 두고,
-// 백엔드가 기준을 바꾸면 명세와 함께 고친다. 업로더는 올리기 전에 이 기준으로 검사하고, 목 백엔드(src/shared/mocks/files.ts)도
-// 같은 기준으로 거절한다.
+// file-upload Recipe: 업로드 operation(uploadFile, POST /files)이 받는 파일. openapi.yaml에서 file 필드의 x-max-bytes(크기)와
+// encoding.file.contentType(받는 형식)에 적힌 값이다. 재생성 계층이 이 기준을 만들지 않으므로 여기에 옮겨 두고, 백엔드가 기준을
+// 바꾸면 명세와 함께 고친다(명세와 다르면 upload-policy.test.ts가 실패한다). 업로더는 올리기 전에 이 기준으로 검사하고,
+// 목 백엔드(src/shared/mocks/files.ts)도 같은 기준으로 거절한다.
 
 /** 받는 가장 큰 파일(바이트) */
 export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024
@@ -13,6 +13,9 @@ export const UPLOAD_ACCEPTED_TYPES: Readonly<Record<string, string>> = {
   'application/pdf': 'PDF',
   'text/plain': '텍스트',
 }
+
+/** 받는 형식의 이름. 예: PNG, JPEG, PDF, 텍스트 */
+export const UPLOAD_ACCEPTED_TYPE_NAMES = Object.values(UPLOAD_ACCEPTED_TYPES).join(', ')
 
 /** 파일 입력의 accept 속성. 파일 고르기 창에서 받는 형식만 보이게 한다(끌어 놓은 파일은 걸러지지 않는다). */
 export const UPLOAD_ACCEPT = Object.keys(UPLOAD_ACCEPTED_TYPES).join(',')
@@ -44,7 +47,7 @@ export function findUploadProblem({ size, type }: { size: number; type: string }
   if (!Object.hasOwn(UPLOAD_ACCEPTED_TYPES, type)) {
     return {
       reason: 'unsupported-type',
-      message: `${Object.values(UPLOAD_ACCEPTED_TYPES).join(', ')} 파일만 올릴 수 있습니다.`,
+      message: `${UPLOAD_ACCEPTED_TYPE_NAMES} 파일만 올릴 수 있습니다.`,
     }
   }
   if (size > UPLOAD_MAX_BYTES) {

@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
+import { UPLOAD_MAX_BYTES } from '@/shared/upload/upload-policy'
 
 // file-upload Recipe: 빌드한 앱의 /upload에서 파일을 올린다. 업로드는 브라우저가 XMLHttpRequest로 보내고(server는 BFF 프록시,
 // static-export는 백엔드 주소로 직접), MSW의 업로드 핸들러(src/shared/mocks/files.ts)가 파일 이름으로 응답을 고른다.
@@ -47,6 +48,11 @@ async function dropFiles(page: Page, files: { name: string; type: string; size: 
     return transfer
   }, files)
   await page.getByText(/파일을 여기에 끌어 놓거나/).dispatchEvent('drop', { dataTransfer })
+}
+
+/** 업로더의 알림 영역(role="status")에 덧붙은 알림 하나. 알림 영역은 화면에는 보이지 않는다(sr-only). */
+function announcement(page: Page, text: string): Locator {
+  return page.getByRole('status').getByText(text, { exact: true })
 }
 
 /** 업로드(POST /files) 요청을 모은다. */
@@ -101,8 +107,8 @@ test('키보드로 연 파일 고르기 창에서 고른 파일을 진행률을 
   const progress = item.getByRole('progressbar', { name: `${name} 업로드 진행률` })
   await expect(progress).toBeVisible()
   await expect(progress).toHaveAttribute('aria-valuetext', /^\d+%$/)
-  await expect(item.getByRole('status')).toHaveText(/올리는 중입니다\.|서버가 파일을 받는 중입니다\./)
-  await expect(item.getByRole('status')).toHaveText('올렸습니다.', { timeout: 15_000 })
+  await expect(item.getByText(/올리는 중입니다\.|서버가 파일을 받는 중입니다\./)).toBeVisible()
+  await expect(item.getByText('올렸습니다.')).toBeVisible({ timeout: 15_000 })
   await expect(progress).toBeHidden()
 
   const values = await page.evaluate(() => (window as unknown as { recordedProgress: number[] }).recordedProgress)
@@ -122,8 +128,8 @@ test('끌어 놓은 파일도 올리고, 여러 파일은 파일마다 따로 �
     { name: 'manual.pdf', type: 'application/pdf', size: 4096 },
   ])
 
-  await expect(uploadItem(page, 'photo.png').getByRole('status')).toHaveText('올렸습니다.')
-  await expect(uploadItem(page, 'manual.pdf').getByRole('status')).toHaveText('올렸습니다.')
+  await expect(uploadItem(page, 'photo.png').getByText('올렸습니다.')).toBeVisible()
+  await expect(uploadItem(page, 'manual.pdf').getByText('올렸습니다.')).toBeVisible()
 })
 
 test('명세가 받지 않는 크기·형식의 파일은 요청을 보내지 않고 이유를 알린다', async ({ page }) => {
@@ -131,16 +137,17 @@ test('명세가 받지 않는 크기·형식의 파일은 요청을 보내지 �
   await openUploader(page)
 
   await dropFiles(page, [
-    { name: 'huge.png', type: 'image/png', size: 5 * 1024 * 1024 + 1 },
+    { name: 'huge.png', type: 'image/png', size: UPLOAD_MAX_BYTES + 1 },
     { name: 'setup.exe', type: 'application/x-msdownload', size: 2 },
   ])
 
-  await expect(uploadItem(page, 'huge.png').getByRole('status')).toHaveText(
-    '올릴 수 없는 파일입니다. 5MB 이하의 파일만 올릴 수 있습니다.',
-  )
-  await expect(uploadItem(page, 'setup.exe').getByRole('status')).toHaveText(
-    '올릴 수 없는 파일입니다. PNG, JPEG, PDF, 텍스트 파일만 올릴 수 있습니다.',
-  )
+  const tooLarge = '올릴 수 없는 파일입니다. 5MB 이하의 파일만 올릴 수 있습니다.'
+  const unsupported = '올릴 수 없는 파일입니다. PNG, JPEG, PDF, 텍스트 파일만 올릴 수 있습니다.'
+  await expect(uploadItem(page, 'huge.png').getByText(tooLarge)).toBeVisible()
+  await expect(uploadItem(page, 'setup.exe').getByText(unsupported)).toBeVisible()
+  // 거절한 이유는 처음부터 있던 알림 영역이 보조 기술에 읽어 준다.
+  await expect(announcement(page, `huge.png: ${tooLarge}`)).toBeAttached()
+  await expect(announcement(page, `setup.exe: ${unsupported}`)).toBeAttached()
   expect(uploads).toEqual([])
 })
 
@@ -154,7 +161,7 @@ test('올리는 중에 취소하면 업로드를 멈추고, 다시 시도하면 
 
   await item.getByRole('button', { name: `${name} 업로드 취소` }).click()
 
-  await expect(item.getByRole('status')).toHaveText('업로드를 취소했습니다.')
+  await expect(item.getByText('업로드를 취소했습니다.')).toBeVisible()
   await expect(item.getByRole('progressbar')).toBeHidden()
   const retry = item.getByRole('button', { name: `${name} 다시 시도` })
   await expect(retry).toBeFocused()
@@ -162,7 +169,7 @@ test('올리는 중에 취소하면 업로드를 멈추고, 다시 시도하면 
   await page.keyboard.press('Enter')
 
   await expect(item.getByRole('progressbar')).toBeVisible()
-  await expect(item.getByRole('status')).toHaveText('올렸습니다.', { timeout: 15_000 })
+  await expect(item.getByText('올렸습니다.')).toBeVisible({ timeout: 15_000 })
   expect(uploads).toHaveLength(2)
 })
 
@@ -173,9 +180,12 @@ test('백엔드가 거절하면 알려 준 이유를 보여 주고, 다시 시�
   await pickFiles(page, [textFile(name)])
 
   const item = uploadItem(page, name)
-  await expect(item.getByRole('status')).toHaveText('올리지 못했습니다. 일시적인 오류로 파일을 받지 못했습니다.')
+  const failure = '올리지 못했습니다. 일시적인 오류로 파일을 받지 못했습니다.'
+  await expect(item.getByText(failure)).toBeVisible()
+  await expect(announcement(page, `${name}: ${failure}`)).toBeAttached()
   await item.getByRole('button', { name: `${name} 다시 시도` }).click()
-  await expect(item.getByRole('status')).toHaveText('올렸습니다.')
+  await expect(item.getByText('올렸습니다.')).toBeVisible()
+  await expect(announcement(page, `${name}: 올렸습니다.`)).toBeAttached()
 })
 
 // 운영체제가 다크 모드이면 다크 테마를 더하는 Recipe(dark-mode)와 함께 켠 Starter는 다크 테마로 연다. 그런 Recipe가 없으면
@@ -188,12 +198,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
       page,
     }) => {
       await openUploader(page)
-      await dropFiles(page, [{ name: 'huge.png', type: 'image/png', size: 5 * 1024 * 1024 + 1 }])
+      await dropFiles(page, [{ name: 'huge.png', type: 'image/png', size: UPLOAD_MAX_BYTES + 1 }])
       await pickFiles(page, [textFile('notes.txt'), textFile(`flaky-${colorScheme}-${RUN}.txt`)])
-      await expect(uploadItem(page, 'notes.txt').getByRole('status')).toHaveText('올렸습니다.')
-      await expect(uploadItem(page, `flaky-${colorScheme}-${RUN}.txt`).getByRole('status')).toHaveText(
-        /올리지 못했습니다/,
-      )
+      await expect(uploadItem(page, 'notes.txt').getByText('올렸습니다.')).toBeVisible()
+      await expect(uploadItem(page, `flaky-${colorScheme}-${RUN}.txt`).getByText(/올리지 못했습니다/)).toBeVisible()
       await pickFiles(page, [textFile(`slow-${colorScheme}-${RUN}.txt`)])
       await expect(page.getByRole('progressbar')).toBeVisible()
 
