@@ -1,0 +1,8 @@
+--- a/src/shared/i18n/en.json
++++ b/src/shared/i18n/en.json
+@@ -1,2 +1,5 @@
+ {
++  "LandingLink": {
++    "label": "Landing"
++  },
+   "LocaleSwitcher": {
