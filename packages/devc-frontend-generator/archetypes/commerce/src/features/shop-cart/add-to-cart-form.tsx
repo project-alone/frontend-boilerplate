@@ -27,6 +27,9 @@ const QuantitySchema = AddCartItemBody.pick({ quantity: true })
  *   되돌렸는지 알림으로 알린다.
  * - 장바구니가 없으면 백엔드가 장바구니의 id를 정해야 하므로 응답을 기다린 뒤 그 id를 저장한다(src/shared/shop/cart-id.ts).
  * - 담았다는 것은 스크린 리더도 듣도록 상태 문구(role="status")로 알린다.
+ * - 상품 상세는 미리 렌더링한 HTML(ISR)이라 JavaScript가 hydration을 마치기 전에도 폼이 보인다. 그동안 입력한 수량은 hydration
+ *   때 React Hook Form이 처음 값(1)을 입력 요소에 쓰면서 덮어쓰이거나 이어 붙으므로(2를 입력했는데 12가 됨), 수량 입력과 담기
+ *   버튼은 브라우저가 저장한 장바구니를 읽은 뒤(hydration 뒤)에 켠다.
  */
 export function AddToCartForm({ productId }: Readonly<{ productId: number }>) {
   const { data: product } = useQuery(getCatalogProductQueryOptions(productId))
@@ -35,6 +38,8 @@ export function AddToCartForm({ productId }: Readonly<{ productId: number }>) {
   const addItem = useAddCartItemMutation(cartId ?? '')
   const toast = useToast()
   const [added, setAdded] = useState('')
+  // 서버가 렌더링할 때와 hydration 중에는 브라우저에 둔 장바구니 id를 아직 모른다(undefined). 그동안은 폼을 쓰지 못하게 한다.
+  const hydrating = cartId === undefined
   const {
     register,
     handleSubmit,
@@ -79,14 +84,14 @@ export function AddToCartForm({ productId }: Readonly<{ productId: number }>) {
       className="flex flex-col gap-4"
       onSubmit={(event) => void onSubmit(event)}
     >
-      <Field invalid={errors.quantity !== undefined} className="max-w-40">
+      <Field invalid={errors.quantity !== undefined} disabled={hydrating} className="max-w-40">
         <FieldLabel>수량</FieldLabel>
         <Input type="number" min={1} max={99} {...register('quantity', { valueAsNumber: true })} />
         <FieldError match={errors.quantity !== undefined}>{errors.quantity?.message}</FieldError>
       </Field>
       <div className="flex flex-wrap items-center gap-4">
-        {/* 브라우저가 저장한 장바구니를 읽기 전(cartId가 undefined)에는 담지 않아 장바구니를 둘 만들지 않는다. */}
-        <Button type="submit" disabled={cartId === undefined || createCart.isPending}>
+        {/* 브라우저가 저장한 장바구니를 읽기 전에는 담지 않아 장바구니를 둘 만들지 않는다. */}
+        <Button type="submit" disabled={hydrating || createCart.isPending}>
           장바구니에 담기
         </Button>
         <p role="status" className="text-sm">

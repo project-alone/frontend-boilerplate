@@ -47,9 +47,10 @@ function cartLink(page: Page) {
 
 /** 상품 상세에서 quantity개를 장바구니에 담는다. 담았다는 상태 문구까지 기다리지 않는다. */
 async function addToCart(page: Page, quantity: number) {
+  // 수량 입력과 담기 버튼은 hydration이 끝나 브라우저에 둔 장바구니를 읽은 뒤에 켜진다. fill과 click은 켜질 때까지 기다리므로,
+  // 미리 렌더링한 HTML에 입력한 값이 hydration 때 처음 값(1)과 섞이지 않는다(CPU가 느린 CI에서 2가 12로 바뀌던 문제).
   const input = page.getByRole('spinbutton', { name: '수량' })
   await input.fill(String(quantity))
-  // hydration이 끝나 브라우저에 둔 장바구니를 읽어야 담기 버튼이 켜진다.
   await page.getByRole('button', { name: '장바구니에 담기' }).click()
 }
 

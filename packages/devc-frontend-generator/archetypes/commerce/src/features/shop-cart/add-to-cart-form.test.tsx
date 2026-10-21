@@ -2,9 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { http } from 'msw'
-import { afterEach, beforeEach, expect, test } from 'vitest'
+import { renderToString } from 'react-dom/server'
+import { afterEach, beforeEach, expect, onTestFinished, test } from 'vitest'
 import { getCartQueryOptions } from '@/queries/cart/cart.queries'
+import { getCatalogProductQueryOptions } from '@/queries/catalog/catalog.queries'
 import { createCart, getCart } from '@/shared/api/generated'
+import { getGetCatalogProductResponseMock } from '@/shared/api/generated/catalog/catalog.msw'
 import { server } from '@/shared/mocks/node'
 import { createShopHandlers, resetMockShop } from '@/shared/mocks/shop'
 import { forgetCartId, rememberCartId } from '@/shared/shop/cart-id'
@@ -148,6 +151,38 @@ test('수량은 명세의 범위(1~99)로 검증하고, 맞지 않으면 담지 
     expect(input).toHaveAttribute('aria-invalid', 'true')
   })
   expect(localStorage.getItem('shop-cart-id')).toBeNull()
+})
+
+test('미리 렌더링한 HTML에서는 수량 입력과 담기 버튼이 꺼져 있다가, hydration을 마치면 켜진다', async () => {
+  // 상품 상세(ISR)처럼 서버가 상품을 가져와 넘긴 폼. hydration 전에 입력한 수량은 hydration 때 React Hook Form이 쓰는 처음
+  // 값(1)에 덮어쓰이거나 이어 붙으므로(2를 입력하면 12), 그동안은 입력하지 못하게 한다.
+  const queryClient = new QueryClient()
+  queryClient.setQueryData(getCatalogProductQueryOptions(T_SHIRT).queryKey, getGetCatalogProductResponseMock())
+  const form = (
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <AddToCartForm productId={T_SHIRT} />
+      </ToastProvider>
+    </QueryClientProvider>
+  )
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(form)
+  document.body.append(container)
+  onTestFinished(() => {
+    container.remove()
+  })
+  const quantity = within(container).getByRole('spinbutton', { name: '수량' })
+  const submit = within(container).getByRole('button', { name: '장바구니에 담기' })
+  expect(quantity).toBeDisabled()
+  expect(submit).toBeDisabled()
+
+  render(form, { container, hydrate: true })
+
+  await waitFor(() => {
+    expect(quantity).toBeEnabled()
+  })
+  expect(quantity).toHaveValue(1)
+  expect(submit).toBeEnabled()
 })
 
 test('품절된 상품은 담는 폼 대신 담을 수 없다고 알린다', async () => {
