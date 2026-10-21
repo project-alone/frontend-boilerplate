@@ -1,0 +1,19 @@
+// 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+// 원본(packages/devc-frontend-generator/): archetypes/landing/src/features/landing/landing-content.ts
+
+import { getLandingPageQueryOptions } from '@/queries/landing/landing.queries'
+import type { LandingPageContent } from '@/shared/api/generated/model'
+import type { Locale } from '@/shared/i18n/routing'
+import { getQueryClient } from '@/shared/query-client/get-query-client'
+
+/**
+ * locale의 랜딩 페이지 콘텐츠를 서버에서 가져온다. 랜딩 페이지(src/app/[locale]/landing/)의 metadata, 화면, 공유 이미지가
+ * 빌드할 때 locale마다 부른다. 요청과 쿼리 키는 landing Query Domain의 queryOptions를 그대로 쓴다(ADR-0008).
+ *
+ * 다른 화면처럼 서버가 가져온 데이터를 hydration으로 넘기지 않고, 서버 컴포넌트(Landing)에 props로 넘긴다. 랜딩의 콘텐츠는
+ * 빌드한 뒤 바뀌지 않아 브라우저의 쿼리 캐시에 둘 까닭이 없고, 넘기면 staleTime이 지난 데이터(빌드한 지 오래된 정적 페이지는
+ * 처음부터 그렇다)를 브라우저가 다시 가져와 배포한 정적 페이지가 방문마다 백엔드를 부르게 된다. 콘텐츠를 바꾸면 다시 빌드한다.
+ */
+export function loadLandingPage(locale: Locale): Promise<LandingPageContent> {
+  return getQueryClient().query(getLandingPageQueryOptions(locale))
+}

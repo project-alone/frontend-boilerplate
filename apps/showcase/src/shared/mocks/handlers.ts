@@ -1,11 +1,12 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/file-upload/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/realtime/extensions.json, recipes/table/extensions.json, archetypes/commerce/extensions.json, archetypes/dashboard/extensions.json
+// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/file-upload/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/realtime/extensions.json, recipes/table/extensions.json, archetypes/commerce/extensions.json, archetypes/dashboard/extensions.json, archetypes/landing/extensions.json
 
 import * as generatedMocks from '@/shared/api/generated/index.msw'
 import { authMockHandlers } from '@/shared/auth/auth-mock-handlers'
 import { articlesHandlers } from '@/shared/mocks/articles'
 import { deliveriesHandlers } from '@/shared/mocks/deliveries'
 import { filesHandlers } from '@/shared/mocks/files'
+import { landingHandlers } from '@/shared/mocks/landing'
 import { membersHandlers } from '@/shared/mocks/members'
 import { pageNavigationHandlers } from '@/shared/mocks/page-navigation'
 import { shopHandlers } from '@/shared/mocks/shop'
@@ -30,5 +31,6 @@ export const handlers = [
   ...membersHandlers,
   ...shopHandlers,
   ...usersHandlers,
+  ...landingHandlers,
   ...Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers()),
 ]
