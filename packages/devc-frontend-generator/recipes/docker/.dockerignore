@@ -10,6 +10,9 @@ next-env.d.ts
 # 번들과 미리 렌더링한 페이지에 담을 수 있고 빌드 캐시에도 남는다. 배포 환경의 값은 컨테이너를 띄울 때 환경 변수로 넣는다.
 .env*.local
 
+# 프로젝트의 npm 설정. 레지스트리 토큰이 들어 있을 수 있다. 인증이 필요하면 docker build --secret id=npmrc로 넘긴다(Dockerfile).
+.npmrc
+
 # git과 테스트·도구가 만드는 파일
 .git/
 .npm/

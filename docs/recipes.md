@@ -285,7 +285,7 @@ Recipe는 자기 테스트를 Starter에 함께 넣는다. Starter의 스크립�
 
 E2E는 모든 Rendering Mode에서 같은 spec이 돌아야 한다. `server`는 빌드 결과를 `next start`로, `static-export`는 다시 빌드한 `out/`을 정적 파일 서버로 띄운다. 모든 Recipe를 켠 Showcase에서도 다른 Recipe의 E2E와 함께 돌므로, 다른 Recipe가 더한 화면 요소(예: dark-mode의 머리글)가 있어도 통과하게 쓴다.
 
-레포의 하네스(`harness/`)에는 Recipe마다 조합 매트릭스 테스트를 더한다. 지원하는 Rendering Mode마다 Recipe를 넣은 Starter를 만들고 Starter의 스크립트를 실행한다. `harness/dark-mode.test.ts`처럼 `useStarter({ prefix: 'dcgen-<이름>-', renderingMode, recipes: ['<이름>'], install: true, playwright: true })`를 쓴다(`playwright`는 `test:storybook`과 `test:e2e`가 쓰는 Chromium을 받는다). 지원하지 않는 조합의 거부와 `requires`는 `recipe.json`만으로 동작하므로 Recipe마다 따로 시험하지 않아도 된다(`harness/recipes.test.ts`가 시험용 Recipe로 검증한다). 확장 지점의 조립과 병합도 마찬가지다(`harness/extension-points.test.ts`). Recipe의 하네스는 자기 조각이 Starter에서 동작하는지만 본다.
+레포의 하네스(`harness/`)에는 Recipe마다 조합 매트릭스 테스트를 더한다. 지원하는 Rendering Mode마다 Recipe를 넣은 Starter를 만들고 Starter의 스크립트를 실행한다. `harness/dark-mode.test.ts`처럼 `useStarter({ prefix: 'dcgen-<이름>-', renderingMode, recipes: ['<이름>'], install: true, playwright: true })`를 쓴다(`playwright`는 `test:storybook`과 `test:e2e`가 쓰는 Chromium을 받는다). 지원하지 않는 조합의 거부와 `requires`는 `recipe.json`만으로 동작하므로 Recipe마다 따로 시험하지 않아도 된다(`harness/recipes.test.ts`가 시험용 Recipe로 검증한다). 확장 지점의 조립과 병합도 마찬가지다(`harness/extension-points.test.ts`). Recipe의 하네스는 자기 조각이 Starter에서 동작하는지만 본다. Starter의 스크립트로 검사할 수 없는 조각(예: Docker가 있어야 만드는 `docker` Recipe의 이미지)은 Recipe의 하네스가 대신 검사하고, Starter의 README에 사람이 확인하는 방법을 적는다.
 
 ```sh
 npx vitest run harness/<이름>.test.ts   # 하네스는 Generator를 npm pack으로 묶어 설치한 dcgen으로 Starter를 만든다
@@ -473,9 +473,9 @@ table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared
 
 - 단계: `deps`(`package.json`과 `package-lock.json`만 복사해 `npm ci`) → `build`(배포용 빌드) → `runtime`(`.next/standalone`, `.next/static`, `public`만 복사). 기반 이미지는 `ARG NODE_IMAGE`에 `.nvmrc`와 같은 메이저 버전을 정확한 버전으로 고정하고, 실행 사용자는 node 이미지의 `node`를 숫자(`USER 1000:1000`)로 적는다. Kubernetes의 `runAsNonRoot`는 숫자 사용자만 확인할 수 있다.
 - 목 빌드(ADR-0011): 배포용 이미지는 `ARG API_MOCKING=disabled`로 빌드하고 다른 값은 거부한다. 백엔드 없이 띄워 볼 목 이미지는 `--target mock`으로만 만든다. 마지막 단계가 배포용 이미지라 `--target` 없이 빌드하면 목 이미지가 나오지 않는다.
-- 비밀 값: `ARG`와 `ENV`에 넣지 않는다. 빌드할 때의 npm 토큰은 `--secret id=npmrc`로 `npm ci` 동안에만 마운트한다. 로컬 환경 변수 파일(`.env*.local`)은 `next build`가 읽어 번들과 미리 렌더링한 페이지, 빌드 캐시의 층에 남길 수 있으므로 `.dockerignore`가 뺀다(standalone 출력은 `.env`와 `.env.production`만 이미지에 복사한다).
+- 비밀 값: `ARG`와 `ENV`에 넣지 않는다. 빌드할 때의 npm 토큰은 `--secret id=npmrc`로 `npm ci` 동안에만 마운트한다. 프로젝트의 `.npmrc`와 로컬 환경 변수 파일(`.env*.local`)은 `.dockerignore`가 뺀다. `.env*.local`은 `next build`가 읽어 번들과 미리 렌더링한 페이지, 빌드 캐시의 층에 남길 수 있다(standalone 출력은 `.env`와 `.env.production`만 이미지에 복사한다).
 - Showcase는 생성 안내를 Dockerfile의 맨 위 주석으로 붙인다. 그 주석 뒤의 parser directive(`# syntax=`)는 읽히지 않으므로 Dockerfile에 directive를 쓰지 않는다.
-- 하네스(`harness/docker.test.ts`)는 Docker가 있으면 Starter로 이미지를 만들어 컨테이너가 상태 확인 주소, 페이지, 정적 파일에 응답하는지, root가 아닌 사용자로 도는지, `HEALTHCHECK`가 healthy가 되는지, 로컬 환경 변수 파일의 값이 이미지에 없는지, 목을 켠 배포용 빌드를 거부하는지 보고 hadolint로 Dockerfile을 검사한다. Docker가 없으면 이유를 알리고 건너뛰지만 CI에서는 실패한다. 빌드 컨텍스트에서는 아직 npm에 없는 Generator를 `package.json`과 `package-lock.json`에서 빼고 빌드한다.
+- 하네스(`harness/docker.test.ts`)는 Docker가 있으면 Starter로 이미지를 만들어 컨테이너가 상태 확인 주소, 페이지, 정적 파일에 응답하는지, root가 아닌 사용자로 도는지, `HEALTHCHECK`가 healthy가 되는지, 로컬 환경 변수 파일의 값이 이미지에 없는지, 목을 켠 배포용 빌드를 거부하는지 보고 hadolint로 Dockerfile을 검사한다. Docker가 없으면 이유를 알리고 건너뛰지만 CI에서는 실패한다. 빌드 컨텍스트에서는 아직 npm에 없는 Generator를 `package.json`과 `package-lock.json`에서 빼고(`unlinkPackedGenerator`) 빌드한다.
 
 | 선언하는 것    | `recipes/docker/`                                                                 |
 | -------------- | --------------------------------------------------------------------------------- |

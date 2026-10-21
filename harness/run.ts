@@ -49,7 +49,12 @@ export function start(
 }
 
 // 띄운 서버가 응답할 때까지 기다렸다가 첫 응답을 돌려준다. timeoutMs(기본 2분) 안에 연결되지 않으면 서버 출력과 함께 실패한다.
-export async function waitForServer(url: string, server: BackgroundProcess, timeoutMs = 120_000): Promise<Response> {
+// 서버 출력은 띄운 명령의 출력이고, 컨테이너처럼 따로 읽는 서버는 그 로그를 돌려주는 output만 넘긴다.
+export async function waitForServer(
+  url: string,
+  server: Pick<BackgroundProcess, 'output'>,
+  timeoutMs = 120_000,
+): Promise<Response> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {

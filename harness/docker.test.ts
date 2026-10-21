@@ -1,11 +1,12 @@
+import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest'
-import { freePort, run, type RunResult } from './run.ts'
-import { GENERATOR_PACKAGE, SAMPLE_PRODUCTS, useStarter } from './starter.ts'
+import { freePort, run, type RunResult, waitForServer } from './run.ts'
+import { SAMPLE_PRODUCTS, unlinkPackedGenerator, useStarter } from './starter.ts'
 
 test('docker Recipe는 Next.js 서버를 이미지에 담으므로 static-export Starter에는 이유와 함께 넣지 않는다', () => {
   const workdir = mkdtempSync(join(tmpdir(), 'dcgen-docker-static-'))
@@ -123,31 +124,23 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
       expect(result.status, `docker ${args.join(' ')}\n${result.output}`).toBe(0)
       return result
     }
-    const build = (tag: string, args: readonly string[] = []) => {
-      expectDockerSuccess(['build', '--progress=plain', '--label', label, '--tag', tag, ...args, context])
+    const buildImage = (tag: string, args: readonly string[] = []) => {
       images.push(tag)
+      expectDockerSuccess(['build', '--progress=plain', '--label', label, '--tag', tag, ...args, context])
     }
+    /** 이미지에서 명령 하나를 실행하고 컨테이너를 지운다. */
+    const runInImage = (image: string, command: string, args: readonly string[]): RunResult =>
+      docker(['run', '--rm', '--label', label, '--entrypoint', command, image, ...args])
 
     /** 컨테이너를 띄우고 호스트에서 부를 주소를 돌려준다. 포트는 호스트의 빈 포트에 이어 다른 서버와 겹치지 않는다. */
     const startContainer = (image: string, args: readonly string[] = []) => {
       const container = `${name}-${String(containers.length + 1)}`
-      expectDockerSuccess(['run', '--detach', '--name', container, '--label', label, '--publish', '127.0.0.1::3000', ...args, image])
+      // 만들어졌지만 뜨지 못한 컨테이너도 afterAll에서 지우도록 먼저 적어 둔다.
       containers.push(container)
+      expectDockerSuccess(['run', '--detach', '--name', container, '--label', label, '--publish', '127.0.0.1::3000', ...args, image])
       const address = expectDockerSuccess(['port', container, '3000']).output.trim().split('\n')[0] ?? ''
-      return { container, origin: `http://${address}` }
-    }
-
-    /** 컨테이너의 서버가 응답할 때까지 기다렸다가 첫 응답을 돌려준다. 1분 안에 응답하지 않으면 컨테이너 로그와 함께 실패한다. */
-    const waitForResponse = async (container: string, url: string): Promise<Response> => {
-      const deadline = Date.now() + 60_000
-      while (Date.now() < deadline) {
-        try {
-          return await fetch(url)
-        } catch {
-          await setTimeout(500)
-        }
-      }
-      throw new Error(`${url}에 연결하지 못했습니다.\n${docker(['logs', container]).output}`)
+      const logs = { output: () => docker(['logs', container]).output }
+      return { container, origin: `http://${address}`, logs }
     }
 
     beforeAll(() => {
@@ -160,13 +153,13 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
         // node_modules와 빌드 결과는 .dockerignore가 빼지만, 복사하는 시간을 줄이려고 처음부터 뺀다.
         filter: (source) => !['node_modules', '.next'].includes(relative(starter.dir, source).split(sep)[0] ?? ''),
       })
-      withoutPackedGenerator(context)
+      unlinkPackedGenerator(context)
       mkdirSync(join(context, 'public'), { recursive: true })
       writeFileSync(join(context, 'public', PUBLIC_FILE.path), PUBLIC_FILE.content)
       writeFileSync(join(context, '.env.production.local'), `HARNESS_LOCAL_SECRET=${LOCAL_SECRET}\n`)
 
-      build(deployImage)
-      build(mockImage, ['--target', 'mock'])
+      buildImage(deployImage)
+      buildImage(mockImage, ['--target', 'mock'])
     })
 
     afterAll(() => {
@@ -175,17 +168,13 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     })
 
     test('Dockerfile은 hadolint 검사를 통과한다', () => {
-      expectDockerSuccess([
-        'run',
-        '--rm',
-        '--label',
-        label,
-        '--volume',
-        `${join(starter.dir, 'Dockerfile')}:/Dockerfile:ro`,
-        HADOLINT_IMAGE,
-        'hadolint',
-        '/Dockerfile',
-      ])
+      // Dockerfile을 표준 입력으로 넘겨 호스트의 경로를 컨테이너에 마운트하지 않는다.
+      const result = spawnSync('docker', ['run', '--rm', '--interactive', '--label', label, HADOLINT_IMAGE, 'hadolint', '-'], {
+        input: readFileSync(join(starter.dir, 'Dockerfile'), 'utf8'),
+        encoding: 'utf8',
+      })
+
+      expect(result.status, `${result.stdout}${result.stderr}`).toBe(0)
     })
 
     // Kubernetes의 runAsNonRoot는 이미지의 사용자가 숫자일 때만 root가 아닌지 확인할 수 있다.
@@ -193,22 +182,23 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
       const user = expectDockerSuccess(['image', 'inspect', '--format', '{{.Config.User}}', deployImage]).output.trim()
       expect(user).toMatch(/^[1-9]\d*(?::\d+)?$/)
 
-      const uid = expectDockerSuccess(['run', '--rm', '--label', label, '--entrypoint', 'id', deployImage, '-u'])
+      const uid = runInImage(deployImage, 'id', ['-u'])
+      expect(uid.status, uid.output).toBe(0)
       expect(uid.output.trim()).not.toBe('0')
     })
 
     test('배포용 이미지의 컨테이너는 상태 확인 주소, 페이지, 정적 파일(.next/static, public)을 응답하고 HEALTHCHECK가 healthy가 된다', async () => {
       // 배포 환경처럼 백엔드 주소만 넣어 띄운다. 홈 페이지와 상태 확인 주소는 백엔드를 부르지 않는다.
       // 상태 확인을 기다리지 않도록 HEALTHCHECK의 명령은 그대로 두고 간격만 줄인다.
-      const { container, origin } = startContainer(deployImage, [
+      const { container, origin, logs } = startContainer(deployImage, [
         '--env',
         'API_BASE_URL=https://backend.example.com',
         '--health-interval',
         '1s',
       ])
 
-      const health = await waitForResponse(container, `${origin}/api/health`)
-      expect(health.status, docker(['logs', container]).output).toBe(200)
+      const health = await waitForServer(`${origin}/api/health`, logs, 60_000)
+      expect(health.status, logs.output()).toBe(200)
       expect(health.headers.get('cache-control')).toBe('no-store')
       expect(await health.json()).toEqual({ status: 'ok' })
 
@@ -228,26 +218,26 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     })
 
     test('백엔드 주소(API_BASE_URL) 없이 띄운 배포용 컨테이너는 요청을 처리하지 않아 상태 확인이 실패한다', async () => {
-      const { container, origin } = startContainer(deployImage)
+      const { origin, logs } = startContainer(deployImage)
 
-      const health = await waitForResponse(container, `${origin}/api/health`)
+      const health = await waitForServer(`${origin}/api/health`, logs, 60_000)
 
       expect(health.status).toBe(500)
-      expect(docker(['logs', container]).output).toContain('API_BASE_URL 환경 변수가 없습니다')
+      expect(logs.output()).toContain('API_BASE_URL 환경 변수가 없습니다')
     })
 
     test('로컬 환경 변수 파일(.env*.local)은 빌드 컨텍스트에서 빠져, 그 비밀 값이 빌드 단계에도 실행 이미지에도 없다', () => {
       // 빌드 단계가 이 파일을 받으면 next build가 읽어 브라우저 번들과 미리 렌더링한 페이지에 담을 수 있고, 빌드 캐시의 층에도 남는다.
       // 빌드 단계는 위에서 만든 층을 그대로 쓰므로 다시 빌드하지 않고 이름만 붙는다.
       const buildStage = `${name}:build-stage`
-      build(buildStage, ['--target', 'build'])
+      buildImage(buildStage, ['--target', 'build'])
 
       // 빌드 컨텍스트는 /app에 복사되고 standalone 서버도 /app에서 뜬다. grep은 찾으면 0, 찾지 못하면 1, 오류면 2로 끝난다.
       for (const [image, exclude] of [
         [buildStage, ['--exclude-dir=node_modules']],
         [deployImage, []],
       ] as const) {
-        const found = docker(['run', '--rm', '--label', label, '--entrypoint', 'grep', image, '-rl', ...exclude, LOCAL_SECRET, '/app'])
+        const found = runInImage(image, 'grep', ['-rl', ...exclude, LOCAL_SECRET, '/app'])
 
         expect(found.output, image).toBe('')
         expect(found.status, image).toBe(1)
@@ -263,12 +253,12 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     })
 
     test('--target mock으로 만든 목 이미지는 백엔드 없이 MSW의 목 응답으로 페이지를 보여 준다', async () => {
-      const { container, origin } = startContainer(mockImage)
+      const { origin, logs } = startContainer(mockImage)
 
-      const products = await waitForResponse(container, `${origin}/products`)
+      const products = await waitForServer(`${origin}/products`, logs, 60_000)
       const html = await products.text()
 
-      expect(products.status, docker(['logs', container]).output).toBe(200)
+      expect(products.status, logs.output()).toBe(200)
       for (const product of SAMPLE_PRODUCTS) expect(html).toContain(product.name)
     })
 
@@ -286,31 +276,3 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
   })
 })
 
-/**
- * 빌드 컨텍스트의 package.json과 package-lock.json에서 Starter가 고정한 Generator를 뺀다. Dockerfile은 이 두 파일만 먼저 복사해
- * npm ci로 설치하는데, 아직 npm에 없는 Generator는 하네스가 Starter 밖의 tarball로 바꿔 두었으므로(linkPackedGenerator) 이미지
- * 안에서 설치할 수 없다. Generator는 코드 생성(npm run g)에만 쓰고 빌드와 실행에는 쓰지 않는다. `npm uninstall --package-lock-only`는
- * Generator와 상관없는 선택 의존성(@emnapi 등)까지 lock에서 지워 npm ci가 실패하므로 Generator의 항목만 직접 지운다.
- */
-function withoutPackedGenerator(context: string): void {
-  interface Manifest {
-    devDependencies?: Record<string, string>
-  }
-  const update = <T>(file: string, edit: (json: T) => void) => {
-    const path = join(context, file)
-    const json = JSON.parse(readFileSync(path, 'utf8')) as T
-    edit(json)
-    writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`)
-  }
-  const removeGenerator = (manifest: Manifest | undefined) => {
-    expect(manifest?.devDependencies?.[GENERATOR_PACKAGE]).toBeDefined()
-    delete manifest?.devDependencies?.[GENERATOR_PACKAGE]
-  }
-
-  update<Manifest>('package.json', removeGenerator)
-  update<{ packages: Record<string, Manifest> }>('package-lock.json', ({ packages }) => {
-    removeGenerator(packages[''])
-    expect(packages[`node_modules/${GENERATOR_PACKAGE}`]).toBeDefined()
-    delete packages[`node_modules/${GENERATOR_PACKAGE}`]
-  })
-}
