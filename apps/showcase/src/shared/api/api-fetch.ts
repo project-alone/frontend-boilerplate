@@ -34,8 +34,11 @@ export class ApiError extends Error {
 export async function apiFetch<T>(path: string, { schema, ...init }: ApiRequestInit<T> = {}): Promise<T> {
   let response: Response
   if (typeof window === 'undefined') {
-    // 처리기는 서버에서만 쓰는 코드(쿠키 암호화 등)라 브라우저 번들에 넣지 않는다. Next.js는 브라우저 번들의
-    // `typeof window`를 값으로 바꾸므로, 이 블록 안에서 불러오는 모듈은 브라우저 번들에서 빠진다.
+    // 목 빌드(API_MOCKING=enabled로 실행한 next build)이면 요청을 보내기 전에 MSW를 켠다(api-mocking.ts). 그다음 Recipe가
+    // 더한 처리기(backend-fetch.ts)를 거쳐 보낸다. MSW와 처리기는 서버에서만 쓰는 코드(쿠키 암호화 등)다. Next.js는 브라우저
+    // 번들의 `typeof window`를 값으로 바꾸므로, 이 블록 안에서 불러오는 모듈은 브라우저 번들에서 빠진다.
+    const { startBuildApiMocking } = await import('./api-mocking')
+    await startBuildApiMocking()
     const { backendFetch } = await import('./backend-fetch')
     response = await backendFetch(`${backendBaseUrl()}${path}`, init)
   } else {

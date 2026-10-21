@@ -1,8 +1,9 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json
+// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/i18n/extensions.json
 
 import { type NextRequest, NextResponse } from 'next/server'
 import { authProxy } from '@/shared/auth/auth-proxy'
+import { i18nProxy } from '@/shared/i18n/i18n-proxy'
 
 // Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
 // 페이지 요청이 라우트에 닿기 전에 처리기를 위에서부터 차례로 실행한다(Next.js Proxy). 처리기는 응답을 직접 돌려주어
@@ -13,7 +14,7 @@ type ProxyHandler = (
   next: (request?: NextRequest) => Promise<NextResponse>,
 ) => NextResponse | Promise<NextResponse>
 
-const handlers: readonly ProxyHandler[] = [authProxy]
+const handlers: readonly ProxyHandler[] = [authProxy, i18nProxy]
 
 export function proxy(request: NextRequest): Promise<NextResponse> {
   const run = (index: number, current: NextRequest): Promise<NextResponse> => {

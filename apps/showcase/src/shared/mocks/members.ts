@@ -10,7 +10,8 @@ import {
 } from '@/shared/api/generated/model'
 
 // table Recipe: 회원 목록(listMembers)을 흉내 내는 MSW 핸들러. 명세에서 생성한 핸들러는 example을 그대로 돌려주므로,
-// 이 핸들러가 그보다 앞에서(handlers.ts) 쿼리 파라미터대로 거르고 정렬하고 나눈 페이지를 백엔드처럼 돌려준다.
+// 이 핸들러가 그보다 앞에서 쿼리 파라미터대로 거르고 정렬하고 나눈 페이지를 백엔드처럼 돌려준다. 확장 지점 mockHandlers
+// (Recipe의 extensions.json)로 선언해, MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이 생성된 핸들러보다 앞에 둔다.
 // Vitest, 개발 서버, E2E가 모두 이 핸들러를 쓰므로 결과가 늘 같도록 회원 데이터를 고정해 둔다.
 
 /** 목 백엔드에 있는 회원. id가 가입한 순서다. */
