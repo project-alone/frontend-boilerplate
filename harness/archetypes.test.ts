@@ -6,7 +6,7 @@ import { KEYS, run, runInTerminal } from './run.ts'
 import { readTree } from './starter.ts'
 
 // `dcgen new`가 Archetype을 고르고 조합을 검사하는 동작. 설치가 필요 없으므로 모두 --skip-install로 만든다.
-// 대시보드 Archetype을 넣은 Starter의 스크립트·E2E는 dashboard.test.ts가 검증한다.
+// 대시보드·커머스 Archetype을 넣은 Starter의 스크립트·E2E는 dashboard.test.ts, commerce.test.ts가 검증한다.
 
 let workdir: string
 
@@ -80,6 +80,10 @@ describe('터미널에서 실행한 new', () => {
     await terminal.waitFor('Rendering Mode를 고르세요')
     terminal.press(KEYS.enter) // server
     await terminal.waitFor('Archetype(완성된 앱 유형)을 고르세요')
+    // Archetype은 이름순이고, 커서가 놓인 Archetype의 설명과 쓰는 Recipe를 보여 준다. 처음 커서는 commerce에 있고 그 아래가
+    // dashboard다.
+    await terminal.waitFor('Recipe: multi-step-form, optimistic-update')
+    terminal.press(KEYS.down)
     await terminal.waitFor('Recipe: auth, chart, table')
     terminal.press(KEYS.space) // dashboard
     terminal.press(KEYS.enter)
@@ -102,6 +106,8 @@ describe('터미널에서 실행한 new', () => {
 
     await terminal.waitFor('Archetype dashboard은(는) Rendering Mode static-export에서 쓸 수 없습니다')
     await terminal.waitFor('Archetype dashboard에 필요해 함께 넣으려던 Recipe입니다.')
+    // 쓰는 Recipe는 static-export를 지원해도 archetype.json에서 server로 좁힌 Archetype은 적어 둔 이유를 보인다.
+    await terminal.waitFor('Archetype commerce은(는) Rendering Mode static-export에서 쓸 수 없습니다')
     terminal.press(KEYS.ctrlC)
     expect(await terminal.exited, terminal.output()).not.toBe(0)
     expect(readdirSync(workdir)).toEqual([])

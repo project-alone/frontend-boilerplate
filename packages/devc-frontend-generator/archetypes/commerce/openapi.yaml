@@ -1,0 +1,672 @@
+# 커머스 Archetype이 Base 명세에 더하는 명세 조각(docs/archetypes.md). 상품 카탈로그, 장바구니, 주문과 결제 operation이다.
+# Base의 상품(products tag의 Product)은 상품 등록 샘플이라 이름이 겹치지 않게 카탈로그의 상품은 CatalogProduct로 둔다.
+#
+# 장바구니는 로그인 없이 쓰는 손님 장바구니다. 처음 상품을 담을 때 백엔드가 장바구니를 만들어(createCart) 추측할 수 없는 id를
+# 주고, 앱은 그 id를 브라우저에 둔 채 장바구니 operation의 경로에 담아 부른다. 가격과 재고는 늘 백엔드가 정한다. 장바구니에
+# 담을 때와 주문할 때 백엔드가 재고를 다시 확인해, 남은 수량보다 많으면 409로 거절한다(카탈로그의 재고는 미리 렌더링한 화면이라
+# 늦을 수 있다).
+#
+# 결제는 PG(결제대행사)를 연동하지 않는 가짜 결제다. 주문서를 내면 결제 대기(pending) 주문이 생기고, 결제창에서 승인하면
+# confirmOrderPayment로 결제를 확인해 결제 완료(paid)가 된다. 실제 PG를 연동하면 PG의 결제창이 돌려준 paymentKey로 같은
+# operation을 부르고, 백엔드가 PG에 결제를 승인받는다. 결제가 끝나면 주문한 장바구니는 없어진다(404).
+tags:
+  - name: catalog
+    description: 상품 카탈로그
+  - name: cart
+    description: 장바구니
+  - name: orders
+    description: 주문과 결제
+paths:
+  /catalog/products:
+    get:
+      operationId: listCatalogProducts
+      summary: 상품 목록
+      description: 판매하는 상품을 모두 진열 순서(id 오름차순)로 돌려준다. 품절된 상품(stock 0)도 들어 있다.
+      tags: [catalog]
+      responses:
+        '200':
+          description: 상품 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogProduct'
+              # 생성된 MSW 핸들러가 돌려주는 값이자 커머스의 목 백엔드(src/shared/mocks/shop.ts)가 처음 진열하는 상품이다.
+              example:
+                - id: 1
+                  name: 오가닉 코튼 티셔츠
+                  summary: 매일 입기 좋은 기본 반팔 티셔츠
+                  description: 유기농 면으로 짠 두툼한 반팔 티셔츠입니다. 여러 번 빨아도 목이 늘어나지 않습니다.
+                  price: 19000
+                  stock: 50
+                - id: 2
+                  name: 린넨 셔츠
+                  summary: 통기성이 좋은 여름 셔츠
+                  description: 린넨 100%로 만든 셔츠입니다. 바람이 잘 통해 더운 날에도 가볍게 입습니다.
+                  price: 39000
+                  stock: 20
+                - id: 3
+                  name: 데님 와이드 팬츠
+                  summary: 넉넉한 통의 생지 데님
+                  description: 허리부터 밑단까지 넉넉하게 떨어지는 와이드 핏 데님 팬츠입니다.
+                  price: 59000
+                  stock: 15
+                - id: 4
+                  name: 캔버스 토트백
+                  summary: 노트북이 들어가는 큰 가방
+                  description: 두꺼운 캔버스로 만든 토트백입니다. 15인치 노트북과 책 몇 권이 함께 들어갑니다.
+                  price: 25000
+                  stock: 30
+                - id: 5
+                  name: 울 블렌드 머플러
+                  summary: 부드러운 겨울 머플러
+                  description: 울을 섞어 짠 머플러입니다. 다음 입고까지 기다려 주세요.
+                  price: 32000
+                  stock: 0
+                - id: 6
+                  name: 한정판 세라믹 머그
+                  summary: 손으로 빚은 한정 수량 머그
+                  description: 작가가 손으로 빚어 구운 머그입니다. 한정 수량이라 두 개만 남았습니다.
+                  price: 18000
+                  stock: 2
+  /catalog/products/{productId}:
+    get:
+      operationId: getCatalogProduct
+      summary: 상품 상세
+      tags: [catalog]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 상품
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogProduct'
+              example:
+                id: 1
+                name: 오가닉 코튼 티셔츠
+                summary: 매일 입기 좋은 기본 반팔 티셔츠
+                description: 유기농 면으로 짠 두툼한 반팔 티셔츠입니다. 여러 번 빨아도 목이 늘어나지 않습니다.
+                price: 19000
+                stock: 50
+        '404':
+          description: 그런 상품이 없다.
+  /carts:
+    post:
+      operationId: createCart
+      summary: 장바구니 만들기
+      description: >-
+        처음 담는 상품으로 장바구니를 만든다. 로그인하지 않아도 만들 수 있고, 돌려준 id로 장바구니를 찾는다. 담으려는 수량이 남은
+        재고보다 많으면 409로 거절하고 장바구니를 만들지 않는다.
+      tags: [cart]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCartItem'
+      responses:
+        '201':
+          description: 만든 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                id: 0b7e4c8e-5d1f-4a52-9a37-2f1c6d3e8a90
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 1
+                totalQuantity: 1
+                totalPrice: 19000
+        '400':
+          description: 요청 본문이 잘못되었다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '404':
+          description: 그런 상품이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '409':
+          description: 남은 재고보다 많이 담으려 했다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+              example:
+                message: 재고가 부족합니다. 남은 수량은 2개입니다.
+  /carts/{cartId}:
+    get:
+      operationId: getCart
+      summary: 장바구니
+      tags: [cart]
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      responses:
+        '200':
+          description: 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                id: 0b7e4c8e-5d1f-4a52-9a37-2f1c6d3e8a90
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 2
+                  - productId: 4
+                    name: 캔버스 토트백
+                    price: 25000
+                    quantity: 1
+                totalQuantity: 3
+                totalPrice: 63000
+        '404':
+          description: 그런 장바구니가 없다. 오래되어 지웠거나 주문을 마친 장바구니다.
+  /carts/{cartId}/items:
+    post:
+      operationId: addCartItem
+      summary: 장바구니에 담기
+      description: >-
+        상품을 장바구니에 담는다. 이미 담긴 상품이면 수량을 더한다. 더한 수량이 남은 재고보다 많으면 409로 거절하고 장바구니를
+        바꾸지 않는다.
+      tags: [cart]
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCartItem'
+      responses:
+        '200':
+          description: 담은 뒤의 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                id: 0b7e4c8e-5d1f-4a52-9a37-2f1c6d3e8a90
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 1
+                totalQuantity: 1
+                totalPrice: 19000
+        '400':
+          description: 요청 본문이 잘못되었다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '404':
+          description: 그런 장바구니나 상품이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '409':
+          description: 남은 재고보다 많이 담으려 했다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+              example:
+                message: 재고가 부족합니다. 남은 수량은 2개입니다.
+  /carts/{cartId}/items/{productId}:
+    patch:
+      operationId: updateCartItem
+      summary: 장바구니 수량 바꾸기
+      description: 장바구니에 담긴 상품의 수량을 보낸 값으로 바꾼다. 남은 재고보다 많으면 409로 거절하고 장바구니를 바꾸지 않는다.
+      tags: [cart]
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+        - $ref: '#/components/parameters/CartProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItemUpdate'
+      responses:
+        '200':
+          description: 바꾼 뒤의 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                id: 0b7e4c8e-5d1f-4a52-9a37-2f1c6d3e8a90
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 3
+                totalQuantity: 3
+                totalPrice: 57000
+        '400':
+          description: 요청 본문이 잘못되었다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '404':
+          description: 그런 장바구니가 없거나 장바구니에 그 상품이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '409':
+          description: 남은 재고보다 많이 담으려 했다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+              example:
+                message: 재고가 부족합니다. 남은 수량은 2개입니다.
+    delete:
+      operationId: removeCartItem
+      summary: 장바구니에서 빼기
+      tags: [cart]
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+        - $ref: '#/components/parameters/CartProductId'
+      responses:
+        '200':
+          description: 뺀 뒤의 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              example:
+                id: 0b7e4c8e-5d1f-4a52-9a37-2f1c6d3e8a90
+                items: []
+                totalQuantity: 0
+                totalPrice: 0
+        '404':
+          description: 그런 장바구니가 없거나 장바구니에 그 상품이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+  /orders:
+    post:
+      operationId: placeOrder
+      summary: 주문하기
+      description: >-
+        장바구니에 담긴 상품을 그때의 가격으로 주문해 결제 대기(pending) 주문을 만든다. 장바구니는 결제가 끝날 때까지 그대로다.
+        장바구니가 비었거나 재고가 부족하면 409로 거절한다.
+      tags: [orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewOrder'
+      responses:
+        '201':
+          description: 만든 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: ORD-7F3A92C1D4E5
+                status: pending
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 2
+                totalQuantity: 2
+                totalPrice: 38000
+                recipient: 홍길동
+                phone: 010-1234-5678
+                postalCode: '04524'
+                address: 서울특별시 중구 세종대로 110
+                paymentMethod: card
+        '400':
+          description: 요청 본문이 잘못되었다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '404':
+          description: 그런 장바구니가 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '409':
+          description: 장바구니가 비었거나 재고가 부족하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      summary: 주문 상세
+      tags: [orders]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: ORD-7F3A92C1D4E5
+                status: paid
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 2
+                totalQuantity: 2
+                totalPrice: 38000
+                recipient: 홍길동
+                phone: 010-1234-5678
+                postalCode: '04524'
+                address: 서울특별시 중구 세종대로 110
+                paymentMethod: card
+        '404':
+          description: 그런 주문이 없다.
+  /orders/{orderId}/payment:
+    post:
+      operationId: confirmOrderPayment
+      summary: 결제 확인
+      description: >-
+        결제창이 승인한 결제를 확인해 주문을 결제 완료(paid)로 바꾸고, 주문한 장바구니를 지운다. 결제 금액(amount)이 주문 금액과
+        다르면 400으로, 이미 결제한 주문이면 409로 거절한다. PG를 연동하지 않은 가짜 결제라 paymentKey는 확인하지 않는다.
+      tags: [orders]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPayment'
+      responses:
+        '200':
+          description: 결제를 마친 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: ORD-7F3A92C1D4E5
+                status: paid
+                items:
+                  - productId: 1
+                    name: 오가닉 코튼 티셔츠
+                    price: 19000
+                    quantity: 2
+                totalQuantity: 2
+                totalPrice: 38000
+                recipient: 홍길동
+                phone: 010-1234-5678
+                postalCode: '04524'
+                address: 서울특별시 중구 세종대로 110
+                paymentMethod: card
+        '400':
+          description: 요청 본문이 잘못되었거나 결제 금액이 주문 금액과 다르다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '404':
+          description: 그런 주문이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+        '409':
+          description: 이미 결제한 주문이다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopError'
+components:
+  parameters:
+    CartId:
+      name: cartId
+      in: path
+      required: true
+      description: 장바구니의 id(createCart가 돌려준 값)
+      schema:
+        type: string
+    CartProductId:
+      name: productId
+      in: path
+      required: true
+      description: 장바구니에 담긴 상품의 id
+      schema:
+        type: integer
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      description: 주문 번호
+      schema:
+        type: string
+  schemas:
+    CatalogProduct:
+      type: object
+      required: [id, name, summary, description, price, stock]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        summary:
+          type: string
+          description: 목록에 보이는 한 줄 소개
+        description:
+          type: string
+          description: 상세에 보이는 설명
+        price:
+          type: integer
+          minimum: 0
+          description: 원 단위 가격
+        stock:
+          type: integer
+          minimum: 0
+          description: 남은 재고. 0이면 품절이다.
+    Cart:
+      type: object
+      required: [id, items, totalQuantity, totalPrice]
+      properties:
+        id:
+          type: string
+          description: 장바구니의 id. 손님의 장바구니도 이 id만으로 찾으므로 백엔드는 추측할 수 없는 값(UUID 등)을 쓴다.
+        items:
+          type: array
+          description: 담긴 상품. 처음 담은 순서대로다.
+          items:
+            $ref: '#/components/schemas/CartItem'
+        totalQuantity:
+          type: integer
+          minimum: 0
+          description: 담긴 상품 수량의 합
+        totalPrice:
+          type: integer
+          minimum: 0
+          description: 담긴 상품 금액(가격 × 수량)의 합. 원 단위다.
+    CartItem:
+      type: object
+      required: [productId, name, price, quantity]
+      properties:
+        productId:
+          type: integer
+        name:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+          description: 지금 가격. 원 단위다.
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+    NewCartItem:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+          title: 수량
+    CartItemUpdate:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+          title: 수량
+    ShopError:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: 사람이 읽을 수 있는 실패 이유
+    PaymentMethod:
+      type: string
+      enum: [card, transfer, mobile]
+      description: 신용·체크카드(card), 계좌이체(transfer), 휴대폰 결제(mobile)
+    OrderStatus:
+      type: string
+      enum: [pending, paid]
+      description: 결제 대기(pending), 결제 완료(paid)
+    NewOrder:
+      type: object
+      required: [cartId, recipient, phone, postalCode, address, paymentMethod, agreedToPurchase]
+      properties:
+        cartId:
+          type: string
+          description: 주문할 장바구니의 id
+        # 1단계: 배송 정보
+        recipient:
+          type: string
+          title: 받는 사람
+          minLength: 1
+          maxLength: 20
+        phone:
+          type: string
+          title: 연락처
+          description: 010-0000-0000 형식으로 적습니다.
+          pattern: '^01\d-\d{3,4}-\d{4}$'
+          example: 010-1234-5678
+        postalCode:
+          type: string
+          title: 우편번호
+          description: 다섯 자리 숫자로 적습니다.
+          pattern: '^\d{5}$'
+          example: '04524'
+        address:
+          type: string
+          title: 주소
+          minLength: 1
+          maxLength: 100
+        addressDetail:
+          type: string
+          title: 상세 주소
+          maxLength: 100
+        deliveryMemo:
+          type: string
+          title: 배송 메모
+          maxLength: 50
+        # 2단계: 결제 수단
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+          title: 결제 수단
+        # 3단계: 주문 확인
+        agreedToPurchase:
+          type: boolean
+          title: 주문 내용을 확인했고 결제에 동의합니다
+          const: true
+    Order:
+      type: object
+      required: [id, status, items, totalQuantity, totalPrice, recipient, phone, postalCode, address, paymentMethod]
+      properties:
+        id:
+          type: string
+          description: 주문 번호. 손님의 주문도 이 번호로 찾으므로 백엔드는 추측하기 어려운 값을 쓰고, 실제로는 주문한 사람인지도 확인한다.
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        totalQuantity:
+          type: integer
+          minimum: 1
+        totalPrice:
+          type: integer
+          minimum: 0
+          description: 결제할 금액. 원 단위다.
+        recipient:
+          type: string
+        phone:
+          type: string
+        postalCode:
+          type: string
+        address:
+          type: string
+        addressDetail:
+          type: string
+        deliveryMemo:
+          type: string
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+    OrderItem:
+      type: object
+      required: [productId, name, price, quantity]
+      properties:
+        productId:
+          type: integer
+        name:
+          type: string
+          description: 주문한 때의 상품 이름
+        price:
+          type: integer
+          minimum: 0
+          description: 주문한 때의 가격. 원 단위다.
+        quantity:
+          type: integer
+          minimum: 1
+    OrderPayment:
+      type: object
+      required: [paymentKey, amount]
+      properties:
+        paymentKey:
+          type: string
+          description: 결제창이 돌려준 결제 키. 실제 PG는 이 키로 결제를 승인한다.
+        amount:
+          type: integer
+          minimum: 0
+          description: 결제창에서 승인한 금액. 백엔드가 주문 금액과 같은지 확인한다.
