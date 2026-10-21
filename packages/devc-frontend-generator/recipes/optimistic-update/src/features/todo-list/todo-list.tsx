@@ -20,7 +20,7 @@ function failureReason(error: Error): string {
 }
 
 /** 할 일이 몇 개이고 그 가운데 몇 개를 끝냈는지 알린다. */
-function summary(todos: readonly Todo[]): string {
+function doneSummary(todos: readonly Todo[]): string {
   if (todos.length === 0) return '할 일이 없습니다.'
   const done = todos.filter((todo) => todo.done).length
   return `할 일 ${String(todos.length)}개 중 ${String(done)}개를 끝냈습니다.`
@@ -35,7 +35,7 @@ export function TodoList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p role="status">{data === undefined ? (isError ? '' : '할 일을 불러오는 중입니다.') : summary(data)}</p>
+      <p role="status">{data === undefined ? (isError ? '' : '할 일을 불러오는 중입니다.') : doneSummary(data)}</p>
       {data === undefined && isError && <p role="alert">할 일을 불러오지 못했습니다.</p>}
       {data !== undefined && (
         <ul aria-label="할 일 목록" className="flex flex-col gap-2">

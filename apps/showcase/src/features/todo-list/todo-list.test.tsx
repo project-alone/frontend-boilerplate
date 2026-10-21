@@ -27,6 +27,10 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+// 목 백엔드(src/shared/mocks/todos.ts)가 거절하는 할 일과 그 이유(명세의 example)
+const REJECTED_TODO = '보안 점검 결과 승인하기(보안 담당자만 바꿀 수 있음)'
+const REJECTED_REASON = '보안 점검 결과는 보안 담당자만 승인할 수 있습니다.'
+
 /** 앱 레이아웃(src/app/app-shell.tsx)처럼 쿼리 클라이언트와 알림으로 감싸 할 일 목록을 그린다. */
 function renderTodoList() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -59,7 +63,7 @@ test('불러오는 중임을 알린 뒤, 할 일을 만든 순서로 보여 주�
     '디자인 시안 검토하기',
     '회의록 공유하기',
     '배포 일정 정하기',
-    '보안 점검 결과 승인하기(보안 담당자만 바꿀 수 있음)',
+    REJECTED_TODO,
   ])
   expect(screen.getByRole('checkbox', { name: '디자인 시안 검토하기' })).toBeChecked()
   expect(screen.getByRole('checkbox', { name: '회의록 공유하기' })).not.toBeChecked()
@@ -131,12 +135,12 @@ test('서버가 거절하면 목록을 다시 가져오기 전에 미리 바꾼 
     }),
     http.patch('*/todos/:todoId', async () => {
       await response.promise
-      return HttpResponse.json({ message: '보안 점검 결과는 보안 담당자만 승인할 수 있습니다.' }, { status: 403 })
+      return HttpResponse.json({ message: REJECTED_REASON }, { status: 403 })
     }),
   )
   const user = userEvent.setup()
   const { queryClient } = renderTodoList()
-  const checkbox = await screen.findByRole('checkbox', { name: '보안 점검 결과 승인하기(보안 담당자만 바꿀 수 있음)' })
+  const checkbox = await screen.findByRole('checkbox', { name: REJECTED_TODO })
 
   await user.click(checkbox)
 
@@ -159,11 +163,7 @@ test('서버가 거절하면 목록을 다시 가져오기 전에 미리 바꾼 
 
   const toasts = screen.getByRole('region', { name: '알림' })
   expect(await within(toasts).findByText('할 일을 바꾸지 못해 되돌렸습니다')).toBeInTheDocument()
-  expect(
-    within(toasts).getByText(
-      '보안 점검 결과 승인하기(보안 담당자만 바꿀 수 있음): 보안 점검 결과는 보안 담당자만 승인할 수 있습니다.',
-    ),
-  ).toBeInTheDocument()
+  expect(within(toasts).getByText(`${REJECTED_TODO}: ${REJECTED_REASON}`)).toBeInTheDocument()
 })
 
 test('서버가 이유를 알리지 않고 실패하면(네트워크 오류 등) 되돌린 뒤 다시 시도하라고 알린다', async () => {
