@@ -565,10 +565,13 @@ export function generateStaticParams(): ${paramsType(route)}[] {
       `${query.operationId}의 데이터는 렌더링할 때 서버에서 가져와(prefetch) ${query.view.name}에 hydration으로 넘긴다. 가져온 지`,
       'staleTime(src/shared/query-client/get-query-client.ts)이 지난 데이터는 브라우저가 화면을 연 뒤 다시 가져온다.',
       ...(fetchesAtBuild(page)
-        ? ['빌드할 때 서버 컴포넌트가 백엔드를 부르므로 npm run build를 실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣는다.']
+        ? [
+            '빌드할 때 서버 컴포넌트가 백엔드를 부르므로 배포용 빌드에는 API_BASE_URL(백엔드 주소)을 넣는다. API_MOCKING=enabled로',
+            '빌드하면(GitLab CI의 build 잡) MSW의 목 응답으로 렌더링하므로 그 결과는 배포하지 않는다(README의 "실행과 배포").',
+          ]
         : [
-            'generateStaticParams가 돌려준 경로는 빌드할 때 렌더링하며 백엔드를 부르므로, 그런 경로가 있으면 npm run build를',
-            '실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣는다.',
+            'generateStaticParams가 돌려준 경로는 빌드할 때 렌더링하며 백엔드를 부르므로, 그런 경로가 있으면 배포용 빌드에',
+            'API_BASE_URL(백엔드 주소)을 넣는다. API_MOCKING=enabled로 만든 목 빌드는 배포하지 않는다(README의 "실행과 배포").',
           ]),
     )
   }

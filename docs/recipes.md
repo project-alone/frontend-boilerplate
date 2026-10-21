@@ -182,6 +182,8 @@ export const someInstrumentation = {
 
 Node.js 전용 코드는 `process.env.NEXT_RUNTIME === 'nodejs'`를 확인한 뒤 동적 import로 불러온다(Base의 `src/shared/api/api-instrumentation.ts` 참고). `static-export` Starter에서는 개발 서버에서만 실행된다. 예: Sentry의 서버 초기화와 `captureRequestError`.
 
+Next.js는 `next build`에서 instrumentation을 실행하지 않는다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 코드에도 필요한 준비는 그 코드가 처음 쓰일 때 한다. 예를 들어 Base의 서버 조각이 켜는 MSW는 빌드할 때 켜지지 않으므로, 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`)에서는 서버의 `apiFetch`가 요청을 보내기 전에 켠다(`src/shared/api/api-mocking.ts`). 두 곳이 켜는 MSW는 같은 핸들러 목록(`src/shared/mocks/handlers.ts`)을 쓰므로, Recipe가 그 목록에 더한 핸들러는 빌드할 때도 응답한다.
+
 #### instrumentation-client(`instrumentationClient`)
 
 브라우저에서 앱 코드와 hydration보다 먼저 실행할 조각이다. `{ register?(): void; onRouterTransitionStart?(url, navigationType): void }` 객체를 내보낸다. `register`는 `order` 순으로 한 번, `onRouterTransitionStart`는 App Router가 페이지를 옮기기 시작할 때마다 실행된다(예: Sentry 초기화, 분석의 페이지뷰). 모듈 최상위에서는 일을 하지 않고 `register` 안에서 한다(import 순서는 `order`와 다르다). 개발·목 빌드에서만 쓸 코드는 `if (process.env.NEXT_PUBLIC_<값> === 'enabled') { ... }`로 감싸야 배포용 빌드에서 빠진다. 앞에서 `return`하면 빌드가 덜어 내지 못한다(`static-export`의 `browser-instrumentation.ts` 참고).

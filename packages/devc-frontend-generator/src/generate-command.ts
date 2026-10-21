@@ -105,7 +105,7 @@ export function registerGenerateCommand(program: Command): void {
           ...(page.view?.reused === true ? [`Feature에 있던 ${page.view.name}(${page.view.path})를 씁니다.`] : []),
           ...(page.fetchesAtBuild
             ? [
-                '빌드할 때 서버 컴포넌트가 백엔드에서 데이터를 가져오므로, npm run build를 실행하는 환경에 API_BASE_URL(백엔드 주소)을 넣으세요.',
+                '빌드할 때 서버 컴포넌트가 백엔드에서 데이터를 가져오므로, 배포용 빌드에는 API_BASE_URL(백엔드 주소)을 넣으세요. GitLab CI의 build 잡처럼 API_MOCKING=enabled로 빌드하면 MSW가 응답하며, 그 결과는 배포하지 않습니다.',
               ]
             : []),
         ]

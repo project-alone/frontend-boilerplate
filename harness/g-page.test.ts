@@ -1,9 +1,7 @@
-import { copyFileSync, rmSync } from 'node:fs'
-import { createServer } from 'node:http'
-import type { AddressInfo } from 'node:net'
+import { copyFileSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, test } from 'vitest'
-import { freePort, type RunResult, start } from './run.ts'
+import { freePort, type RunResult } from './run.ts'
 import { addOperations } from './schematic.ts'
 import {
   dcgen,
@@ -122,37 +120,38 @@ function expectScreensToPassStarterChecks(starter: Starter, viewTests: readonly 
   for (const file of viewTests) expectFileToPass(unit, file, 1)
 }
 
+// 목 빌드(API_MOCKING=enabled)와 배포용 빌드(Starter의 .env.production대로 MSW를 끈 빌드)의 환경 변수. 하네스를 띄운 셸에
+// API_BASE_URL이나 API_MOCKING이 있어도 결과가 같도록 덮는다. API_BASE_URL의 빈 값은 없는 것으로 보고, undefined는 넘기지 않는다.
+const MOCK_BUILD_ENV = { API_MOCKING: 'enabled', API_BASE_URL: '' }
+const DEPLOY_BUILD_ENV = { API_MOCKING: undefined, API_BASE_URL: '' }
+
+// 목 빌드가 빌드 출력에 남기는 경고(src/shared/api/api-mocking.ts)와, 배포용 빌드에 백엔드 주소가 없을 때의 오류(base-url.ts)
+const MOCK_BUILD_WARNING = 'API_MOCKING=enabled로 빌드합니다'
+const MISSING_BUILD_API_BASE_URL = 'API_BASE_URL 환경 변수가 없습니다. 빌드할 때 데이터를 가져오는 페이지'
+
 /**
- * 빌드할 때 SSG·ISR 페이지의 서버 컴포넌트가 부를 백엔드를 띄운다. Next.js는 빌드할 때 instrumentation을 실행하지 않아 MSW가
- * 켜지지 않으므로, 실제 프로젝트처럼 API_BASE_URL로 백엔드 주소를 넘긴다. 샘플 명세의 상품 목록(GET /products)만 돌려주고,
- * 받은 요청의 경로를 requests에 모은다.
+ * 배포용 빌드는 빌드할 때 데이터를 가져오는 페이지(page)를 렌더링하다가, 백엔드 주소가 없다고 알리며 실패한다.
+ * 목 빌드로 가는 길(API_MOCKING=enabled)도 함께 알린다.
  */
-async function startBuildBackend(): Promise<{ url: string; requests: string[]; close: () => Promise<void> }> {
-  const requests: string[] = []
-  const server = createServer((request, response) => {
-    const { pathname } = new URL(request.url ?? '/', 'http://localhost')
-    requests.push(`${request.method ?? ''} ${pathname}`)
-    if (request.method !== 'GET' || pathname !== '/products') {
-      response.writeHead(404).end()
-      return
-    }
-    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(SAMPLE_PRODUCTS))
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const { port } = server.address() as AddressInfo
-  return {
-    url: `http://127.0.0.1:${String(port)}`,
-    requests,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
-  }
+function expectDeployBuildToRequireApiBaseUrl(starter: Starter, page: string): void {
+  const build = starter.npm(['run', 'build'], DEPLOY_BUILD_ENV)
+
+  expect(build.status, build.failureMessage).not.toBe(0)
+  expect(build.output).toContain(`Error occurred prerendering page "${page}"`)
+  expect(build.output).toContain(MISSING_BUILD_API_BASE_URL)
+  expect(build.output).toContain('API_MOCKING=enabled')
 }
 
-/** 빌드 백엔드(같은 프로세스)가 응답할 수 있도록, 이벤트 루프를 막지 않고 Starter의 npm 명령을 실행해 끝나기를 기다린다. */
-async function npmInBackground(starter: Starter, args: readonly string[], env: NodeJS.ProcessEnv): Promise<RunResult> {
-  const child = start('npm', args, starter.dir, env)
-  const status = await child.exited
-  return { status, output: `npm ${args.join(' ')}\n${child.output()}` }
+/** directory 아래 JavaScript 파일 가운데 text를 담은 파일. 빌드 결과의 브라우저 번들을 볼 때 쓴다. */
+function scriptsContaining(directory: string, text: string): string[] {
+  return readdirSync(directory, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .filter((script) => readFileSync(script, 'utf8').includes(text))
 }
+
+// MSW(msw/node, msw/browser)와 Starter가 MSW를 켜는 코드가 함께 쓰는 옵션 이름. 속성 이름이라 압축해도 번들에 남는다.
+const MSW_MARKER = 'onUnhandledFrame'
 
 /** next build가 보여 주는 라우트 표에서 route의 줄. 라우트를 미리 렌더링했는지(○, ●) 요청마다 렌더링하는지(ƒ) 보여 준다. */
 function routeLine(buildOutput: string, route: string): string {
@@ -324,6 +323,7 @@ describe('server Starter', () => {
 
   // 하네스 매트릭스: 샘플 명세로 query → mutation → form → page를 차례로 실행해 만든 화면이 Starter의 검사와 빌드를 통과하고,
   // 빌드한 앱에서 목록을 보여 주고 폼을 제출하면 목록이 바뀌는지 E2E(harness/fixtures/g-page/server.spec.ts)로 본다.
+  // 빌드는 GitLab CI의 build 잡처럼 목 빌드로 하고, 빌드용 백엔드는 띄우지 않는다. 목을 끈 배포용 빌드는 백엔드 주소를 요구한다.
   test('query → mutation → form → page로 만든 화면이 Starter의 검사, 빌드, E2E(목록 표시, 폼 제출 뒤 목록 갱신)를 통과한다', {
     timeout: 20 * 60_000,
   }, async () => {
@@ -345,23 +345,25 @@ describe('server Starter', () => {
       'src/features/product-detail/get-product-view.test.tsx',
     ])
 
-    const backend = await startBuildBackend()
-    let build: RunResult
-    try {
-      build = await npmInBackground(starter, ['run', 'build'], { API_BASE_URL: backend.url })
-    } finally {
-      await backend.close()
-    }
-    expect(build.status, build.output).toBe(0)
-    // SSG·ISR 페이지는 빌드할 때 상품 목록을 가져왔다. 동적 세그먼트의 ISR 페이지는 빌드할 때 렌더링하지 않는다.
-    expect(backend.requests).toContain('GET /products')
-    expect(backend.requests.filter((request) => request !== 'GET /products')).toEqual([])
+    // 배포용 빌드는 빌드할 때 상품 목록을 가져오는 SSG·ISR 페이지에서 백엔드 주소가 없다고 알리며 실패한다.
+    expectDeployBuildToRequireApiBaseUrl(starter, '/modes/isr')
+
+    // 목 빌드는 빌드할 때의 요청에 MSW가 응답해 실제 백엔드 없이 빌드된다(GitLab CI의 build 잡과 같다).
+    const build = starter.expectNpmSuccess(['run', 'build'], MOCK_BUILD_ENV)
+    expect(build.output).toContain(MOCK_BUILD_WARNING)
     for (const route of ['/products/new', '/catalog', '/modes/ssr', '/modes/streaming', '/products/[productId]']) {
       expect(routeLine(build.output, route), build.output).toContain('ƒ')
     }
     for (const route of ['/modes/ssg', '/modes/csr']) expect(routeLine(build.output, route), build.output).toContain('○')
     expect(routeLine(build.output, '/modes/isr'), build.output).toMatch(/○.*1m/)
     expect(routeLine(build.output, '/products/[productId]/cached'), build.output).toContain('●')
+    // SSG·ISR 페이지는 빌드할 때 MSW가 돌려준 상품 목록을 HTML에 담았다. 동적 세그먼트의 ISR 페이지는 빌드할 때 렌더링하지 않는다.
+    for (const route of ['modes/ssg', 'modes/isr']) {
+      const html = readFileSync(join(starter.dir, '.next/server/app', `${route}.html`), 'utf8')
+      for (const { name } of SAMPLE_PRODUCTS) expect(html, route).toContain(name)
+    }
+    // 서버의 apiFetch가 빌드할 때 MSW를 켜는 코드와 MSW는 브라우저 번들에 들어가지 않는다.
+    expect(scriptsContaining(join(starter.dir, '.next/static'), MSW_MARKER)).toEqual([])
 
     // 위 빌드 결과를 next start로 띄워 검사한다(playwright.config.ts). 서버는 MSW로 요청을 받는다.
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
@@ -415,7 +417,8 @@ describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
   })
 
   // 하네스 매트릭스: server Starter와 같은 차례로 만든 화면을, E2E(harness/fixtures/g-page/static-export.spec.ts)가 브라우저의
-  // MSW를 켜고 다시 빌드한 정적 파일에서 검사한다(playwright.config.ts). SSG 페이지는 그 빌드에서 백엔드를 부른다.
+  // MSW를 켜고 다시 빌드한 정적 파일에서 검사한다(playwright.config.ts). SSG 페이지가 그 빌드에서 보내는 요청에는 MSW가 응답한다.
+  // 그 전에 배포용 빌드와 목 빌드(GitLab CI의 build 잡)가 빌드할 때의 요청을 어떻게 다루는지 본다.
   test('query → mutation → form → page로 만든 화면이 Starter의 검사와 E2E(목록 표시, 폼 제출 뒤 목록 갱신)를 통과한다', {
     timeout: 20 * 60_000,
   }, async () => {
@@ -432,17 +435,18 @@ describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
 
     expectScreensToPassStarterChecks(starter, ['src/features/catalog/list-products-view.test.tsx'])
 
-    const backend = await startBuildBackend()
-    let e2e: RunResult
-    try {
-      e2e = await npmInBackground(starter, ['run', 'test:e2e'], {
-        E2E_PORT: String(await freePort()),
-        API_BASE_URL: backend.url,
-      })
-    } finally {
-      await backend.close()
-    }
-    expect(e2e.status, e2e.output).toBe(0)
-    expect(backend.requests).toContain('GET /products')
+    // 배포용 빌드는 빌드할 때 상품 목록을 가져오는 SSG 페이지에서 백엔드 주소가 없다고 알리며 실패한다.
+    expectDeployBuildToRequireApiBaseUrl(starter, '/modes/ssg')
+
+    // 목 빌드(GitLab CI의 build 잡)는 실제 백엔드 없이 빌드되고, SSG 페이지는 MSW가 돌려준 상품 목록을 HTML에 담는다.
+    // 브라우저의 MSW는 켜지 않았으므로(.env.production의 NEXT_PUBLIC_API_MOCKING=disabled) out/에 들어가지 않는다.
+    const build = starter.expectNpmSuccess(['run', 'build'], MOCK_BUILD_ENV)
+    expect(build.output).toContain(MOCK_BUILD_WARNING)
+    const html = readFileSync(join(starter.dir, 'out/modes/ssg.html'), 'utf8')
+    for (const { name } of SAMPLE_PRODUCTS) expect(html).toContain(name)
+    expect(scriptsContaining(join(starter.dir, 'out/_next'), MSW_MARKER)).toEqual([])
+
+    // E2E는 빌드할 때와 브라우저의 MSW를 모두 켜고 다시 빌드한 out/으로 돈다(playwright.config.ts). 빌드용 백엔드는 띄우지 않는다.
+    starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()), API_BASE_URL: '' })
   })
 })

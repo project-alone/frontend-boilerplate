@@ -8,4 +8,4 @@
 +  // Rendering Mode static-export: `npm run build`가 모든 페이지를 빌드할 때 렌더링해 out/에 정적 파일로만 내보낸다.
 +  // 요청을 받는 Next.js 서버가 없으므로 요청 시점에 서버가 필요한 기능은 쓸 수 없다(README.md의 "실행과 배포").
 +  output: 'export',
- }
+   // 서버의 MSW(msw/node)는 번들에 넣지 않고 node_modules에서 불러온다. 라우트의 번들에 넣으면 MSW가 파일에서 읽는
