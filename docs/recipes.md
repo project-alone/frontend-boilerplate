@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`과 명세 조각으로 목록 operation을 더하는 `recipes/table/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -320,3 +320,19 @@ TanStack Table로 정렬·필터·페이지를 백엔드가 처리하는 목록 
 | 자기 테스트    | `src/features/member-table/member-table.test.tsx`, `e2e/table.spec.ts`                                          |
 | 필요한 Recipe  | 없음                                                                                                            |
 | Rendering Mode | `server`, `static-export`                                                                                       |
+
+## 예: chart
+
+Recharts로 대시보드용 시계열 차트(일별 방문 수)와 비교 차트(판매 채널별 이번 달·지난달 매출)를 `/charts`에 보여 주는 Recipe다. table처럼 명세 조각으로 통계 operation `listDailyVisits`, `listChannelSales`(tag `stats`)를 더하고, Query Domain(`src/queries/stats/`)은 `npm run g -- query`가 두 operation으로 만든 코드를 그대로 담는다. 차트는 브라우저에서 그리므로 데이터도 브라우저가 가져온다(`useQuery`). 그래서 두 Rendering Mode에서 같은 코드로 동작한다.
+
+차트의 색은 Base 토큰을 더하거나 고치지 않고, `src/shared/chart/chart-theme.ts`가 이미 있는 디자인 토큰(`var(--color-*)`)으로만 정한다. 그래서 `dark-mode`에 기대지 않으면서도 `dark-mode`와 함께 넣으면 고치지 않아도 어두운 테마의 토큰을 따른다. 새 차트도 감쌀 `ChartFigure`는 차트 그림을 보조 기술에서 숨기고(`aria-hidden`) 같은 값을 데이터 표(`sr-only`)로 둔다. axe는 SVG의 선을 보지 않으므로 스토리와 E2E가 선·막대·축 글자의 명도 대비를 직접 잰다.
+
+| 선언하는 것    | `recipes/chart/`                                                                                                                                                                       |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/charts/page.tsx`, `src/features/stats-charts/`, `src/queries/stats/`, `src/shared/chart/`                                                                                     |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /stats/daily-visits`(`listDailyVisits`), `GET /stats/channel-sales`(`listChannelSales`), 스키마 `DailyVisits`, `ChannelSales`                          |
+| 설정 패치      | 없음                                                                                                                                                                                   |
+| npm 의존성     | `recharts`, 그 peer dependency인 `react-is`                                                                                                                                            |
+| 자기 테스트    | `src/features/stats-charts/stats-charts.test.tsx`, `src/shared/chart/chart-contrast.test.ts`, `daily-visits-chart.stories.tsx`, `channel-sales-chart.stories.tsx`, `e2e/chart.spec.ts` |
+| 필요한 Recipe  | 없음                                                                                                                                                                                   |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                              |
