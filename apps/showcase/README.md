@@ -337,9 +337,9 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 페이지뷰 조각은 `src/instrumentation-client.ts`에 들어가 있습니다(위 "앱 조립 파일").
 
 - 이벤트: 브라우저 코드(예: 버튼의 `onClick`)에서 `trackEvent('signup_completed', { plan: 'pro' })`처럼 부릅니다. 이름은 snake_case로 짓고, 속성에는 문자열·숫자·불리언만 담습니다. 이메일, 이름 같은 개인정보는 담지 않습니다. 페이지뷰는 저절로 남으므로 부르지 않습니다.
-- 페이지뷰의 주소는 경로와 쿼리 문자열입니다(예: `/products?page=2`). 쿼리 문자열에 개인정보가 담기는 화면이 있으면 공급자에서 빼고 보냅니다.
+- 페이지뷰의 주소는 경로와 쿼리 문자열입니다(예: `/products?page=2`). 쿼리 문자열에 개인정보가 담기는 화면이 있으면 공급자에서 빼고 보냅니다. App Router로 옮겨 갈 때는 옮겨 가기 시작할 때 요청한 주소로 남기므로, 도중에 redirect되면(예: proxy가 로그인 페이지로 보냄) 처음 요청한 주소가 남고 도중에 취소된 이동도 남습니다.
 - 기본 구현: 개발 서버(`npm run dev`)에서는 브라우저 콘솔에 `[analytics] page_view /products` 같은 줄만 남기고, 배포용 빌드와 테스트에서는 아무것도 하지 않습니다. 그래서 공급자를 붙이기 전에는 어디에도 보내지 않습니다.
-- 분석 서비스 붙이기: `analytics-provider.ts`의 `analyticsProvider`를 그 서비스로 보내는 공급자로 바꿉니다. 측정 ID 같은 값은 `NEXT_PUBLIC_` 환경 변수로 받아 `.env.example`과 `process-env.d.ts`에 적고, 개발과 테스트에서 보내지 않도록 배포용 빌드(`NODE_ENV`가 `production`)에 그 값이 있을 때만 붙입니다. E2E와 GitLab CI의 목 빌드는 그 값 없이 빌드하므로 보내지 않습니다. 이 모듈은 클라이언트 컴포넌트를 서버에서 렌더링할 때도 불러오므로, SDK를 불러오거나 초기화하는 코드는 브라우저(`typeof window !== 'undefined'`)에서만 실행합니다. GA4라면 다음과 같습니다. `gtag.js`는 `src/app/layout.tsx`에서 `next/script`로 불러오고, 페이지뷰를 두 번 남기지 않도록 `gtag('config', <측정 ID>, { send_page_view: false })`로 GA4의 자동 페이지뷰를 끕니다. Amplitude라면 `@amplitude/analytics-browser`의 `init`을 브라우저에서 한 번 부르고 `track(name, properties)`로 보냅니다.
+- 분석 서비스 붙이기: `analytics-provider.ts`의 `analyticsProvider`를 그 서비스로 보내는 공급자로 바꿉니다. 측정 ID 같은 값은 `NEXT_PUBLIC_` 환경 변수로 받아 `.env.example`과 `process-env.d.ts`에 적고, 개발과 테스트에서 보내지 않도록 배포용 빌드(`NODE_ENV`가 `production`)에 그 값이 있을 때만 붙입니다. E2E와 GitLab CI의 목 빌드도 `production`이므로 그 값은 배포용 빌드를 만드는 곳에만 넣습니다(GitLab CI/CD 변수라면 배포 잡의 environment로 범위를 정하고, `.env.production.local`에 두지 않습니다). 이 모듈은 instrumentation-client가 앱 코드보다 먼저 불러오고 클라이언트 컴포넌트를 서버에서 렌더링할 때도 불러오므로, 모듈 최상위에서는 SDK를 불러오거나 초기화하지 않고 처음 보낼 때 브라우저(`typeof window !== 'undefined'`)에서 한 번 합니다. GA4라면 다음과 같습니다. `gtag.js`는 `src/app/layout.tsx`에서 `next/script`로 불러오고, 페이지뷰를 두 번 남기지 않도록 `gtag('config', <측정 ID>, { send_page_view: false })`로 GA4의 자동 페이지뷰를 끕니다. Amplitude라면 `@amplitude/analytics-browser`의 `init`을 처음 보낼 때 한 번 부르고 `track(name, properties)`로 보냅니다.
 
   ```ts
   const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
@@ -415,24 +415,24 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 
 ## 오류 보고(Sentry)
 
-`sentry` Recipe로 넣었습니다. [Sentry](https://sentry.io)의 Next.js SDK(`@sentry/nextjs`)로 브라우저와 서버에서 난 오류를 Sentry에 보냅니다. **DSN이 없거나 개발 서버·테스트에서는 SDK를 초기화하지 않으므로 아무것도 보내지 않습니다.**
+`sentry` Recipe로 넣었습니다. [Sentry](https://sentry.io)의 Next.js SDK(`@sentry/nextjs`)로 브라우저와 서버에서 난 오류를 Sentry에 보냅니다. **DSN이 없거나 개발 서버·테스트·목 빌드에서는 SDK를 초기화하지 않으므로 아무것도 보내지 않습니다.**
 
-| 위치                                                 | 내용                                                                                                                  |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `src/shared/sentry/sentry-instrumentation-client.ts` | 브라우저의 SDK 초기화(`NEXT_PUBLIC_SENTRY_DSN`). 처리하지 못한 오류와 Promise 거부를 보냅니다                         |
-| `src/shared/sentry/sentry-instrumentation.ts`        | 서버(nodejs, edge 런타임)의 SDK 초기화(`SENTRY_DSN`)와, 서버가 요청을 처리하다 난 오류를 보내는 `onRequestError`      |
-| `src/shared/sentry/sentry-options.ts`                | 초기화 조건(`NODE_ENV`가 `production`이고 DSN이 있을 때)과 두 SDK가 함께 쓰는 설정                                    |
-| `src/shared/sentry/sentry-next-config.ts`            | `next.config.ts`의 설정을 감싸는 `withSentryConfig`(소스맵 업로드 등 빌드 설정). 다른 래퍼보다 바깥에 씌워져 있습니다 |
+| 위치                                                 | 내용                                                                                                                                                      |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/sentry/sentry-instrumentation-client.ts` | 브라우저의 SDK 초기화(`NEXT_PUBLIC_SENTRY_DSN`). 처리하지 못한 오류와 Promise 거부를 보냅니다                                                             |
+| `src/shared/sentry/sentry-instrumentation.ts`        | 서버(nodejs, edge 런타임)의 SDK 초기화(`SENTRY_DSN`)와, 서버가 요청을 처리하다 난 오류를 보내는 `onRequestError`                                          |
+| `src/shared/sentry/sentry-options.ts`                | 초기화 조건(`NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 때)과 두 SDK가 함께 쓰는 설정                                                       |
+| `src/shared/sentry/sentry-next-config.ts`            | `next.config.ts`의 설정을 감싸는 `withSentryConfig`(소스맵 업로드 등 빌드 설정)와 목 빌드 표시(`SENTRY_MOCK_BUILD`). 다른 래퍼보다 바깥에 씌워져 있습니다 |
 
 세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일").
 
 - 켜기: 배포 환경에 DSN을 넣습니다(`.env.example`). 서버의 `SENTRY_DSN`은 서버를 띄울 때 읽고, 브라우저의 `NEXT_PUBLIC_SENTRY_DSN`은 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다. 보통 두 값은 같은 DSN입니다. `static-export`에는 서버가 없어 `NEXT_PUBLIC_SENTRY_DSN`만 씁니다. DSN은 브라우저에 드러나도 되는 값이지만 아래의 인증 토큰은 비밀 값입니다.
-- 개발과 테스트: SDK는 `NODE_ENV`가 `production`일 때만 초기화합니다. 개발 서버(`npm run dev`)와 단위 테스트는 DSN을 넣어도 보내지 않고, E2E와 GitLab CI는 DSN 없이 빌드하므로 보내지 않습니다. 실제로 보내지는지 확인하려면 DSN을 넣어 빌드한 뒤 `npm start`로 띄워 오류를 냅니다.
+- 개발과 테스트: SDK는 `NODE_ENV`가 `production`일 때만 초기화하므로 개발 서버(`npm run dev`)와 단위 테스트는 DSN을 넣어도 보내지 않습니다. 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`. E2E와 GitLab CI의 `build` 잡)도 배포하지 않는 빌드라 빌드하는 환경에 DSN이 있어도 초기화하지 않습니다. `sentry-next-config.ts`가 빌드할 때 목 빌드인지를 코드에 박아 두기 때문입니다(`SENTRY_MOCK_BUILD`). 실제로 보내지는지 확인하려면 목을 끈 배포용 빌드를 DSN과 함께 만들고 `npm start`로 띄워 오류를 냅니다.
 - 소스맵: 빌드하는 환경에 Sentry 인증 토큰(`SENTRY_AUTH_TOKEN`)과 `SENTRY_ORG`, `SENTRY_PROJECT`가 있을 때만 브라우저 소스맵을 만들어 Sentry에 올리고, 올린 뒤에는 빌드 결과에서 지웁니다. 토큰이 없으면 소스맵을 만들지도 올리지도 않으므로 개발과 CI의 빌드는 토큰 없이 통과하고 Sentry에 접속하지 않습니다. 토큰은 GitLab CI/CD 변수(masked)로 배포용 빌드를 만드는 잡에만 넣습니다. 빌드 도구가 Sentry에 사용 통계를 보내는 기능(`telemetry`)은 꺼 두었습니다.
 - 개인정보: `sendDefaultPii: false`(Sentry의 기본값)라 IP 주소, 쿠키, 요청 헤더 같은 정보는 이벤트에 담지 않습니다. 성능 추적(`tracesSampleRate`)과 Session Replay는 켜지 않았습니다. 켜려면 `sentry-options.ts`의 `SENTRY_OPTIONS`에 더합니다(Replay의 `Sentry.replayIntegration()`은 브라우저 쪽 `sentry-instrumentation-client.ts`에만). 페이지 이동은 `onRouterTransitionStart`가 이미 SDK에 알리므로 성능 추적을 켜면 함께 남습니다.
 - 광고 차단기: 브라우저가 Sentry에 바로 보내는 요청은 광고 차단기에 막힐 수 있습니다. `server` Starter라면 `sentry-next-config.ts`의 `withSentryConfig` 옵션에 `tunnelRoute`를 더해 Next.js 서버를 거쳐 보낼 수 있습니다(기본은 꺼 두었습니다). proxy(`src/proxy.ts`)가 있으면 그 경로가 proxy 처리기에 막히지 않도록 proxy의 matcher가 빼는 `/api` 아래 경로(예: `/api/monitoring`)를 씁니다. `static-export`에는 서버가 없어 쓸 수 없습니다.
 - 오류 경계: 오류 경계가 잡지 않은 오류는 SDK가 그대로 받습니다. 라우트에 `error.tsx`(예: `npm run g -- page`가 만든 오류 상태)나 `global-error.tsx`가 있으면, Next.js는 그 경계가 잡은 브라우저의 렌더링 오류를 콘솔에만 남깁니다. 서버 컴포넌트의 오류는 서버의 `onRequestError`가 보내지만, 브라우저에서 렌더링하다 난 오류도 보내려면 그 경계에서 `useEffect(() => { Sentry.captureException(error) }, [error])`를 부릅니다.
-- 테스트: `src/shared/sentry/sentry.test.ts`(개발·테스트 환경이거나 DSN이 없으면 브라우저와 서버의 SDK를 초기화하지 않음), `sentry-instrumentation.test.ts`(DSN이 있으면 서버가 요청을 처리하다 난 오류를 그 DSN으로 보냄. 요청은 MSW가 받아 밖으로 나가지 않음), `e2e/sentry.spec.ts`(DSN 없이 빌드한 앱은 브라우저에서 오류가 나도 앱 밖으로 요청을 보내지 않음).
+- 테스트: `src/shared/sentry/sentry.test.ts`(개발·테스트 환경, 목 빌드이거나 DSN이 없으면 브라우저와 서버의 조각이 SDK를 초기화하지 않음), `sentry-instrumentation.test.ts`(DSN이 있으면 서버가 요청을 처리하다 난 오류를 그 DSN으로 보냄. 요청은 MSW가 받아 밖으로 나가지 않음), `e2e/sentry.spec.ts`(DSN 없이 빌드한 앱은 브라우저에서 오류가 나도 앱 밖으로 요청을 보내지 않음).
 - 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을 지웁니다.
 
 ## 테이블

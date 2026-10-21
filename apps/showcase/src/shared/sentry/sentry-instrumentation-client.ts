@@ -2,7 +2,7 @@
 // 원본(packages/devc-frontend-generator/): recipes/sentry/src/shared/sentry/sentry-instrumentation-client.ts
 
 import * as Sentry from '@sentry/nextjs'
-import { SENTRY_OPTIONS, sentryDsn } from './sentry-options'
+import { enabledSentryDsn, SENTRY_OPTIONS } from './sentry-options'
 
 /**
  * 브라우저에서 앱 코드보다 먼저 한 번 실행된다(src/instrumentation-client.ts가 부른다). DSN(NEXT_PUBLIC_SENTRY_DSN)으로 빌드한
@@ -11,7 +11,7 @@ import { SENTRY_OPTIONS, sentryDsn } from './sentry-options'
  */
 export const sentryClientInstrumentation = {
   register() {
-    const dsn = sentryDsn(process.env.NEXT_PUBLIC_SENTRY_DSN)
+    const dsn = enabledSentryDsn(process.env.NEXT_PUBLIC_SENTRY_DSN)
     if (dsn !== undefined) Sentry.init({ ...SENTRY_OPTIONS, dsn })
   },
   // 페이지 이동을 성능 추적의 span으로 남긴다. 성능 추적을 켜지 않았거나 SDK를 초기화하지 않았으면 아무것도 하지 않는다.

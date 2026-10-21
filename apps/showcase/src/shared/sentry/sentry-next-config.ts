@@ -14,11 +14,19 @@ import type { NextConfig } from 'next'
  */
 export function withSentry(config: NextConfig): NextConfig {
   const uploadSourceMaps = (process.env.SENTRY_AUTH_TOKEN ?? '') !== ''
-  return withSentryConfig(config, {
-    // 빌드 도구가 Sentry에 사용 통계를 보내지 않는다.
-    telemetry: false,
-    sourcemaps: { disable: !uploadSourceMaps },
-    // 릴리스(배포 버전)도 소스맵을 올릴 때만 만든다. 조직과 프로젝트는 SENTRY_ORG, SENTRY_PROJECT에서 읽는다.
-    release: { create: uploadSourceMaps },
-  })
+  return withSentryConfig(
+    {
+      ...config,
+      // 목 빌드(API_MOCKING=enabled로 실행한 next build)인지를 브라우저와 서버의 코드에 박아 둔다. 목 빌드는 배포하지 않으므로
+      // DSN이 있어도 SDK를 켜지 않는다(sentry-options.ts).
+      env: { ...config.env, SENTRY_MOCK_BUILD: String(process.env.API_MOCKING === 'enabled') },
+    },
+    {
+      // 빌드 도구가 Sentry에 사용 통계를 보내지 않는다.
+      telemetry: false,
+      sourcemaps: { disable: !uploadSourceMaps },
+      // 릴리스(배포 버전)도 소스맵을 올릴 때만 만든다. 조직과 프로젝트는 SENTRY_ORG, SENTRY_PROJECT에서 읽는다.
+      release: { create: uploadSourceMaps },
+    },
+  )
 }

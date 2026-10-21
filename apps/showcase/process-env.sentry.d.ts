@@ -10,5 +10,10 @@ declare namespace NodeJS {
     readonly NEXT_PUBLIC_SENTRY_DSN?: string
     /** 소스맵을 Sentry에 올릴 인증 토큰. 빌드하는 환경에만 넣는다. 없으면 소스맵을 만들지도 올리지도 않는다(src/shared/sentry/sentry-next-config.ts). */
     readonly SENTRY_AUTH_TOKEN?: string
+    /**
+     * 환경 변수가 아니라 빌드할 때 next.config가 코드에 박는 값(src/shared/sentry/sentry-next-config.ts). 목 빌드
+     * (API_MOCKING=enabled)이면 'true'이고, 그 빌드는 DSN이 있어도 SDK를 켜지 않는다.
+     */
+    readonly SENTRY_MOCK_BUILD?: 'true' | 'false'
   }
 }

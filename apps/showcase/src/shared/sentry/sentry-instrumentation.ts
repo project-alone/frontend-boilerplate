@@ -3,7 +3,7 @@
 
 import * as Sentry from '@sentry/nextjs'
 import type { Instrumentation } from 'next'
-import { SENTRY_OPTIONS, sentryDsn } from './sentry-options'
+import { enabledSentryDsn, SENTRY_OPTIONS } from './sentry-options'
 
 /**
  * Next.js 서버가 뜰 때 서버 런타임(nodejs, edge)마다 한 번 실행된다(src/instrumentation.ts가 부른다). DSN(SENTRY_DSN)이 있는
@@ -13,7 +13,7 @@ import { SENTRY_OPTIONS, sentryDsn } from './sentry-options'
  */
 export const sentryInstrumentation: { register: () => void; onRequestError: Instrumentation.onRequestError } = {
   register() {
-    const dsn = sentryDsn(process.env.SENTRY_DSN)
+    const dsn = enabledSentryDsn(process.env.SENTRY_DSN)
     if (dsn !== undefined) Sentry.init({ ...SENTRY_OPTIONS, dsn })
   },
   onRequestError: Sentry.captureRequestError,
