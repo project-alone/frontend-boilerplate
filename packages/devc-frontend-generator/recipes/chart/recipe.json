@@ -1,0 +1,5 @@
+{
+  "description": "Recharts로 그린 대시보드용 시계열·비교 차트. 색은 디자인 토큰을 따르고, 차트마다 스크린 리더용 데이터 표가 있다",
+  "requires": [],
+  "renderingModes": ["server", "static-export"]
+}
