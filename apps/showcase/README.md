@@ -140,6 +140,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 - `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
+- 명세의 선택 속성(`required`에 없는 속성)은 `comment?: string`처럼 키를 뺄 수 있는 속성이 되고, `undefined`를 값으로 넣을 수는 없습니다(`tsconfig.json`의 `exactOptionalPropertyTypes`). Zod 스키마는 `.exactOptional()`로, MSW 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 빼는 것으로 이를 따릅니다(`orval.config.ts`). 그래서 백엔드의 명세를 선택 속성 그대로 쓰면 됩니다.
 - Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'listProducts', params]`처럼 계층으로 만듭니다. `src/queries`의 코드는 `npm run g -- query <operationId>`와 `npm run g -- mutation <operationId>`로 만들 수 있습니다(아래 "코드 생성(Schematic)").
 - 샘플: `/products` 페이지(`src/app/products/page.tsx`)가 서버에서 `listProductsQueryOptions()`로 데이터를 가져오고(prefetch), `HydrationBoundary`로 넘긴 데이터를 `src/features/product-list`가 이어받습니다. 브라우저는 같은 데이터를 다시 요청하지 않습니다(`e2e/products.spec.ts`).
 
@@ -169,7 +170,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 ## API 목킹(MSW)
 
-MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
+MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. faker가 만든 값에는 선택 속성이 응답마다 있기도 하고 빠지기도 하므로, 화면이 선택 속성이 빠진 응답도 다루는지 개발 중에 드러납니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
 
 목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. MSW를 켜고 `API_BASE_URL`을 넣지 않으면 서버가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`orval.config.ts`). 그래서 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고, 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`는 페이지를 열거나 새로 고치는 요청을 목 응답 없이 그대로 보냅니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다. MSW를 켜 둬도 `API_BASE_URL`을 넣으면 그 백엔드를 부르고, MSW는 그 요청을 받지 않습니다.
 
