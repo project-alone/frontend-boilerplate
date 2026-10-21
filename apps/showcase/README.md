@@ -1,8 +1,9 @@
 > **생성된 Showcase입니다. 이 디렉터리의 파일은 직접 고치지 마세요.**
 >
-> Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe를 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`)나 Recipe(`recipes/<이름>/`)를 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md)).
+> Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe, Archetype을 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`), Recipe(`recipes/<이름>/`), Archetype(`archetypes/<이름>/`)을 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md), [Archetype 작성하기](../../docs/archetypes.md)).
 >
 > - 켠 Recipe: `analytics`, `auth`, `chart`, `dark-mode`, `docker`, `file-upload`, `i18n`, `infinite-list`, `multi-step-form`, `optimistic-update`, `realtime`, `route-rendering`, `sentry`, `seo`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
+> - 켠 Archetype: `dashboard`. Archetype이 더한 화면과 쓰는 법은 아래 README의 Archetype 절에 있습니다.
 > - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`, `src/shared/i18n/en.json`, `src/shared/i18n/ko.json`, `src/shared/seo/pretendard-bold.woff`, `src/shared/seo/pretendard-license.txt`
 > - 실행: 레포 최상위에서 `npm run showcase:dev`. Showcase를 레포 밖의 디렉터리에 복사해 설치하고 MSW 목으로 개발 서버를 띄웁니다. 아래는 Starter의 README이고, 그 명령은 그 디렉터리에서 실행합니다.
 
@@ -416,7 +417,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 | 페이지 요청                          | proxy(`auth-proxy.ts`, `src/proxy.ts`)                    | accessToken이 곧 만료되면 미리 refresh한다. 보호된 라우트와 역할을 거른다                |
 
 - 세션(`src/shared/auth/session.ts`): 두 토큰, accessToken의 만료 시각, 사용자(역할 포함)를 [iron-session](https://github.com/vvo/iron-session)으로 암호화해 쿠키 `auth_session` 하나에 담습니다. 쿠키는 `HttpOnly`, `SameSite=Lax`, 배포한 서버에서는 `Secure`입니다. 브라우저는 쿠키 하나에 4KB까지만 담으므로, 세션이 그보다 커지면 로그인이 실패합니다. 토큰이 길면 세션에 담는 사용자 정보를 줄입니다.
-- 보호된 라우트와 역할(`src/shared/auth/access-rules.ts`): `PROTECTED_ROUTES`에 경로와 역할을 적습니다. 로그인하지 않았으면 돌아올 주소를 담아 `/login?next=...`로 보내고, 역할이 맞지 않으면 주소는 그대로 둔 채 `/forbidden`을 403으로 보여 줍니다. 샘플은 로그인한 사용자의 `/account`와 `admin` 역할의 `/admin`입니다. 역할은 세션의 사용자 정보를 보고, 사용자 정보는 로그인하거나 refresh할 때마다 백엔드(`getMe`)에서 다시 받습니다. 돌아올 주소는 이 앱 안의 경로만 받습니다.
+- 보호된 라우트와 역할(`src/shared/auth/access-rules.ts`): `PROTECTED_ROUTES`에 경로와 역할을 적습니다. 규칙은 그 경로와 아래 경로를 보호하고, `/teams/[teamId]/settings`처럼 대괄호로 감싼 단계는 라우트의 동적 세그먼트처럼 아무 값 하나와 맞습니다. 위에 적은 규칙부터 보므로 더 구체적인 경로를 위에 둡니다. 로그인하지 않았으면 돌아올 주소를 담아 `/login?next=...`로 보내고, 역할이 맞지 않으면 주소는 그대로 둔 채 `/forbidden`을 403으로 보여 줍니다. 샘플은 로그인한 사용자의 `/account`와 `admin` 역할의 `/admin`입니다. 역할은 세션의 사용자 정보를 보고, 사용자 정보는 로그인하거나 refresh할 때마다 백엔드(`getMe`)에서 다시 받습니다. 돌아올 주소는 이 앱 안의 경로만 받습니다.
 - 서버 컴포넌트에서 인증이 필요한 API를 부르려면 데이터를 가져오기 전에 `getServerSession()`이나 `requireServerSession()`(`src/shared/auth/server-session.ts`)을 먼저 부릅니다. 그 렌더링의 `apiFetch` 요청에만 accessToken이 붙습니다. 모든 서버 요청이 쿠키를 읽으면 SSG·ISR 페이지까지 요청마다 렌더링되기 때문입니다. 서버 컴포넌트는 쿠키를 고칠 수 없어 refresh하지 않고, 대신 proxy가 페이지를 렌더링하기 전에 refresh해 둡니다. 예: `src/app/account/page.tsx`.
 - Route Handler나 Server Action은 렌더링이 아니라서 토큰이 저절로 붙지 않습니다. `sessionOf(await cookies())`(`session.ts`)로 읽은 세션의 accessToken을 생성된 fetch 함수의 옵션으로 넘깁니다(``{ headers: { authorization: `Bearer ${session.accessToken}` } }``).
 - 응답에 토큰이 담기는 `login`, `refreshTokens`는 BFF(`src/shared/auth/auth-backend.ts`)만 부릅니다. BFF 프록시는 백엔드의 응답을 그대로 돌려주므로, 브라우저가 `/api/proxy/*`로 이 둘을 부르면(브라우저에서 생성된 `login`을 부르는 등) 백엔드로 보내지 않고 무엇을 쓰면 되는지 알리는 403으로 답합니다. 경로의 대소문자, 끝의 슬래시, 퍼센트 인코딩이 달라도 막습니다(`src/shared/auth/token-operations.ts`). 로그인은 `/api/session`으로 합니다(`src/shared/auth/auth-client.ts`). 백엔드에 토큰을 발급하는 operation을 더하면 `token-operations.ts`의 목록에 더합니다.
@@ -442,7 +443,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 
 ### 테스트
 
-`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
+`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(규칙의 경로와 동적 세그먼트, 로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
 
 ## 차트
 
@@ -807,3 +808,22 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 - MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/members.ts`의 핸들러가 고정된 회원 24명을 파라미터대로 거르고 정렬해 돌려줍니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `membersHandlers`를 지웁니다.
 - 테스트: `src/features/member-table/member-table.test.tsx`(정렬·검색·역할 필터·페이지가 요청 파라미터와 쿼리 키로 이어짐, `aria-sort`, 키보드 정렬, 빈 결과, 실패), `e2e/table.spec.ts`(빌드한 앱에서 키보드로 정렬·검색·필터, 페이지 이동, 접근성).
 - 샘플을 지우려면 `src/app/members/`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts`(와 `handlers.ts`의 `membersHandlers`), `e2e/table.spec.ts`를 지우고 `openapi.yaml`에서 `listMembers`를 뺀 뒤 `npm run api:gen`을 실행합니다.
+
+## 관리자 대시보드
+
+대시보드 Archetype으로 만들었습니다. `auth`(로그인과 역할), `table`(정렬·필터가 되는 목록), `chart`(차트) Recipe를 조합한 관리자 화면이 `/dashboard` 아래에 있습니다. 머리글의 "대시보드" 링크로 들어가고, 로그인하지 않았으면 로그인한 뒤 돌아옵니다.
+
+| 화면                             | 하는 일                                                                                                             | 들어가는 사람        | 렌더링                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------- |
+| `/dashboard`                     | 사용자 현황(전체·활성·초대됨·관리자 수, 상태별 사용자 수 차트)과 chart Recipe의 서비스 지표 차트                    | 로그인한 사용자 모두 | SSR(사용자 통계를 서버가 prefetch) |
+| `/dashboard/users`               | 사용자 목록. 열 머리글로 정렬하고 검색어, 역할, 상태로 거른다. 관리자에게는 추가 링크와 줄마다 수정 링크가 보인다   | 로그인한 사용자 모두 | SSR(역할 확인) + 목록은 브라우저   |
+| `/dashboard/users/new`           | 사용자 추가 폼. 추가한 사용자는 초대됨 상태로 시작하고, 추가하면 목록으로 돌아가 맨 앞에서 보인다                   | 관리자               | 미리 렌더링                        |
+| `/dashboard/users/[userId]/edit` | 사용자 수정 폼. 지금 값으로 채워져 있고, 부서를 비우고 저장하면 부서를 지운다. 없는 사용자면 "찾는 화면이 없습니다" | 관리자               | SSR(사용자를 서버가 prefetch)      |
+
+- 접근 규칙: `src/shared/auth/access-rules.ts`의 `PROTECTED_ROUTES`에 대시보드의 규칙이 들어 있습니다(`/dashboard`는 로그인한 사용자, 추가·수정 화면은 `admin` 역할). `[userId]`처럼 대괄호로 감싼 단계는 아무 값 하나와 맞습니다. 역할이 맞지 않으면 proxy가 주소는 그대로 둔 채 접근 권한 없음 페이지를 403으로 보여 줍니다. 화면은 같은 규칙을 보고 링크를 보이거나 숨깁니다(`src/shared/dashboard/dashboard-routes.ts`의 `canVisit`, `canManageUsers`). 백엔드도 accessToken의 사용자 역할로 같은 규칙을 지켜야 합니다(명세의 403).
+- 명세: `openapi.yaml`의 `users` tag에 `listUsers`, `createUser`, `getUserStats`, `getUser`, `updateUser`가 있습니다. 역할(`Role`)과 인증(`bearerAuth`)은 auth Recipe의 것을 그대로 씁니다.
+- Query Domain: `src/queries/users/`는 `npm run g -- query listUsers`, `query getUserStats`, `query getUser`, `mutation createUser`, `mutation updateUser`를 차례로 실행해 만든 코드 그대로입니다. 사용자를 추가하거나 고치면 users Query Domain 전체를 무효화하므로 목록과 통계를 다시 가져옵니다.
+- Feature: 사용자 현황 `src/features/user-stats/`(차트는 chart Recipe의 `ChartFigure`로 감싸 데이터 표를 함께 둔다), 사용자 목록 `src/features/user-table/`(table Recipe의 회원 테이블을 복사해 열과 파라미터를 바꾼 것), 추가·수정 폼 `src/features/user-form/`(`npm run g -- form createUser|updateUser --feature user-form`이 만든 폼에서 레이블, 지금 값 채우기, 저장한 뒤 목록으로 옮겨 가기, 같은 이메일 알림을 고친 것), 대시보드 안의 이동과 머리글 링크 `src/features/dashboard-nav/`.
+- 목 백엔드: `src/shared/mocks/users.ts`가 처음 사용자 12명(auth의 목 계정 `user@example.com`, `admin@example.com` 포함)으로 시작해 추가·수정한 사용자를 서버 프로세스의 메모리에 기억합니다. 확장 지점 `mockHandlers`로 생성된 핸들러보다 앞에 두고, 생성된 핸들러처럼 목 백엔드 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 서버를 다시 띄우면 처음 상태로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 `src/shared/mocks/handlers.ts`의 `usersHandlers`를 지웁니다.
+- 테스트: `src/features/user-stats/user-stats-overview.test.tsx`, `src/features/user-table/user-table.test.tsx`(정렬·검색·역할·상태 필터가 요청 파라미터로 이어짐, 수정 링크), `src/features/user-form/*.test.tsx`(추가하면 목록을 무효화하고 목록으로 옮겨 감, 지금 값 채우기, 부서 지우기, 같은 이메일), `src/shared/dashboard/dashboard-routes.test.ts`(역할마다 들어가는 화면), 폼과 차트의 스토리, `e2e/dashboard.spec.ts`(로그인 → 통계 확인 → 사용자 추가 → 목록과 통계에 반영 → 수정, 관리자가 아니면 추가·수정 화면에 들어가지 못함, 접근성).
+- 대시보드를 지우려면 `src/app/dashboard/`, `src/features/user-stats/`, `user-table/`, `user-form/`, `dashboard-nav/`, `src/queries/users/`, `src/shared/dashboard/`, `src/shared/mocks/users.ts`(와 `handlers.ts`의 `usersHandlers`), `e2e/dashboard.spec.ts`를 지우고, `src/app/app-shell.tsx`의 `DashboardLink`, `access-rules.ts`의 대시보드 규칙, `openapi.yaml`의 `users` tag·경로·스키마를 뺀 뒤 `npm run api:gen`을 실행합니다.

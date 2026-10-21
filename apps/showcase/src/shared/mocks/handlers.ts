@@ -1,5 +1,5 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/file-upload/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/realtime/extensions.json, recipes/table/extensions.json
+// 원본(packages/devc-frontend-generator/): base/extensions.json, recipes/auth/extensions.json, recipes/file-upload/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/realtime/extensions.json, recipes/table/extensions.json, archetypes/dashboard/extensions.json
 
 import * as generatedMocks from '@/shared/api/generated/index.msw'
 import { authMockHandlers } from '@/shared/auth/auth-mock-handlers'
@@ -9,6 +9,7 @@ import { filesHandlers } from '@/shared/mocks/files'
 import { membersHandlers } from '@/shared/mocks/members'
 import { pageNavigationHandlers } from '@/shared/mocks/page-navigation'
 import { todosHandlers } from '@/shared/mocks/todos'
+import { usersHandlers } from '@/shared/mocks/users'
 
 // Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
 // MSW가 가로챌 요청과 돌려줄 응답의 목록. Vitest, Playwright, 개발 서버, 목 빌드가 모두 이 목록을 쓴다. 핸들러는 목 백엔드
@@ -26,5 +27,6 @@ export const handlers = [
   ...todosHandlers,
   ...deliveriesHandlers,
   ...membersHandlers,
+  ...usersHandlers,
   ...Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers()),
 ]
