@@ -1,8 +1,9 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/optimistic-update/extensions.json, recipes/table/extensions.json
+// 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/infinite-list/extensions.json, recipes/optimistic-update/extensions.json, recipes/table/extensions.json
 
 import * as generatedMocks from '@/shared/api/generated/index.msw'
 import { authMockHandlers } from '@/shared/auth/auth-mock-handlers'
+import { articlesHandlers } from '@/shared/mocks/articles'
 import { membersHandlers } from '@/shared/mocks/members'
 import { todosHandlers } from '@/shared/mocks/todos'
 
@@ -15,6 +16,7 @@ import { todosHandlers } from '@/shared/mocks/todos'
 // 테스트 하나에서만 응답을 바꾸려면 server.use(...)를 쓴다(README의 "API 목킹").
 export const handlers = [
   ...authMockHandlers,
+  ...articlesHandlers,
   ...todosHandlers,
   ...membersHandlers,
   ...Object.values(generatedMocks).flatMap((getMockHandlers) => getMockHandlers()),

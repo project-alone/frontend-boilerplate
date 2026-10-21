@@ -1,5 +1,5 @@
 # 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/table/openapi.yaml
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/table/openapi.yaml
 
 # API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
 # 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
@@ -16,6 +16,8 @@ tags:
     description: 인증
   - name: stats
     description: 대시보드 통계
+  - name: articles
+    description: 게시글
   - name: partners
     description: 입점 파트너
   - name: todos
@@ -232,6 +234,67 @@ paths:
                 - channel: 제휴 마켓
                   currentMonth: 12700000
                   previousMonth: 9300000
+  /articles:
+    get:
+      operationId: listArticles
+      summary: 게시글 목록
+      description: 최근에 올린 글부터 한 페이지를 돌려준다. 마지막 페이지 뒤의 페이지를 요청하면 빈 배열을 돌려준다.
+      tags: [articles]
+      parameters:
+        - name: page
+          in: query
+          description: 1부터 세는 페이지 번호
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: 한 페이지의 게시글 수
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: 게시글 한 페이지. 마지막 페이지 뒤이면 빈 배열이다.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Article'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 infinite-list Recipe의 핸들러
+              # (src/shared/mocks/articles.ts)가 페이지 번호대로 나눈 페이지를 대신 돌려준다.
+              example:
+                - id: 46
+                  title: 릴리스 노트 46호
+                  summary: 2024년 11월 13일에 올린 릴리스 노트입니다.
+                  publishedAt: '2024-11-13'
+                - id: 45
+                  title: 개발 블로그 45호
+                  summary: 2024년 11월 6일에 올린 개발 블로그입니다.
+                  publishedAt: '2024-11-06'
+        '400':
+          description: 파라미터가 잘못되었다.
+  /articles/count:
+    get:
+      operationId: countArticles
+      summary: 게시글 수
+      description: 전체 게시글 수를 돌려준다. 번호형 페이지네이션이 페이지 수를 정할 때 쓴다.
+      tags: [articles]
+      responses:
+        '200':
+          description: 전체 게시글 수
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleCount'
+              example:
+                total: 46
   /partner-applications:
     post:
       operationId: submitPartnerApplication
@@ -517,6 +580,27 @@ components:
           type: integer
           minimum: 0
           description: 지난달 매출(원)
+    Article:
+      type: object
+      required: [id, title, summary, publishedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        summary:
+          type: string
+        publishedAt:
+          type: string
+          format: date
+          description: 올린 날(YYYY-MM-DD)
+    ArticleCount:
+      type: object
+      required: [total]
+      properties:
+        total:
+          type: integer
+          minimum: 0
     PartnerCategory:
       type: string
       enum: [fashion, food, living, digital]

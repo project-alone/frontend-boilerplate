@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`, infiniteQueryOptions로 페이지를 이어 붙이는 `recipes/infinite-list/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -448,3 +448,21 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 | 자기 테스트    | `src/features/todo-list/todo-list.test.tsx`, `e2e/optimistic-update.spec.ts`                                                                                                              |
 | 필요한 Recipe  | 없음                                                                                                                                                                                      |
 | Rendering Mode | `server`, `static-export`                                                                                                                                                                 |
+
+## 예: infinite-list
+
+긴 목록을 나눠 불러오는 두 패턴을 같은 게시글로 보여 주는 Recipe다. `/articles`는 목록 끝이 화면에 들어오면(`IntersectionObserver`) 다음 페이지를 불러와 이어 붙이는 무한 스크롤 목록이고, `/articles/pagination`은 같은 게시글을 쪽 번호로 넘겨 보는 번호형 페이지네이션이다. 명세 조각으로 페이지 번호를 받아 게시글 한 페이지를 배열로 돌려주는 `listArticles`와 전체 개수를 돌려주는 `countArticles`(tag `articles`)를 더하고, Query Domain(`src/queries/articles/`)은 `npm run g -- query listArticles --infinite`, `npm run g -- query listArticles`, `npm run g -- query countArticles`가 만든 코드를 그대로 담는다. `query --infinite`는 배열을 돌려주는 operation에만 쓸 수 있고 빈 페이지를 받으면 멈추므로, `listArticles`는 마지막 페이지 뒤의 페이지에 빈 배열을 돌려준다. table, chart처럼 데이터는 브라우저가 가져오므로 두 Rendering Mode에서 같은 코드로 동작한다.
+
+스크롤하지 않는 키보드·스크린 리더 사용자를 위해 목록 끝에 더 보기 버튼을 둔다. 버튼으로 불러오면 새로 불러온 첫 항목으로 포커스를 옮기고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않는다. 무한 스크롤 목록과 쪽 번호의 틀(`src/shared/paging/`)은 쿼리를 직접 부르지 않고 불러온 항목과 상태(useInfiniteQuery의 `hasNextPage` 등, 지금 쪽과 쪽 수)만 props로 받으므로 다른 Query Domain의 목록에도 쓴다. jsdom에는 `IntersectionObserver`가 없어 컴포넌트 테스트는 가짜 observer로 스크롤을 흉내 내고, 실제 브라우저의 동작은 스토리와 E2E가 본다.
+
+table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared/mocks/articles.ts`)를 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/articles`, `*/articles/count`)가 겹치지 않으므로 `order`는 같은 100이다.
+
+| 선언하는 것    | `recipes/infinite-list/`                                                                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/articles/page.tsx`, `src/app/articles/pagination/page.tsx`, `src/features/article-list/`, `src/queries/articles/`, `src/shared/paging/`, `src/shared/mocks/articles.ts`                                       |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /articles`(`listArticles`), `GET /articles/count`(`countArticles`), 스키마 `Article`, `ArticleCount`. `extensions.json`: MSW 핸들러 `articlesHandlers`(100)                            |
+| 설정 패치      | 없음                                                                                                                                                                                                                   |
+| npm 의존성     | 없음                                                                                                                                                                                                                   |
+| 자기 테스트    | `src/features/article-list/article-infinite-list.test.tsx`, `article-paged-list.test.tsx`, `src/shared/paging/pagination.test.tsx`, `infinite-list.stories.tsx`, `pagination.stories.tsx`, `e2e/infinite-list.spec.ts` |
+| 필요한 Recipe  | 없음                                                                                                                                                                                                                   |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                                                              |
