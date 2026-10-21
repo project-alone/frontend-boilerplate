@@ -214,10 +214,11 @@ test('showcase:watch는 Generator의 Base나 Recipe가 바뀌면 Showcase를 다
       'Recipe에 더한 파일이 Showcase에 생기지 않았습니다.',
     )
 
-    const basePage = join(generator, 'base/src/app/page.tsx')
-    writeFileSync(basePage, readFileSync(basePage, 'utf8').replace('<h1>Starter</h1>', '<h1>Watched</h1>'))
+    // i18n Recipe가 홈(src/app/page.tsx)을 대신하므로 Recipe가 손대지 않는 Base의 페이지를 고친다.
+    const basePage = join(generator, 'base/src/app/products/page.tsx')
+    writeFileSync(basePage, readFileSync(basePage, 'utf8').replace('<h1>상품</h1>', '<h1>Watched</h1>'))
     await waitUntil(
-      () => readIfExists(join(out, 'src/app/page.tsx')).includes('<h1>Watched</h1>'),
+      () => readIfExists(join(out, 'src/app/products/page.tsx')).includes('<h1>Watched</h1>'),
       watch,
       'Base에서 고친 내용이 Showcase에 반영되지 않았습니다.',
     )
@@ -249,10 +250,10 @@ test('showcase:dev는 Showcase를 레포 밖에 설치해 MSW 목으로 개발 �
     expect(existsSync(join(runDir, 'node_modules')), dev.output()).toBe(true)
     expect(existsSync(join(showcase, 'node_modules'))).toBe(false)
 
-    const page = join(showcase, 'src/app/page.tsx')
-    writeFileSync(page, readFileSync(page, 'utf8').replace('<h1>Starter</h1>', '<h1>Mirrored</h1>'))
+    const page = join(showcase, 'src/app/products/page.tsx')
+    writeFileSync(page, readFileSync(page, 'utf8').replace('<h1>상품</h1>', '<h1>Mirrored</h1>'))
     await waitUntil(
-      async () => (await (await fetch(`${origin}/`)).text()).includes('<h1>Mirrored</h1>'),
+      async () => (await (await fetch(`${origin}/products`)).text()).includes('<h1>Mirrored</h1>'),
       dev,
       'Showcase에서 고친 내용이 개발 서버에 반영되지 않았습니다.',
     )
