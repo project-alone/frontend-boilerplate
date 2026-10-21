@@ -5,8 +5,9 @@ import { http, HttpResponse } from 'msw'
 import { type Article, type ArticleCount, ListArticlesParams } from '@/shared/api/generated/model'
 
 // infinite-list Recipe: 게시글 목록(listArticles)과 게시글 수(countArticles)를 흉내 내는 MSW 핸들러. 명세에서 생성한
-// 핸들러는 example을 그대로 돌려주므로, 이 핸들러가 그보다 앞에서(handlers.ts) 페이지 번호대로 나눈 페이지를 백엔드처럼
-// 돌려준다. Vitest, 개발 서버, E2E가 모두 이 핸들러를 쓰므로 결과가 늘 같도록 게시글을 고정된 규칙으로 만든다.
+// 핸들러는 example을 그대로 돌려주므로, 이 핸들러가 그보다 앞에서 페이지 번호대로 나눈 페이지를 백엔드처럼 돌려준다.
+// 확장 지점 mockHandlers(Recipe의 extensions.json)로 선언해, MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이 생성된
+// 핸들러보다 앞에 둔다. Vitest, 개발 서버, E2E가 모두 이 핸들러를 쓰므로 결과가 늘 같도록 게시글을 고정된 규칙으로 만든다.
 
 /** 목 백엔드에 있는 게시글 수. 한 페이지에 10개씩이면 다섯 페이지이고, 마지막 페이지에는 6개가 있다. */
 const ARTICLE_COUNT = 46

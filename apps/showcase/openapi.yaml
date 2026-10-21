@@ -1,5 +1,5 @@
 # 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/chart/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/table/openapi.yaml
+# 원본(packages/devc-frontend-generator/): base/openapi.yaml, recipes/auth/openapi.yaml, recipes/chart/openapi.yaml, recipes/infinite-list/openapi.yaml, recipes/multi-step-form/openapi.yaml, recipes/optimistic-update/openapi.yaml, recipes/table/openapi.yaml
 
 # API 계층의 원본이 되는 OpenAPI 명세. `npm run api:gen`이 이 파일에서 src/shared/api/generated를 다시 만든다.
 # 지금 내용은 API 계층이 어떻게 이어지는지 보여 주는 가상의 샘플이다. 실제 프로젝트에서는 백엔드의 명세로 바꾼다(README의 "API 계층").
@@ -12,10 +12,16 @@ servers:
 tags:
   - name: products
     description: 상품
+  - name: auth
+    description: 인증
   - name: stats
     description: 대시보드 통계
   - name: articles
     description: 게시글
+  - name: partners
+    description: 입점 파트너
+  - name: todos
+    description: 할 일
   - name: members
     description: 회원
 paths:
@@ -69,6 +75,93 @@ paths:
                 id: 3
                 name: 울 니트
                 price: 59000
+  /auth/login:
+    post:
+      operationId: login
+      summary: 로그인
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 발급한 토큰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+              example:
+                accessToken: sample-access-token
+                refreshToken: sample-refresh-token
+                expiresIn: 3600
+        '401':
+          description: 이메일이나 비밀번호가 맞지 않음
+  /auth/refresh:
+    post:
+      operationId: refreshTokens
+      summary: 토큰 재발급
+      description: refreshToken으로 새 토큰을 발급한다. 쓴 refreshToken은 더 쓸 수 없다(rotation).
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: 새로 발급한 토큰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+              example:
+                accessToken: sample-refreshed-access-token
+                refreshToken: sample-refreshed-refresh-token
+                expiresIn: 3600
+        '401':
+          description: refreshToken이 만료되었거나 이미 쓰였음
+  /auth/me:
+    get:
+      operationId: getMe
+      summary: 로그인한 사용자
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: accessToken의 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: 1
+                email: user@example.com
+                name: 김사용
+                roles: [user]
+        '401':
+          description: accessToken이 없거나 만료됨
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: 로그아웃
+      description: refreshToken을 더 쓸 수 없게 한다.
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: 로그아웃함
   # chart Recipe가 더한 operation. 샘플 차트(src/features/stats-charts)가 시계열 차트와 비교 차트로 그린다.
   /stats/daily-visits:
     get:
@@ -202,6 +295,109 @@ paths:
                 $ref: '#/components/schemas/ArticleCount'
               example:
                 total: 46
+  /partner-applications:
+    post:
+      operationId: submitPartnerApplication
+      summary: 입점 신청
+      description: 사업자 정보, 담당자 정보, 판매 계획을 한 번에 받아 입점 신청을 접수한다.
+      tags: [partners]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerApplication'
+      responses:
+        '201':
+          description: 접수한 입점 신청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerApplicationReceipt'
+              # 생성된 MSW 핸들러가 돌려주는 값
+              example:
+                id: PA-0001
+        '400':
+          description: 요청 본문이 잘못되었다.
+  /todos:
+    get:
+      operationId: listTodos
+      summary: 할 일 목록
+      description: 할 일을 만든 순서(id 오름차순)로 모두 돌려준다.
+      tags: [todos]
+      responses:
+        '200':
+          description: 할 일 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+              # 생성된 MSW 핸들러가 돌려주는 값. 개발·테스트에서는 optimistic-update Recipe의 핸들러(src/shared/mocks/todos.ts)가
+              # 바뀐 완료 여부를 기억해 대신 돌려준다.
+              example:
+                - id: 1
+                  title: 디자인 시안 검토하기
+                  done: true
+                - id: 2
+                  title: 회의록 공유하기
+                  done: false
+                - id: 3
+                  title: 배포 일정 정하기
+                  done: false
+                - id: 4
+                  title: 보안 점검 결과 승인하기(보안 담당자만 바꿀 수 있음)
+                  done: false
+  /todos/{todoId}:
+    patch:
+      operationId: updateTodo
+      summary: 할 일 고치기
+      description: 보낸 항목만 바꾸고 바뀐 할 일을 돌려준다. 바꿀 권한이 없는 할 일이면 403으로 거절한다.
+      tags: [todos]
+      parameters:
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoUpdate'
+      responses:
+        '200':
+          description: 바뀐 할 일
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: 2
+                title: 회의록 공유하기
+                done: true
+        '400':
+          description: 요청 본문이 잘못되었다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoError'
+        '403':
+          description: 이 할 일을 바꿀 권한이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoError'
+              example:
+                message: 보안 점검 결과는 보안 담당자만 승인할 수 있습니다.
+        '404':
+          description: 할 일이 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoError'
   /members:
     get:
       operationId: listMembers
@@ -302,6 +498,61 @@ components:
         price:
           type: integer
           minimum: 0
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          title: 이메일
+        password:
+          type: string
+          minLength: 1
+          title: 비밀번호
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          minimum: 0
+          description: accessToken이 만료되기까지 남은 초
+    Role:
+      type: string
+      enum: [admin, user]
+      description: 사용자의 역할. 보호된 라우트의 접근 규칙(src/shared/auth/access-rules.ts)이 쓴다.
+    User:
+      type: object
+      required: [id, email, name, roles]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
     DailyVisits:
       type: object
       required: [date, visits]
@@ -350,6 +601,92 @@ components:
         total:
           type: integer
           minimum: 0
+    PartnerCategory:
+      type: string
+      enum: [fashion, food, living, digital]
+    PartnerApplication:
+      type: object
+      required: [companyName, businessNumber, category, contactName, email, phone, productCount, agreedToTerms]
+      properties:
+        # 1단계: 사업자 정보
+        companyName:
+          type: string
+          title: 상호
+          minLength: 1
+          maxLength: 50
+        businessNumber:
+          type: string
+          title: 사업자등록번호
+          description: 000-00-00000 형식으로 적습니다.
+          pattern: '^\d{3}-\d{2}-\d{5}$'
+        category:
+          $ref: '#/components/schemas/PartnerCategory'
+          title: 판매 분야
+        # 2단계: 담당자 정보
+        contactName:
+          type: string
+          title: 담당자 이름
+          minLength: 1
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          title: 이메일
+        phone:
+          type: string
+          title: 연락처
+          description: 010-0000-0000 형식으로 적습니다.
+          pattern: '^01\d-\d{3,4}-\d{4}$'
+        # 3단계: 판매 계획
+        productCount:
+          type: integer
+          title: 판매할 상품 수
+          minimum: 1
+          maximum: 10000
+        monthlySales:
+          type: integer
+          title: 월 예상 매출(만 원)
+          minimum: 0
+        introduction:
+          type: string
+          title: 회사 소개
+          maxLength: 200
+        agreedToTerms:
+          type: boolean
+          title: 입점 약관에 동의합니다
+          const: true
+    PartnerApplicationReceipt:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: 접수 번호
+    Todo:
+      type: object
+      required: [id, title, done]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        done:
+          type: boolean
+          description: 끝냈는지
+    TodoUpdate:
+      type: object
+      required: [done]
+      properties:
+        done:
+          type: boolean
+          description: 끝냈는지
+    TodoError:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: 사람이 읽을 수 있는 실패 이유
     MemberRole:
       type: string
       enum: [admin, editor, viewer]
@@ -384,3 +721,7 @@ components:
           type: integer
         pageSize:
           type: integer
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
