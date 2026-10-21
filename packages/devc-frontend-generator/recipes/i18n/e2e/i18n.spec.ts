@@ -177,3 +177,24 @@ for (const path of ['/ko', '/en', '/ko/i18n', '/en/i18n']) {
     expect(errors).toEqual([])
   })
 }
+
+// 서버가 그린 HTML에서도 locale 전환 UI(머리글)의 선택 버튼이 이름(레이블)을 갖는지 본다. 앱의 스크립트를 막아 hydration 전의
+// 화면, 곧 페이지를 연 직후에 보조 기술이 읽는 화면을 검사한다.
+for (const { path, label } of [
+  { path: '/ko', label: '언어' },
+  { path: '/en', label: 'Language' },
+]) {
+  test(`${path}의 locale 전환 UI는 JavaScript가 실행되기 전에도 이름이 있고 머리글에 접근성 위반이 없다`, async ({
+    page,
+  }) => {
+    await page.route('**/*', (route) =>
+      route.request().resourceType() === 'script' ? route.abort() : route.continue(),
+    )
+
+    await page.goto(path)
+
+    await expect(page.getByRole('combobox', { name: label })).toBeVisible()
+    const { violations } = await new AxeBuilder({ page }).include('header').withTags(WCAG_22_AA_TAGS).analyze()
+    expect(violations).toEqual([])
+  })
+}

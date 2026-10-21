@@ -1,6 +1,6 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { cx } from 'class-variance-authority'
-import type { ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
 import { formControlClassName, formLabelClassName } from './field'
 import { CheckIcon, ChevronDownIcon } from './icons'
 
@@ -27,11 +27,17 @@ export type SelectProps = Omit<SelectPrimitive.Root.Props<string>, 'items' | 'mu
 /** 목록에서 값 하나를 고른다. 키보드(화살표, Enter, 글자 입력)로도 고를 수 있다. */
 export function Select({ label, options, placeholder, clearLabel, className, ...props }: SelectProps) {
   const items = clearLabel === undefined ? options : [{ value: null, label: clearLabel }, ...options]
+  // 선택 버튼의 접근 가능한 이름이 되는 레이블. Base UI는 hydration 뒤에야 버튼을 레이블에 잇므로(aria-labelledby), 서버가 그린
+  // HTML에서도 이름이 있도록 레이블의 글자에 id를 붙여 직접 잇는다.
+  const labelId = useId()
   return (
     <SelectPrimitive.Root items={items} {...props}>
       <div className={cx('flex flex-col gap-1', className)}>
-        <SelectPrimitive.Label className={formLabelClassName}>{label}</SelectPrimitive.Label>
+        <SelectPrimitive.Label className={formLabelClassName}>
+          <span id={labelId}>{label}</span>
+        </SelectPrimitive.Label>
         <SelectPrimitive.Trigger
+          aria-labelledby={labelId}
           className={cx(formControlClassName, 'flex items-center justify-between gap-2 select-none')}
         >
           <SelectPrimitive.Value
