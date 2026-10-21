@@ -1,0 +1,29 @@
+# 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+# 원본(packages/devc-frontend-generator/): recipes/docker/.dockerignore
+
+# docker build에 넘기지 않는 파일. 의존성과 빌드 결과는 이미지 안에서 다시 만들고(호스트의 node_modules는 운영체제가 다를 수
+# 있다), 비밀 값을 담는 로컬 파일은 이미지에 들어가지 않게 한다.
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# 로컬 환경 변수(.env.development.local, .env.production.local 등). 비밀 값을 담는다. 빌드 단계가 받으면 next build가 읽어
+# 번들과 미리 렌더링한 페이지에 담을 수 있고 빌드 캐시에도 남는다. 배포 환경의 값은 컨테이너를 띄울 때 환경 변수로 넣는다.
+.env*.local
+
+# git과 테스트·도구가 만드는 파일
+.git/
+.npm/
+.cache/
+coverage/
+test-results/
+playwright-report/
+storybook-static/
+*storybook.log
+.DS_Store
+
+# 이미지 설정 자체. 바꿔도 소스를 복사하는 단계의 캐시가 깨지지 않게 한다.
+Dockerfile
+.dockerignore

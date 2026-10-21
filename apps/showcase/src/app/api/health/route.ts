@@ -1,0 +1,9 @@
+// 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
+// 원본(packages/devc-frontend-generator/): recipes/docker/src/app/api/health/route.ts
+
+// 상태 확인 주소. 컨테이너의 HEALTHCHECK(Dockerfile)와 Kubernetes의 probe처럼 서버가 요청을 처리하는지 묻는 곳이 부른다.
+// 백엔드를 부르지 않으므로 백엔드가 잠시 응답하지 않아도 컨테이너를 다시 시작하지 않는다. 백엔드 주소(API_BASE_URL)가 빠진
+// 서버는 요청을 처리하지 않으므로 여기도 응답하지 않는다(src/shared/api/api-instrumentation.ts).
+export function GET(): Response {
+  return Response.json({ status: 'ok' }, { headers: { 'Cache-Control': 'no-store' } })
+}
