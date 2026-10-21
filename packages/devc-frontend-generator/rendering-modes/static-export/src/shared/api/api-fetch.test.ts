@@ -35,6 +35,7 @@ test('브라우저는 NEXT_PUBLIC_API_BASE_URL의 백엔드를 직접 부른다'
 
 test('브라우저의 MSW가 켜져 있으면 NEXT_PUBLIC_API_BASE_URL이 없어도 MSW가 받는 목 주소로 요청한다', async () => {
   vi.stubEnv('NEXT_PUBLIC_API_MOCKING', 'enabled')
+  vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', '')
   const urls = respondToAll([])
 
   await apiFetch('/products')

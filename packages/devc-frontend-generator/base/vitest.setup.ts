@@ -5,6 +5,12 @@ import { afterAll, afterEach, beforeAll } from 'vitest'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { server } from '@/shared/mocks/node'
 
+// 브라우저 코드(jsdom)의 API 요청도 목 백엔드 주소로 보내 MSW가 받게 한다. Rendering Mode server의 브라우저는 BFF 프록시
+// (/api/proxy)를 부르는데, 테스트에는 그 요청을 받을 Next.js 서버가 없다. vi.stubEnv로 넣으면 테스트의 vi.unstubAllEnvs()가
+// 지우므로 process.env에 직접 넣는다(process-env.d.ts가 읽기 전용으로 선언해 Object.assign으로 쓴다). 테스트에서 다른 주소가
+// 필요하면 vi.stubEnv로 바꾼다.
+Object.assign(process.env, { NEXT_PUBLIC_API_BASE_URL: MOCK_API_BASE_URL })
+
 // 목 백엔드 주소(MOCK_API_BASE_URL)의 DNS 조회는 운영체제에 묻지 않고 바로 실패시킨다. MSW는 요청을 하나도 보내지 않은 연결을
 // 실제 네트워크로 내보내는데, 보내던 요청을 취소하면 jsdom의 XMLHttpRequest와 Node.js의 fetch가 쓰는 undici가 요청 없이 그런
 // 연결을 새로 연다. 그 연결은 목 백엔드 주소의 DNS 조회가 실패해야 끊기므로, 조회를 기다리는 사이에 같은 연결로 보낸 다음 요청은

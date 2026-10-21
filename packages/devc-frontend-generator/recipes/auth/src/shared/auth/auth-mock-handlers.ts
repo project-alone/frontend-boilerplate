@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { LoginRequest, LogoutRequest, RefreshRequest, type TokenPair, type User } from '@/shared/api/generated/model'
 
 // 목 백엔드의 인증(샘플 명세의 auth operation). 생성된 MSW 핸들러(src/shared/api/generated/auth/auth.msw.ts)는 늘 같은
@@ -55,7 +56,7 @@ async function jsonBody(request: Request): Promise<unknown> {
 }
 
 export const authMockHandlers = [
-  http.post('*/auth/login', async ({ request }) => {
+  http.post(`${MOCK_API_BASE_URL}/auth/login`, async ({ request }) => {
     const credentials = LoginRequest.safeParse(await jsonBody(request))
     const user = credentials.success
       ? MOCK_USERS.find(({ email }) => email === credentials.data.email && credentials.data.password === MOCK_PASSWORD)
@@ -64,7 +65,7 @@ export const authMockHandlers = [
     return HttpResponse.json(issueTokens(user.id))
   }),
 
-  http.post('*/auth/refresh', async ({ request }) => {
+  http.post(`${MOCK_API_BASE_URL}/auth/refresh`, async ({ request }) => {
     const body = RefreshRequest.safeParse(await jsonBody(request))
     const userId = body.success ? refreshTokens.get(body.data.refreshToken) : undefined
     if (!body.success || userId === undefined) return unauthorized('refreshToken이 만료되었거나 이미 쓰였습니다.')
@@ -73,13 +74,13 @@ export const authMockHandlers = [
     return HttpResponse.json(issueTokens(userId))
   }),
 
-  http.get('*/auth/me', ({ request }) => {
+  http.get(`${MOCK_API_BASE_URL}/auth/me`, ({ request }) => {
     const user = userOf(request)
     return user === undefined ? unauthorized('accessToken이 없거나 만료되었습니다.') : HttpResponse.json(user)
   }),
 
   // 명세처럼 유효한 accessToken이 있어야 로그아웃을 받는다(bearerAuth).
-  http.post('*/auth/logout', async ({ request }) => {
+  http.post(`${MOCK_API_BASE_URL}/auth/logout`, async ({ request }) => {
     if (userOf(request) === undefined) return unauthorized('accessToken이 없거나 만료되었습니다.')
     const body = LogoutRequest.safeParse(await jsonBody(request))
     if (body.success) refreshTokens.delete(body.data.refreshToken)

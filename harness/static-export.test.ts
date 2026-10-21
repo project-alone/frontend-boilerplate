@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { beforeAll, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 import { freePort, run, start, waitForServer } from './run.ts'
 import { MSW_PROBE_ROUTE, runPlaywrightAgainst, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
 
@@ -113,4 +113,27 @@ test('개발 서버에서는 브라우저가 백엔드로 보내는 API 요청�
   } finally {
     await devServer.stop()
   }
+})
+
+// #53: 목 백엔드의 경로가 페이지 주소와 같은 Recipe(table의 /members 등)를 넣어도, 브라우저의 MSW가 페이지를 여는 요청에 목
+// 응답을 돌려주지 않는다. 목 백엔드는 앱과 다른 출처(MOCK_API_BASE_URL)에 있고, 페이지 탐색 요청은 핸들러가 받지 않는다.
+describe('페이지 주소와 같은 경로의 API를 쓰는 Recipe를 넣은 static-export Starter', () => {
+  const withRecipes = useStarter({
+    prefix: 'dcgen-static-export-mock-pages-',
+    renderingMode: 'static-export',
+    recipes: ['table', 'chart', 'infinite-list', 'optimistic-update'],
+    install: true,
+    playwright: true,
+  })
+
+  test('MSW 서비스 워커가 켜진 빌드에서 페이지를 직접 열거나 새로 고쳐도 페이지가 열리고 데이터는 목 백엔드에서 온다', async () => {
+    withRecipes.writeFile(
+      'e2e/mock-api-pages.spec.ts',
+      readFileSync(join(import.meta.dirname, 'fixtures/static-export/mock-api-pages.spec.ts'), 'utf8'),
+    )
+
+    withRecipes.expectNpmSuccess(['run', 'test:e2e', '--', 'e2e/mock-api-pages.spec.ts'], {
+      E2E_PORT: String(await freePort()),
+    })
+  })
 })

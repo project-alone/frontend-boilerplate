@@ -144,7 +144,7 @@ overlay 최상위에 두고, 확장 지점마다 조각의 배열을 적는다. 
 - 조립 파일은 Generator가 모든 overlay를 덧입힌 뒤 매번 새로 쓴다. 패치하거나 대신할 수 없다. 조립 파일의 틀(머리글의 모양, proxy의 matcher 등)은 Generator 코드(`src/extensions.ts`)가 정한다.
 - 조각의 모양은 조립 파일의 타입이 정하므로 Starter의 `typecheck`가 검사한다. 모듈은 ADR-0005의 계층과 폴더 깊이를 지킨다. `src/app/app-shell.tsx`는 `app` 계층이라 `features`와 `shared`의 컴포넌트를 모두 쓸 수 있다.
 - 알 수 없는 지점이나 항목은 오타로 보고 생성이 실패한다.
-- Base의 조각은 `base/extensions.json`에 있다: `QueryProvider`(100), `ToastProvider`(200), 서버 `apiInstrumentation`(100, MSW나 백엔드 주소 확인). Rendering Mode `static-export`는 브라우저 `browserMockingInstrumentation`(100)을 더한다.
+- Base의 조각은 `base/extensions.json`에 있다: `QueryProvider`(100), `ToastProvider`(200), 서버 `apiInstrumentation`(100, MSW나 백엔드 주소 확인), MSW 핸들러 `pageNavigationHandlers`(0, 페이지 탐색 요청은 목 응답 없이 보냄). Rendering Mode `static-export`는 브라우저 `browserMockingInstrumentation`(100)을 더한다.
 
 #### Provider와 머리글(`providers`, `header`)
 
@@ -219,15 +219,16 @@ type BackendFetchHandler = (
 
 ```ts
 import { http, HttpResponse } from 'msw'
+import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 
-export const someMockHandlers = [http.get('*/some-resources', () => HttpResponse.json([]))]
+export const someMockHandlers = [http.get(`${MOCK_API_BASE_URL}/some-resources`, () => HttpResponse.json([]))]
 ```
 
 - Generator는 MSW의 핸들러 목록 `src/shared/mocks/handlers.ts`를 Recipe의 배열을 `order` 순으로 펼친 뒤 생성된 핸들러를 모두 붙여 쓴다. MSW는 앞의 핸들러가 먼저 응답하므로 Recipe의 핸들러는 같은 요청을 받는 생성된 핸들러(다른 Recipe의 명세 조각에서 생성된 것도)를 덮어쓴다. Recipe끼리 같은 요청을 받으면 `order`가 작은 Recipe의 핸들러가 응답한다. 핸들러가 응답을 돌려주지 않으면(`undefined`) 뒤의 핸들러가 그 요청을 받는다.
 - 이 목록은 Vitest(`src/shared/mocks/node.ts`), 개발 서버와 E2E 대상 서버(instrumentation), 목 빌드(`apiFetch`), `static-export`의 브라우저(서비스 워커)가 함께 쓴다. 그래서 핸들러 모듈은 Node.js와 브라우저에서 모두 불러올 수 있어야 한다(Node.js 전용 모듈을 import하지 않는다).
-- 핸들러의 경로는 `*/<경로>`처럼 백엔드 주소를 가리지 않게 쓴다. 서버는 `API_BASE_URL`(MSW가 켜져 있고 비어 있으면 명세의 `servers`), 브라우저는 BFF 프록시나 `NEXT_PUBLIC_API_BASE_URL`을 부른다.
-- 테스트 하나에서만 응답을 바꾸려면 이 지점 대신 테스트에서 `server.use(...)`를 쓴다.
-- Base에는 조각이 없다. 조각이 없으면 생성된 핸들러만 담는다. Base의 `src/shared/mocks/node.ts`가 이 파일을 쓰므로 조각이 없어도 늘 만든다.
+- 핸들러는 목 백엔드 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)로 가는 요청만 받게 `` `${MOCK_API_BASE_URL}/<경로>` ``로 쓴다. MSW가 켜져 있고 백엔드 주소(`API_BASE_URL`, 브라우저는 `NEXT_PUBLIC_API_BASE_URL`)가 없으면 서버와 `static-export`의 브라우저가 이 주소를 부르고, 명세에서 생성한 핸들러도 이 주소만 받는다(`orval.config.ts`). 앱과 다른 출처라 페이지 주소와 겹치지 않는다. `*/<경로>`처럼 주소를 가리지 않으면 브라우저의 MSW(서비스 워커)가 같은 경로의 페이지를 열거나 새로 고치는 요청에 페이지 대신 목 응답을 돌려줄 수 있다. Base의 `pageNavigationHandlers`(order 0)가 맨 앞에서 페이지 탐색 요청을 한 번 더 걸러 그대로 보낸다(ADR-0013).
+- 테스트 하나에서만 응답을 바꾸려면 이 지점 대신 테스트에서 `server.use(...)`를 쓴다. 테스트의 핸들러는 서비스 워커에 들어가지 않으므로 `*/<경로>`로 써도 된다. Vitest에서는 브라우저 코드(jsdom)의 요청도 목 백엔드 주소로 간다(`vitest.setup.ts`).
+- Base는 페이지 탐색 요청을 거르는 `pageNavigationHandlers`(order 0, `src/shared/mocks/page-navigation.ts`)를 더한다. Base의 `src/shared/mocks/node.ts`가 이 파일을 쓰므로 늘 만든다.
 
 #### sitemap 규칙(`sitemap`)
 
@@ -459,7 +460,7 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 할 일 목록(`/todos`)에서 완료 여부를 바꾸면 서버의 응답 전에 화면을 바꾸고(낙관적 업데이트), 서버가 거절하면 되돌린 뒤 알림(Toast)으로 알리는 Recipe다. 명세 조각으로 목록 operation `listTodos`와 할 일 하나를 고치는 `updateTodo`(tag `todos`)를 더하고, Query Domain(`src/queries/todos/`)은 `npm run g -- query listTodos`와 `npm run g -- mutation updateTodo --optimistic listTodos`가 만든 코드에 응답 전에 보일 값을 만드는 `applyUpdateTodo`만 채워 담는다. 캐시를 고치고(`onMutate`), 되돌리고(`onError`), 끝나면 `todosKeys.all`을 무효화하는(`onSettled`) 뼈대는 Schematic이 만든 그대로다(ADR-0008). 무엇을 왜 되돌렸는지 알리는 일은 화면의 일이므로 Feature(`src/features/todo-list/`)가 `mutate`의 `onError`에서 공통 `useToast()`로 한다. table처럼 할 일은 브라우저가 가져오고 고치므로 두 Rendering Mode에서 같은 코드로 동작한다.
 
-생성된 MSW 핸들러는 명세의 `example`만 돌려주어, 저장한 뒤 목록을 다시 가져오면 바꾼 값이 사라진다. 그래서 바뀐 값을 기억하는 핸들러(`src/shared/mocks/todos.ts`)를 table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/todos`)가 겹치지 않으므로 `order`는 같은 100이다. 이 핸들러는 저장에 1초 뒤에 답하고 정해 둔 할 일 하나(4번)를 늘 403으로 거절한다. 그래서 개발 서버에서도 응답 전에 바뀌는 모습과 되돌리기가 보이고, E2E는 Playwright에서 핸들러를 바꾸지 않고도 실패를 늘 같은 할 일로 재현한다. Playwright가 브라우저에서 요청을 가로채는 방법(`page.route`, 그 위에서 동작하는 `@msw/playwright`)은 쓰지 않는다. `server`에서는 BFF 프록시로 가는 요청을 브라우저에서 가로채 프록시와 Next.js 서버의 MSW를 거치지 않는 다른 경로를 시험하게 되고, `static-export`에서는 MSW 서비스 워커가 받은 요청을 보지 못해 두 Rendering Mode에 같은 spec을 쓸 수 없다. E2E는 브라우저가 저장 응답을 받기 전에 체크가 바뀌었는지를 응답 이벤트로 확인한다.
+생성된 MSW 핸들러는 명세의 `example`만 돌려주어, 저장한 뒤 목록을 다시 가져오면 바꾼 값이 사라진다. 그래서 바뀐 값을 기억하는 핸들러(`src/shared/mocks/todos.ts`)를 table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`/todos`)가 겹치지 않으므로 `order`는 같은 100이다. 이 핸들러는 저장에 1초 뒤에 답하고 정해 둔 할 일 하나(4번)를 늘 403으로 거절한다. 그래서 개발 서버에서도 응답 전에 바뀌는 모습과 되돌리기가 보이고, E2E는 Playwright에서 핸들러를 바꾸지 않고도 실패를 늘 같은 할 일로 재현한다. Playwright가 브라우저에서 요청을 가로채는 방법(`page.route`, 그 위에서 동작하는 `@msw/playwright`)은 쓰지 않는다. `server`에서는 BFF 프록시로 가는 요청을 브라우저에서 가로채 프록시와 Next.js 서버의 MSW를 거치지 않는 다른 경로를 시험하게 되고, `static-export`에서는 MSW 서비스 워커가 받은 요청을 보지 못해 두 Rendering Mode에 같은 spec을 쓸 수 없다. E2E는 브라우저가 저장 응답을 받기 전에 체크가 바뀌었는지를 응답 이벤트로 확인한다.
 
 | 선언하는 것    | `recipes/optimistic-update/`                                                                                                                                                              |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -477,7 +478,7 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 스크롤하지 않는 키보드·스크린 리더 사용자를 위해 목록 끝에 더 보기 버튼을 둔다. 버튼으로 불러오면 새로 불러온 첫 항목으로 포커스를 옮기고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않는다. 무한 스크롤 목록과 쪽 번호의 틀(`src/shared/paging/`)은 쿼리를 직접 부르지 않고 불러온 항목과 상태(useInfiniteQuery의 `hasNextPage` 등, 지금 쪽과 쪽 수)만 props로 받으므로 다른 Query Domain의 목록에도 쓴다. jsdom에는 `IntersectionObserver`가 없어 컴포넌트 테스트는 가짜 observer로 스크롤을 흉내 내고, 실제 브라우저의 동작은 스토리와 E2E가 본다.
 
-table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared/mocks/articles.ts`)를 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/articles`, `*/articles/count`)가 겹치지 않으므로 `order`는 같은 100이다.
+table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared/mocks/articles.ts`)를 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`/articles`, `/articles/count`)가 겹치지 않으므로 `order`는 같은 100이다.
 
 | 선언하는 것    | `recipes/infinite-list/`                                                                                                                                                                                               |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -566,7 +567,7 @@ SDK는 `NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 �
 
 fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요한 업로드는 `src/shared/upload/api-upload.ts`의 `apiUpload`가 XMLHttpRequest로 보낸다. 보내는 곳과 결과는 Base의 `apiFetch`와 같다. 브라우저의 `apiFetch`처럼 `base-url.ts`의 `browserBaseUrl`(`server`는 BFF 프록시, `static-export`는 백엔드)로 보내고, 2xx가 아니면 `ApiError`로 실패하며, 응답을 명세의 Zod 스키마로 검증한다. Query Domain(`src/queries/files/`)은 `npm run g -- mutation uploadFile`이 만든 훅에서 요청만 `apiUpload`로 바꾸고 진행률과 취소(`signal`)를 `mutate`의 값으로 받는다. Base의 BFF 프록시는 multipart를 포함한 본문을 바이트 그대로 넘기므로 고치지 않는다. 다만 본문을 다 받은 뒤 넘기므로, 훨씬 큰 파일을 받게 되면 프록시를 거치지 않는 방식을 검토한다(Recipe의 README 절).
 
-실패와 취소를 E2E와 개발 서버에서 늘 같게 재현하도록, 직접 만든 MSW 핸들러(`src/shared/mocks/files.ts`)가 파일 이름으로 응답을 고른다(`slow`는 늦게 답하고, `flaky`는 그 이름으로 처음 올릴 때 실패한다). table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/files`)가 겹치지 않으므로 `order`는 같은 100이다.
+실패와 취소를 E2E와 개발 서버에서 늘 같게 재현하도록, 직접 만든 MSW 핸들러(`src/shared/mocks/files.ts`)가 파일 이름으로 응답을 고른다(`slow`는 늦게 답하고, `flaky`는 그 이름으로 처음 올릴 때 실패한다). table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`/files`)가 겹치지 않으므로 `order`는 같은 100이다.
 
 `static-export`에서는 브라우저가 다른 출처의 백엔드를 직접 부르고, XMLHttpRequest에 `upload` 이벤트를 달면 브라우저가 CORS preflight를 먼저 보낸다. 그래서 목 백엔드는 preflight에 답하고 응답에 CORS 헤더를 붙인다(Vitest의 jsdom도 CORS를 검사한다). 브라우저의 MSW(서비스 워커)는 본문을 네트워크로 보내지 않고 받아 진행률이 중간값 없이 끝나므로, E2E는 Chromium의 네트워크 흉내로 업로드를 늦추고 중간값은 요청이 네트워크를 지나는 `server`에서만 본다.
 
@@ -586,7 +587,7 @@ fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요
 
 명세 조각은 목록 operation `listDeliveries`와 이벤트 스트림 `streamDeliveryEvents`(tag `deliveries`)를 더하고, Query Domain(`src/queries/deliveries/`)의 쿼리 키와 queryOptions는 `npm run g -- query listDeliveries`가 만든 코드 그대로다. 같은 Query Domain의 `deliveries.events.ts`가 이벤트를 받아 `setQueryData`로 캐시의 배송을 고치고(목록을 다시 요청하지 않는다), 고칠 수 없는 이벤트를 받거나 연결될 때마다(처음 연결 포함, 끊긴 동안 놓친 이벤트를 맞춘다) Query Domain을 무효화한다(ADR-0008). 목록을 가져오는 중에 온 이벤트는 그 요청이 끝난 뒤 한 번만 다시 가져와 맞추므로 이벤트가 몰려도 요청이 되풀이되지 않는다. 이벤트 스트림 클라이언트(`src/shared/realtime/event-stream.ts`)는 `EventSource` 대신 `fetch`로 스트림을 읽어, 2xx가 아닌 응답에도 다시 연결하고 지수 백오프로 기다린다. 이벤트 없이 곧바로 끊긴 연결은 실패로 세어, 연결을 받자마자 닫는 백엔드에 다시 연결하며 목록을 거듭 가져오지 않는다. 연결 상태는 `ConnectionStatus`(`role="status"`)가 글자로 알린다.
 
-MSW의 `sse()`는 핸들러를 만들 때 전역 `EventSource`가 있어야 해서 Node.js(Vitest, Next.js 서버의 MSW)에서 쓸 수 없으므로, 응답 본문을 흘려보내는 보통의 HTTP 핸들러(`src/shared/mocks/event-stream.ts`)로 흉내 낸다. 목 백엔드(`src/shared/mocks/deliveries.ts`)는 테스트마다 새로 만들어 이벤트와 연결을 직접 다루고(`createMockDeliveryBackend`), 개발 서버와 E2E에서는 새로 연 화면마다 정해진 순서로 이벤트를 보낸 뒤 연결을 끊는다. 목 백엔드의 핸들러는 table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`*/deliveries`, `*/deliveries/events`)가 겹치지 않으므로 `order`는 같은 100이다.
+MSW의 `sse()`는 핸들러를 만들 때 전역 `EventSource`가 있어야 해서 Node.js(Vitest, Next.js 서버의 MSW)에서 쓸 수 없으므로, 응답 본문을 흘려보내는 보통의 HTTP 핸들러(`src/shared/mocks/event-stream.ts`)로 흉내 낸다. 목 백엔드(`src/shared/mocks/deliveries.ts`)는 테스트마다 새로 만들어 이벤트와 연결을 직접 다루고(`createMockDeliveryBackend`), 개발 서버와 E2E에서는 새로 연 화면마다 정해진 순서로 이벤트를 보낸 뒤 연결을 끊는다. 목 백엔드의 핸들러는 table처럼 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`/deliveries`, `/deliveries/events`)가 겹치지 않으므로 `order`는 같은 100이다.
 
 | 선언하는 것    | `recipes/realtime/`                                                                                                                                                                                                                 |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
