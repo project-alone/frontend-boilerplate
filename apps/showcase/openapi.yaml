@@ -156,7 +156,7 @@ paths:
               $ref: '#/components/schemas/FileUpload'
             encoding:
               file:
-                # 받는 형식. 크기 제한(5MB)은 OpenAPI에 정해진 표기가 없어 operation의 설명에 적는다.
+                # 받는 형식. 업로더의 기준(src/shared/upload/upload-policy.ts)과 같아야 한다(upload-policy.test.ts).
                 contentType: image/png, image/jpeg, application/pdf, text/plain
       responses:
         '201':
@@ -172,6 +172,14 @@ paths:
                 name: report.pdf
                 size: 1024
                 contentType: application/pdf
+        '400':
+          description: file 필드에 파일이 없다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadError'
+              example:
+                message: multipart/form-data의 file 필드에 파일을 담아 보내 주세요.
         '413':
           description: 파일이 5MB보다 크다
           content:
@@ -322,7 +330,10 @@ components:
         file:
           type: string
           format: binary
-          description: 올릴 파일
+          description: 올릴 파일. 5MB(5,242,880바이트)까지 받는다.
+          # 받는 가장 큰 크기(바이트). OpenAPI에는 파일 크기를 적는 표기가 없어 확장 필드로 적는다(maxLength는 글자 수이고,
+          # orval이 파일 스키마에 맞지 않는 Zod 검사를 만든다). 업로더의 기준과 같아야 한다(upload-policy.test.ts).
+          x-max-bytes: 5242880
     UploadedFile:
       type: object
       required: [id, name, size, contentType]

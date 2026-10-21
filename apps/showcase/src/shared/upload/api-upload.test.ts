@@ -71,6 +71,20 @@ test('본문을 보내는 동안 보낸 바이트 수와 전체 바이트 수를
   expect(last?.loaded).toBe(last?.total)
 })
 
+test('onProgress를 넘기지 않으면 upload 이벤트를 듣지 않아, 다른 출처의 백엔드(static-export)에도 preflight 없이 보낸다', async () => {
+  const preflights: string[] = []
+  server.events.on('request:start', ({ request }) => {
+    if (request.method === 'OPTIONS') preflights.push(request.url)
+  })
+  onTestFinished(() => {
+    server.events.removeAllListeners()
+  })
+
+  await apiUpload(getUploadFileUrl(), { body: multipart(textFile('quiet.txt')) })
+
+  expect(preflights).toEqual([])
+})
+
 test('백엔드가 2xx가 아닌 응답을 주면 상태와 본문을 담은 ApiError로 실패한다', async () => {
   const program = new File(['MZ'], 'setup.exe', { type: 'application/x-msdownload' })
 

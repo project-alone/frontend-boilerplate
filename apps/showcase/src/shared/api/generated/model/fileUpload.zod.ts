@@ -10,7 +10,7 @@
 import * as zod from 'zod'
 
 export const FileUpload = zod.object({
-  file: zod.instanceof(Blob).describe('올릴 파일'),
+  file: zod.instanceof(Blob).describe('올릴 파일. 5MB(5,242,880바이트)까지 받는다.'),
 })
 
 export type FileUpload = zod.input<typeof FileUpload>
