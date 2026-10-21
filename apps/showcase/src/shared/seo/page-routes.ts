@@ -11,7 +11,10 @@ const PAGE_FILE = /^page\.(?:tsx|ts|jsx|js)$/
 export interface PageRoute {
   /** 페이지의 주소(예: /products, /en/i18n) */
   path: string
-  /** locale마다 넣은 페이지이면 같은 페이지의 locale별 주소(자기 주소 포함, 예: { ko: '/ko/i18n', en: '/en/i18n' }) */
+  /**
+   * locale마다 넣은 페이지이면 같은 페이지의 locale별 주소(자기 주소 포함, 예: { ko: '/ko/i18n', en: '/en/i18n' }). 기본 locale이
+   * 있으면 그 주소를 x-default로도 담는다.
+   */
   languages?: Readonly<Record<string, string>>
 }
 
@@ -19,6 +22,8 @@ export interface PageRoute {
 export interface LocaleParam {
   param: string
   values: readonly string[]
+  /** 지원하지 않는 언어의 사용자에게 보일 locale. 그 locale의 주소를 hreflang="x-default"로 알린다. */
+  defaultValue?: string | undefined
 }
 
 export interface FindPageRoutesOptions {
@@ -58,9 +63,12 @@ export function findPageRoutes(appDir: string, { exclude = [], locales }: FindPa
           }))
         : [{ locale: undefined, path: toPath(urlSegments) }]
     const kept = variants.filter(({ path }) => !isExcluded(path))
-    const languages = Object.fromEntries(
-      kept.flatMap(({ locale, path }) => (locale === undefined ? [] : [[locale, path]])),
+    const defaultPath = kept.find(({ locale }) => locale !== undefined && locale === locales?.defaultValue)?.path
+    const languageEntries: [string, string][] = kept.flatMap(({ locale, path }) =>
+      locale === undefined ? [] : [[locale, path] satisfies [string, string]],
     )
+    if (defaultPath !== undefined) languageEntries.push(['x-default', defaultPath])
+    const languages = Object.fromEntries(languageEntries)
     for (const { locale, path } of kept) {
       routes.set(path, locale === undefined ? { path } : { path, languages })
     }
