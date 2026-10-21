@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, inject, test } from 'vitest'
 import { freePort, run, start, waitForServer } from './run.ts'
-import { expectFileToPass, newStarter, runVitestScript, useStarter } from './starter.ts'
+import { buildRouteLine, expectFileToPass, newStarter, runVitestScript, useStarter } from './starter.ts'
 
 test('auth Recipe는 요청을 받는 서버가 있어야 하므로 static-export Starter에는 이유와 함께 넣지 않는다', () => {
   const workdir = mkdtempSync(join(tmpdir(), 'dcgen-auth-static-'))
@@ -71,12 +71,10 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
     const build = starter.expectNpmSuccess(['run', 'build'])
 
     // 머리글의 사용자 메뉴와 proxy가 있어도 세션을 읽지 않는 페이지는 미리 렌더링한다(○ Static). 세션을 읽는 페이지는
-    // 요청마다 렌더링한다(ƒ Dynamic). next build는 라우트마다 그 표를 보여 준다.
-    const routeLine = (route: string) =>
-      build.output.split('\n').find((line) => line.trimEnd().endsWith(` ${route}`)) ?? ''
-    expect(routeLine('/'), build.output).toContain('○')
-    expect(routeLine('/forbidden'), build.output).toContain('○')
-    expect(routeLine('/account'), build.output).toContain('ƒ')
+    // 요청마다 렌더링한다(ƒ Dynamic).
+    expect(buildRouteLine(build.output, '/'), build.output).toContain('○')
+    expect(buildRouteLine(build.output, '/forbidden'), build.output).toContain('○')
+    expect(buildRouteLine(build.output, '/account'), build.output).toContain('ƒ')
 
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
   })
