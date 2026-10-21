@@ -5,13 +5,13 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { NextIntlClientProvider } from 'next-intl'
 import { expect, test } from 'vitest'
-import { MESSAGES } from '@/shared/i18n/messages'
+import { intlConfig } from '@/shared/i18n/messages'
 import type { Locale } from '@/shared/i18n/routing'
 import { CartCounter } from './cart-counter'
 
 function renderIn(locale: Locale) {
   return render(
-    <NextIntlClientProvider locale={locale} messages={MESSAGES[locale]}>
+    <NextIntlClientProvider {...intlConfig(locale)}>
       <CartCounter />
     </NextIntlClientProvider>,
   )

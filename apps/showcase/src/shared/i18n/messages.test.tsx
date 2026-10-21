@@ -5,7 +5,7 @@ import { renderHook } from '@testing-library/react'
 import { NextIntlClientProvider, useTranslations } from 'next-intl'
 import type { ReactNode } from 'react'
 import { expect, test, vi } from 'vitest'
-import { MESSAGES } from './messages'
+import { intlConfig, MESSAGES } from './messages'
 import { routing } from './routing'
 
 /** 메시지 카탈로그의 키를 모두 점으로 이어 늘어놓는다(예: HomePage.title). */
@@ -22,7 +22,7 @@ test.each(routing.locales)('%s 카탈로그는 기본 locale(ko) 카탈로그와
 test('없는 메시지 키는 타입 오류이고, 실행 중에는 키를 대신 보여 주며 오류를 알린다', () => {
   const onError = vi.fn()
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <NextIntlClientProvider locale="ko" messages={MESSAGES.ko} onError={onError}>
+    <NextIntlClientProvider {...intlConfig('ko')} onError={onError}>
       {children}
     </NextIntlClientProvider>
   )
