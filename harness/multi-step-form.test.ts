@@ -2,7 +2,7 @@ import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { freePort } from './run.ts'
-import { expectFileToPass, readTree, type RenderingMode, runVitestScript, useStarter } from './starter.ts'
+import { buildRouteLine, expectFileToPass, readTree, type RenderingMode, runVitestScript, useStarter } from './starter.ts'
 
 // 하네스 매트릭스: Base에 multi-step-form Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들고, dark-mode Recipe를 함께
 // 넣은 조합도 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트(단계마다 검증·값 유지·한 번에 제출을 보는 컴포넌트
@@ -64,9 +64,7 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
       const result = starter.expectNpmSuccess(['run', 'build'])
 
       if (renderingMode === 'server') {
-        // next build는 라우트마다 미리 렌더링했는지(○ Static) 요청마다 렌더링하는지(ƒ Dynamic) 표로 보여 준다.
-        const routeLine = result.output.split('\n').find((line) => line.includes(' /partners/apply')) ?? ''
-        expect(routeLine, result.output).toContain('○')
+        expect(buildRouteLine(result.output, '/partners/apply'), result.output).toContain('○')
       } else {
         const html = readFileSync(join(starter.dir, 'out/partners/apply.html'), 'utf8')
         expect(html).toContain('사업자 정보')
