@@ -3,8 +3,8 @@ import { TokenPair } from '@/shared/api/generated/model'
 import { MOCK_PASSWORD } from './auth-mock-handlers'
 
 /**
- * 테스트(Vitest)의 브라우저 코드가 email의 목 사용자(auth-mock-handlers.ts의 MOCK_USERS)로 로그인한 것처럼 목 백엔드를 부르게
- * 하고, 되돌리는 함수를 돌려준다.
+ * 테스트(Vitest)의 브라우저 코드가 email의 목 사용자(auth-mock-handlers.ts의 사용자 저장소. 처음에는 MOCK_USERS)로 로그인한
+ * 것처럼 목 백엔드를 부르게 하고, 되돌리는 함수를 돌려준다.
  *
  *   beforeEach(() => signInAsMockUser('admin@example.com')) // 돌려준 함수로 테스트가 끝날 때마다 되돌린다
  *   onTestFinished(signInAsMockUser('user@example.com'))     // 테스트 하나에서만
