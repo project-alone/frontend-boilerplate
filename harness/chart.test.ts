@@ -51,11 +51,12 @@ test('chart Recipe는 Base의 디자인 토큰과 공통 UI를 고치지 않고,
 
 // 하네스 매트릭스: Base에 chart Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들고, dark-mode Recipe를 함께 넣은
 // 조합도 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트(데이터 표의 컴포넌트 테스트, 차트 스토리,
-// e2e/chart.spec.ts)가 통과하는지 본다. 모든 Recipe를 켠 조합은 showcase-starter.test.ts가 본다.
+// e2e/chart.spec.ts)가 통과하는지 본다. server에서 dark-mode와 함께 켠 조합은 모든 Recipe를 켠 Showcase
+// (showcase-starter.test.ts)가 보므로, dark-mode 조합은 static-export로 만들어 내보낸 HTML에서도 다크 테마의 토큰을 따르는지 본다.
 const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly string[] }[] = [
   { renderingMode: 'server', recipes: ['chart'] },
   { renderingMode: 'static-export', recipes: ['chart'] },
-  { renderingMode: 'server', recipes: ['chart', 'dark-mode'] },
+  { renderingMode: 'static-export', recipes: ['chart', 'dark-mode'] },
 ]
 
 for (const { renderingMode, recipes } of COMBINATIONS) {
