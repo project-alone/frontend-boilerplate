@@ -7,3 +7,5 @@
 `i18n` Recipe는 이 규칙으로 `[locale]` 아래 페이지를 locale마다 sitemap에 넣게 하고 고른 locale의 홈으로 보내는 홈(`/`)을 뺀다. 번역한 페이지는 metadata의 `alternates: localeAlternates(...)`(`src/shared/i18n/locale-alternates.ts`)로 자기 주소(canonical)와 같은 페이지의 locale별 주소(hreflang)를 알린다.
 
 `auth` Recipe는 이 규칙으로 보호된 라우트(`PROTECTED_ROUTES`)를 robots.txt가 막게 하고 로그인·접근 권한 없음 페이지는 sitemap에서 뺀다. 로그인, 내 정보, 관리자, 접근 권한 없음 페이지는 metadata의 `robots: { index: false }`로 검색 결과에서 빠진다.
+
+`seo` Recipe는 next.config 래퍼 `withSeo`로 공유 이미지 라우트의 빌드 결과(`.next/standalone`과 그것으로 만든 컨테이너 이미지)에 함께 담기는 글꼴(Pretendard Bold) 옆에 SIL Open Font License 전문(`pretendard-license.txt`)도 담는다.
