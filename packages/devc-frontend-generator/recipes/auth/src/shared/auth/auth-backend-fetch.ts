@@ -9,6 +9,7 @@ import {
   unsealSession,
 } from './session'
 import { sessionOfRender } from './session-scope'
+import { isRefusedTokenOperation, refusedTokenOperationResponse } from './token-operations'
 
 type Next = (url: string, init: RequestInit) => Promise<Response>
 
@@ -23,8 +24,12 @@ type Next = (url: string, init: RequestInit) => Promise<Response>
  *   만료되기 전에 미리 refresh해 둔다.
  * - 이미 Authorization 헤더가 있는 요청(예: BFF가 직접 부르는 인증 operation)과 로그인하지 않은 요청은 토큰을 붙이지 않는다.
  *   이때도 세션 쿠키는 넘기지 않는다.
+ * - 응답에 토큰이 담기는 login·refreshTokens는 BFF(auth-backend.ts)가 부른 요청만 보낸다. 브라우저가 BFF 프록시로 보낸 요청은
+ *   백엔드로 보내지 않고 403으로 답해, 토큰이 브라우저의 JavaScript로 가지 않게 한다(token-operations.ts).
  */
 export async function authBackendFetch(url: string, init: RequestInit, next: Next): Promise<Response> {
+  if (isRefusedTokenOperation(url)) return refusedTokenOperationResponse()
+
   const headers = new Headers(init.headers)
   const { [SESSION_COOKIE]: sealed, ...otherCookies } = parseCookie(headers.get('cookie') ?? '')
   if (sealed !== undefined) {

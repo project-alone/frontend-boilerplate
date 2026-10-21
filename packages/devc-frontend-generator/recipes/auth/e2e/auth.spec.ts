@@ -134,6 +134,37 @@ test('로그아웃하면 세션 쿠키가 지워지고, 보호된 라우트에 �
   await expect(page).toHaveURL('/login?next=%2Faccount')
 })
 
+test('브라우저의 JavaScript가 BFF 프록시로 토큰을 발급하는 login·refreshTokens를 불러도 403이고 토큰을 받지 못한다', async ({
+  page,
+}) => {
+  await loginAs(page, USER.email)
+
+  // 브라우저에서 생성된 login·refreshTokens를 부르는 것과 같은 요청이다. 세션 쿠키가 실려 있어도 BFF 프록시는 백엔드로 보내지 않는다.
+  const responses = await page.evaluate(
+    async ({ proxy, email, password }) => {
+      const post = async (path: string, body: unknown) => {
+        const response = await fetch(`${proxy}${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        return { status: response.status, text: await response.text() }
+      }
+      return [await post('/auth/login', { email, password }), await post('/auth/refresh', { refreshToken: 'any' })]
+    },
+    { proxy: BFF_PROXY_PATH, email: USER.email, password: MOCK_PASSWORD },
+  )
+
+  for (const { status, text } of responses) {
+    expect(status).toBe(403)
+    expect(text).toContain('/api/session')
+    expect(text).not.toMatch(/mock-(?:access|refresh)-/)
+  }
+  // 막은 요청은 로그인 세션을 바꾸지 않는다.
+  await page.reload()
+  await expect(page.getByText(USER.email)).toBeVisible()
+})
+
 for (const path of ['/login', '/account', '/forbidden']) {
   test(`${path}에 WCAG 2.2 AA 접근성 위반이 없다`, async ({ page }) => {
     if (path === '/account') await loginAs(page, USER.email)

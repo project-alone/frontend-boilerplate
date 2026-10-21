@@ -8,6 +8,7 @@ import { loginAtBackend } from './auth-backend'
 import { MOCK_PASSWORD, MOCK_USERS } from './auth-mock-handlers'
 import { type Session, SESSION_COOKIE, sealSession, unsealSession } from './session'
 import { deleteSession, getSession, postSession } from './session-routes'
+import { callTokenOperation } from './token-operations'
 
 // 브라우저가 부르는 로그인 세션 Route Handler(src/app/api/session/route.ts의 POST, GET, DELETE).
 // 이 파일은 서버처럼 window가 없는 Node.js에서 실행되고, 백엔드는 목 백엔드(auth-mock-handlers.ts)다.
@@ -128,5 +129,7 @@ test('accessToken이 만료되어 백엔드가 로그아웃을 받지 않으면 
   // 두 번째 로그아웃은 refresh로 받은 토큰을 쓰고, 그 refreshToken은 이제 백엔드가 받지 않는다.
   const { body } = relayed[1] as { body: { refreshToken: string } }
   expect(body.refreshToken).not.toBe(session.refreshToken)
-  await expect(refreshTokens({ refreshToken: body.refreshToken })).rejects.toMatchObject({ status: 401 })
+  await expect(callTokenOperation(() => refreshTokens({ refreshToken: body.refreshToken }))).rejects.toMatchObject({
+    status: 401,
+  })
 })

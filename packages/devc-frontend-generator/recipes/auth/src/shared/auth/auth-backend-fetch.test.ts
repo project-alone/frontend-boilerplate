@@ -159,3 +159,71 @@ test('refreshToken도 받아 주지 않으면 401을 그대로 돌려주고 세�
   expect(response.status).toBe(401)
   expect(sessionCookieOf(response)).toMatchObject({ value: '', maxAge: 0 })
 })
+
+/** BFF 프록시로 request를 전달하고, 그동안 MSW(목 백엔드)가 받은 요청의 주소(sent)도 돌려준다. */
+async function forwardWatchingBackend(request: Request): Promise<{ response: Response; sent: string[] }> {
+  const sent: string[] = []
+  const listener = ({ request: received }: { request: Request }) => {
+    sent.push(received.url)
+  }
+  server.events.on('request:start', listener)
+  try {
+    return { response: await forwardToBackend(request), sent }
+  } finally {
+    server.events.removeListener('request:start', listener)
+  }
+}
+
+/** 막은 응답: 403이고 무엇을 쓰면 되는지 알리며, 목 백엔드가 발급하는 토큰은 담지 않는다. */
+async function expectRefusedTokenOperation(response: Response) {
+  const text = await response.text()
+  expect(response.status).toBe(403)
+  expect((JSON.parse(text) as { message: string }).message).toContain('/api/session')
+  expect(text).not.toMatch(/mock-(?:access|refresh)-/)
+}
+
+test('로그인하지 않은 브라우저가 BFF 프록시로 login을 부르면 백엔드로 보내지 않고 403으로 알린다(응답의 토큰이 브라우저로 가지 않는다)', async () => {
+  const request = await browserRequest('/auth/login', undefined, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: USER?.email, password: MOCK_PASSWORD }),
+  })
+
+  const { response, sent } = await forwardWatchingBackend(request)
+
+  await expectRefusedTokenOperation(response)
+  expect(sent).toEqual([])
+})
+
+test.each([
+  '/auth/refresh',
+  '/auth/login',
+  // 백엔드마다 경로를 읽는 규칙(대소문자, 끝의 슬래시, 퍼센트 인코딩, 겹친 슬래시, 경로 매개변수)이 달라도 막는다.
+  '/AUTH/Refresh/',
+  '/auth/%6Cogin',
+  '//auth//refresh',
+  '/auth/refresh;jsessionid=1',
+])('로그인한 브라우저가 BFF 프록시로 %s를 불러도 토큰을 붙여 보내지 않고 403으로 알린다', async (path) => {
+  const session = await loggedIn()
+  const request = await browserRequest(path, session, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ refreshToken: session.refreshToken }),
+  })
+
+  const { response, sent } = await forwardWatchingBackend(request)
+
+  await expectRefusedTokenOperation(response)
+  expect(sent).toEqual([])
+  expect(sessionCookieOf(response)).toBeUndefined()
+})
+
+test('BFF가 직접 부르는 login·refreshTokens(auth-backend.ts)는 그대로 백엔드로 보낸다', async () => {
+  const session = await loggedIn({ accessToken: 'expired-access-token' })
+
+  // 401을 받은 BFF 프록시가 refresh-session.ts를 거쳐 refreshTokens를 부른다.
+  const response = await forwardToBackend(await browserRequest('/auth/me', session))
+
+  expect(response.status).toBe(200)
+  expect((await unsealSession(sessionCookieOf(response)?.value))?.refreshToken).not.toBe(session.refreshToken)
+})
