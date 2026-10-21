@@ -47,13 +47,14 @@ test('서버 컴포넌트는 같은 메시지를 locale마다 다른 문장과 �
   request,
 }) => {
   const ko = await (await request.get('/ko/i18n')).text()
-  expect(ko).toContain('<title>다국어 예시</title>')
+  // 루트 레이아웃이 제목 뒤에 사이트 이름을 붙이는 Recipe(seo의 `%s | Starter`)와 함께 넣어도 페이지의 제목으로 시작한다.
+  expect(ko).toMatch(/<title>다국어 예시(?: \| [^<]+)?<\/title>/)
   expect(ko).toContain('<div lang="ko">')
   expect(ko).toContain('출시일: 2026년 3월 2일 월요일')
   expect(ko).toContain('가격: ₩19,000')
 
   const en = await (await request.get('/en/i18n')).text()
-  expect(en).toContain('<title>Internationalization example</title>')
+  expect(en).toMatch(/<title>Internationalization example(?: \| [^<]+)?<\/title>/)
   expect(en).toContain('<div lang="en">')
   expect(en).toContain('Released: Monday, March 2, 2026')
   expect(en).toContain('Price: ₩19,000')
