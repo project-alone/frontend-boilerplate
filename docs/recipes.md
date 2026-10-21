@@ -1,6 +1,6 @@
 # Recipe 작성하기
 
-Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`도 적는다.
+Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있게 담은 단위다(GLOSSARY). 원본은 Base와 각 Recipe이고, Starter는 Base에 고른 Rendering Mode와 Recipe를 덧입혀 조립한다(ADR-0002). 이 문서는 새 Recipe를 Generator(`packages/devc-frontend-generator`)에 더하는 방법, 여러 Recipe가 같은 Base 파일에 끼어드는 자리인 [확장 지점](#확장-지점), Recipe를 바꿀 때마다 함께 다시 만드는 Showcase를 적는다. 예시는 첫 Recipe인 `recipes/dark-mode/`이고, 문서 끝에 `server`에서만 쓸 수 있는 `recipes/route-rendering/`, 명세 조각으로 목록 operation을 더하는 `recipes/table/`, 디자인 토큰으로만 색을 정하는 `recipes/chart/`, 다른 Recipe의 라우트를 옮기지 않고 locale별 라우팅을 더하는 `recipes/i18n/`, 확장 지점을 여럿 쓰는 `recipes/auth/`, 요청 본문 스키마를 단계마다 나눠 검증하는 `recipes/multi-step-form/`, `mutation --optimistic`의 뼈대를 채워 쓰는 `recipes/optimistic-update/`도 적는다.
 
 ## Starter를 조립하는 순서
 
@@ -432,3 +432,19 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 | 자기 테스트    | `src/features/partner-application/partner-application-form.test.tsx`, `src/shared/multi-step-form/draft-storage.test.ts`, `partner-application-form.stories.tsx`, `e2e/multi-step-form.spec.ts` |
 | 필요한 Recipe  | 없음                                                                                                                                                                                            |
 | Rendering Mode | `server`, `static-export`                                                                                                                                                                       |
+
+## 예: optimistic-update
+
+할 일 목록(`/todos`)에서 완료 여부를 바꾸면 서버의 응답 전에 화면을 바꾸고(낙관적 업데이트), 서버가 거절하면 되돌린 뒤 알림(Toast)으로 알리는 Recipe다. 명세 조각으로 목록 operation `listTodos`와 할 일 하나를 고치는 `updateTodo`(tag `todos`)를 더하고, Query Domain(`src/queries/todos/`)은 `npm run g -- query listTodos`와 `npm run g -- mutation updateTodo --optimistic listTodos`가 만든 코드에 응답 전에 보일 값을 만드는 `applyUpdateTodo`만 채워 담는다. 캐시를 고치고(`onMutate`), 되돌리고(`onError`), 끝나면 `todosKeys.all`을 무효화하는(`onSettled`) 뼈대는 Schematic이 만든 그대로다(ADR-0008). 무엇을 왜 되돌렸는지 알리는 일은 화면의 일이므로 Feature(`src/features/todo-list/`)가 `mutate`의 `onError`에서 공통 `useToast()`로 한다. table처럼 할 일은 브라우저가 가져오고 고치므로 두 Rendering Mode에서 같은 코드로 동작한다.
+
+생성된 MSW 핸들러는 명세의 `example`만 돌려주어, 저장한 뒤 목록을 다시 가져오면 바꾼 값이 사라진다. 그래서 바뀐 값을 기억하는 핸들러(`src/shared/mocks/todos.ts`)를 table처럼 `src/shared/mocks/handlers.ts`의 패치로 생성된 핸들러 앞에 둔다. table의 패치가 고치는 줄(목록을 만드는 줄과 그 맥락 줄)은 건드리지 않고 목록을 만든 뒤 맨 앞에 넣으므로 두 Recipe를 함께 켤 수 있다. 두 Recipe가 같은 자리에 핸들러를 더하게 되었으니 이 자리는 확장 지점으로 옮길 대상이다(ADR-0010). 이 핸들러는 저장에 1초 뒤에 답하고 정해 둔 할 일 하나(4번)를 늘 403으로 거절한다. 그래서 개발 서버에서도 응답 전에 바뀌는 모습과 되돌리기가 보이고, E2E는 Playwright에서 핸들러를 바꾸지 않고도 실패를 늘 같은 할 일로 재현한다. 브라우저 쪽에서 요청을 가로채는 방법(`page.route`, 그 위에서 동작하는 `@msw/playwright`)은 `server`에서는 BFF 프록시 뒤의 Next.js 서버에서 도는 MSW를 바꾸지 못하고, `static-export`에서는 MSW 서비스 워커가 받은 요청을 보지 못하므로 쓰지 않는다. E2E는 브라우저가 저장 응답을 받기 전에 체크가 바뀌었는지를 응답 이벤트로 확인한다.
+
+| 선언하는 것    | `recipes/optimistic-update/`                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/todos/page.tsx`, `src/features/todo-list/`, `src/queries/todos/`, `src/shared/mocks/todos.ts`                                |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /todos`(`listTodos`), `PATCH /todos/{todoId}`(`updateTodo`), 스키마 `Todo`, `TodoUpdate`, `TodoError` |
+| 설정 패치      | `src/shared/mocks/handlers.ts.patch`                                                                                                  |
+| npm 의존성     | 없음                                                                                                                                  |
+| 자기 테스트    | `src/features/todo-list/todo-list.test.tsx`, `e2e/optimistic-update.spec.ts`                                                          |
+| 필요한 Recipe  | 없음                                                                                                                                  |
+| Rendering Mode | `server`, `static-export`                                                                                                             |
