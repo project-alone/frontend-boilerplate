@@ -7,7 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getUserStatsQueryOptions } from '@/queries/users/users.queries'
 import type { Role, UserStats, UserStatus } from '@/shared/api/generated/model'
 import { ROLE_LABELS, USER_STATUS_LABELS } from '@/shared/dashboard/user-labels'
-import { formatPeople, UserStatusChart } from './user-status-chart'
+import { formatPeople } from './user-stats-format'
+import { UserStatusChart } from './user-status-chart'
 
 /** 한눈에 볼 숫자: 전체, 활성, 초대됨, 관리자 수 */
 function figuresOf({ total, byStatus, byRole }: UserStats): { label: string; count: number }[] {

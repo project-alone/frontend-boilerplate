@@ -95,16 +95,22 @@ interface UserTableState {
   pagination: PaginationState
 }
 
-function filterOf(columnFilters: ColumnFiltersState, id: 'role' | 'status'): unknown {
-  return columnFilters.find((filter) => filter.id === id)?.value
+/** 역할 열에 건 필터의 값. 걸지 않았으면 undefined다. */
+function roleFilterOf(columnFilters: ColumnFiltersState): Role | undefined {
+  return Role.safeParse(columnFilters.find(({ id }) => id === 'role')?.value).data
+}
+
+/** 상태 열에 건 필터의 값. 걸지 않았으면 undefined다. */
+function statusFilterOf(columnFilters: ColumnFiltersState): UserStatus | undefined {
+  return UserStatus.safeParse(columnFilters.find(({ id }) => id === 'status')?.value).data
 }
 
 /** 테이블의 상태를 listUsers의 쿼리 파라미터로 바꾼다. 쿼리 키(usersKeys.listUsers)도 이 값으로 정해진다. */
 function toListUsersParams({ sorting, columnFilters, globalFilter, pagination }: UserTableState): ListUsersParams {
   const [sorted] = sorting
   const sort = ListUsersParams.shape.sort.safeParse(sorted?.id).data
-  const role = Role.safeParse(filterOf(columnFilters, 'role')).data
-  const status = UserStatus.safeParse(filterOf(columnFilters, 'status')).data
+  const role = roleFilterOf(columnFilters)
+  const status = statusFilterOf(columnFilters)
   const q = globalFilter.trim()
   return {
     ...(q === '' ? {} : { q }),
@@ -189,7 +195,7 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
         <Select
           label="역할"
           options={ROLE_FILTER_OPTIONS}
-          value={Role.safeParse(filterOf(columnFilters, 'role')).data ?? ALL}
+          value={roleFilterOf(columnFilters) ?? ALL}
           className="w-40"
           onValueChange={(value) => {
             table.getColumn('role')?.setFilterValue(Role.safeParse(value).data)
@@ -198,7 +204,7 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
         <Select
           label="상태"
           options={STATUS_FILTER_OPTIONS}
-          value={UserStatus.safeParse(filterOf(columnFilters, 'status')).data ?? ALL}
+          value={statusFilterOf(columnFilters) ?? ALL}
           className="w-40"
           onValueChange={(value) => {
             table.getColumn('status')?.setFilterValue(UserStatus.safeParse(value).data)

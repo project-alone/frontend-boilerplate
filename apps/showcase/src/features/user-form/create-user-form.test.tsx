@@ -11,7 +11,8 @@ import { REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
 import { resetMockUsers } from '@/shared/mocks/users'
 import { ToastProvider } from '@/shared/ui/toast'
-import { CreateUserForm, DUPLICATE_EMAIL_MESSAGE } from './create-user-form'
+import { CreateUserForm } from './create-user-form'
+import { DUPLICATE_EMAIL_MESSAGE } from './duplicate-email'
 
 // 요청은 Vitest의 MSW(@/shared/mocks/node)가 받고, 대시보드의 목 백엔드(src/shared/mocks/users.ts)가 추가한 사용자를 기억한다.
 // 추가한 뒤 옮겨 가는 사용자 목록은 Next.js의 라우터가 없는 테스트이므로 router.push를 기록해 확인한다.

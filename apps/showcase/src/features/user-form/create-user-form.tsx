@@ -6,7 +6,6 @@
 import { useRouter } from 'next/navigation'
 import { Controller } from 'react-hook-form'
 import { useCreateUserMutation } from '@/queries/users/users.queries'
-import { ApiError } from '@/shared/api/api-fetch'
 import { CreateUserBody } from '@/shared/api/generated/model'
 import { USERS_PATH } from '@/shared/dashboard/dashboard-routes'
 import { ROLE_OPTIONS } from '@/shared/dashboard/user-labels'
@@ -16,9 +15,7 @@ import { Field, FieldError, FieldLabel } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { useToast } from '@/shared/ui/toast'
-
-/** 백엔드가 같은 이메일의 사용자가 이미 있다고 답했을 때(409) 이메일 입력에 보이는 오류 */
-export const DUPLICATE_EMAIL_MESSAGE = '이미 다른 사용자가 쓰는 이메일입니다.'
+import { DUPLICATE_EMAIL_MESSAGE, isDuplicateEmail } from './duplicate-email'
 
 /**
  * createUser(사용자 추가)의 요청 본문을 입력받아 보내는 폼. `npm run g -- form createUser --feature user-form`이 만든 폼에서
@@ -44,7 +41,7 @@ export function CreateUserForm() {
         router.push(USERS_PATH)
       },
       onError: (error) => {
-        if (error instanceof ApiError && error.status === 409) {
+        if (isDuplicateEmail(error)) {
           setError('email', { message: DUPLICATE_EMAIL_MESSAGE }, { shouldFocus: true })
           return
         }

@@ -8,11 +8,7 @@ import type { UserStatusCount } from '@/shared/api/generated/model'
 import { ChartFigure } from '@/shared/chart/chart-figure'
 import { CHART_COLORS, CHART_GRID_PROPS, CHART_PROPS, CHART_TOOLTIP_STYLE } from '@/shared/chart/chart-theme'
 import { USER_STATUS_LABELS } from '@/shared/dashboard/user-labels'
-
-/** 1 → 1명 */
-export function formatPeople(count: number): string {
-  return `${count.toLocaleString('ko-KR')}명`
-}
+import { formatPeople } from './user-stats-format'
 
 /** 상태마다 사용자 수를 막대 차트로 그린다(chart Recipe의 ChartFigure로 감싸 같은 값을 데이터 표로도 둔다). */
 export function UserStatusChart({ byStatus }: Readonly<{ byStatus: readonly UserStatusCount[] }>) {

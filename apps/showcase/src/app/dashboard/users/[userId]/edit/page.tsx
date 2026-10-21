@@ -28,7 +28,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   // 경로의 userId가 정수가 아니거나 그런 사용자가 없으면 없는 페이지로 본다.
   if (!Number.isInteger(userId)) notFound()
   const queryClient = getQueryClient()
-  const user = await queryClient.query(getUserQueryOptions(userId)).catch((error: unknown) => {
+  await queryClient.query(getUserQueryOptions(userId)).catch((error: unknown) => {
     if (error instanceof ApiError && error.status === 404) notFound()
     throw error
   })
@@ -36,9 +36,6 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   return (
     <main className="flex flex-col gap-4 p-4">
       <h1 className="text-lg font-semibold">사용자 수정</h1>
-      <p className="text-sm text-muted-foreground">
-        {user.name}({user.email})님의 정보를 고칩니다.
-      </p>
       <HydrationBoundary state={dehydrate(queryClient)}>
         <UpdateUserForm userId={userId} />
       </HydrationBoundary>
