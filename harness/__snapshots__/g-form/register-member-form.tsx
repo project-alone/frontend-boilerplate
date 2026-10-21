@@ -1,9 +1,9 @@
 'use client'
 
-import { Controller, useForm } from 'react-hook-form'
+import { Controller } from 'react-hook-form'
 import { useRegisterMemberMutation } from '@/queries/members/members.queries'
 import { RegisterMemberBody } from '@/shared/api/generated/model'
-import { formResolver } from '@/shared/form/form-resolver'
+import { useSchemaForm } from '@/shared/form/use-schema-form'
 import { Button } from '@/shared/ui/button'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/shared/ui/field'
@@ -31,8 +31,7 @@ export function RegisterMemberForm() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm({
-    resolver: formResolver(RegisterMemberBody),
+  } = useSchemaForm(RegisterMemberBody, {
     // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 명세에 따라 빼거나 null로 보낸다.
     defaultValues: { agreed: false, privacy: false, marketing: false },
   })

@@ -14,6 +14,8 @@ import {
 
 // 폼이 쓰는 Base의 모듈. Zod 스키마로 폼 값을 검증하는 formResolver와 그 오류 메시지(REQUIRED_MESSAGE 등)를 내보낸다.
 const FORM_RESOLVER_IMPORT = '@/shared/form/form-resolver'
+// 폼을 만드는 Base의 훅(useSchemaForm). useForm에 formResolver를 잇고, 처음 값을 useForm과 formResolver에 함께 넘긴다.
+const SCHEMA_FORM_IMPORT = '@/shared/form/use-schema-form'
 
 // 비워 두면 실패하는 필수 입력의 오류 메시지(formResolver가 내보내는 상수)마다 생성한 테스트가 쓰는 이름과 설명
 const BLANK_ERRORS = {
@@ -563,10 +565,10 @@ function componentSource(form: FormModel): string {
     ...(usesRegister || uses('checkbox') ? ['FieldLabel'] : []),
   ]
   const imports = [
-    `import { ${usesController ? 'Controller, ' : ''}useForm } from 'react-hook-form'`,
+    ...(usesController ? [`import { Controller } from 'react-hook-form'`] : []),
     `import { ${form.hook.name} } from '${form.hook.moduleSpecifier}'`,
     `import { ${form.schema.name} } from '${form.schema.moduleSpecifier}'`,
-    `import { formResolver } from '${FORM_RESOLVER_IMPORT}'`,
+    `import { useSchemaForm } from '${SCHEMA_FORM_IMPORT}'`,
     `import { Button } from '@/shared/ui/button'`,
     ...(uses('checkbox') ? [`import { Checkbox } from '@/shared/ui/checkbox'`] : []),
     `import { ${fieldParts.join(', ')} } from '@/shared/ui/field'`,
@@ -607,12 +609,14 @@ ${form.props.map(({ name, type }) => `  /** 요청 경로의 ${name} */\n  ${nam
     'formState: { errors }',
   ]
   const checkboxes = fields.filter((field) => field.control.kind === 'checkbox')
-  const defaultValues =
+  // 처음 값(defaultValues)은 useSchemaForm이 useForm과 formResolver에 함께 넘긴다.
+  const schemaFormArguments =
     checkboxes.length === 0
-      ? ''
-      : `
+      ? form.schema.name
+      : `${form.schema.name}, {
     // 체크박스는 체크하지 않은 값(false)으로 시작한다. 비워 둔 다른 입력은 formResolver가 명세에 따라 빼거나 null로 보낸다.
-    defaultValues: { ${checkboxes.map((field) => `${JSON.stringify(field.name)}: false`).join(', ')} },`
+    defaultValues: { ${checkboxes.map((field) => `${JSON.stringify(field.name)}: false`).join(', ')} },
+  }`
 
   return `'use client'
 
@@ -626,9 +630,7 @@ ${[...options, ...skipped, ...propsInterface].map((block) => `${block}\n\n`).joi
 export function ${form.componentName}(${parameters}) {
   const {
     ${formMethods.join(',\n    ')},
-  } = useForm({
-    resolver: formResolver(${form.schema.name}),${defaultValues}
-  })
+  } = useSchemaForm(${schemaFormArguments})
   const mutation = ${form.hook.name}()
   const toast = useToast()
 
@@ -671,7 +673,7 @@ function nullableNote(fields: readonly FormField[]): string {
       ? []
       : [
           `\n * null을 받는 선택 필드(${optionalNames})는 처음 값이 있던 입력을 비웠을 때만 null을 보내고(값을 지운다), 처음부터 비어 있으면 보내지 않는다.
- * 현재 값을 채워 수정 폼으로 쓰려면 그 값을 useForm과 formResolver에 defaultValues로 함께 넘긴다.`,
+ * 현재 값을 채워 수정 폼으로 쓰려면 그 값을 useSchemaForm의 defaultValues에 더한다(useForm과 formResolver가 함께 받는다).`,
         ]),
   ].join('')
 }
