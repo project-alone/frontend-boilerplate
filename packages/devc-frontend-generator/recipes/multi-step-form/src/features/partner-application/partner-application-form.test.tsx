@@ -4,7 +4,7 @@ import { userEvent, type UserEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getSubmitPartnerApplicationMockHandler } from '@/shared/api/generated/partners/partners.msw'
-import { REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
+import { MUST_CHECK_MESSAGE, REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { PartnerApplicationForm } from './partner-application-form'
@@ -223,7 +223,7 @@ test('판매 계획 단계는 약관에 동의하지 않았거나 상품 수가 
   expect(productCount).toHaveAttribute('aria-invalid', 'true')
   expect(productCount).toHaveFocus()
   expect(screen.getByRole('checkbox', { name: '입점 약관에 동의합니다' })).toHaveAccessibleDescription(
-    '입점 약관에 동의해야 신청할 수 있습니다.',
+    MUST_CHECK_MESSAGE,
   )
   expect(screen.getByRole('spinbutton', { name: '월 예상 매출(만 원)' })).not.toHaveAttribute('aria-invalid')
   expect(screen.getByRole('textbox', { name: '회사 소개' })).not.toHaveAttribute('aria-invalid')
