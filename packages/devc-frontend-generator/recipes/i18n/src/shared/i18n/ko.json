@@ -1,0 +1,22 @@
+{
+  "LocaleSwitcher": {
+    "label": "언어"
+  },
+  "HomePage": {
+    "title": "Starter",
+    "description": "이 Starter는 한국어와 영어를 지원합니다. 머리글의 언어에서 바꿀 수 있습니다.",
+    "exampleLink": "다국어 예시 보기"
+  },
+  "I18nExample": {
+    "title": "다국어 예시",
+    "description": "같은 메시지 키를 locale마다 다른 문장과 형식으로 보여 줍니다. 아래 두 줄은 서버 컴포넌트가 빌드할 때 번역합니다.",
+    "releaseDate": "출시일: {date, date, full}",
+    "price": "가격: {price, number, ::currency/KRW}",
+    "homeLink": "홈으로"
+  },
+  "CartCounter": {
+    "description": "아래는 클라이언트 컴포넌트가 브라우저에서 번역합니다.",
+    "count": "장바구니에 {count, plural, =0 {담은 상품이 없습니다} other {상품이 #개 있습니다}}.",
+    "add": "상품 담기"
+  }
+}

@@ -1,0 +1,17 @@
+## 다국어(i18n)
+
+`i18n` Recipe로 넣었습니다. [next-intl](https://next-intl.dev)로 한국어(기본 locale `ko`)와 영어(`en`)를 지원합니다.
+
+- 번역한 페이지는 `src/app/[locale]/` 아래에 둡니다. 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), 페이지는 locale마다 빌드할 때 렌더링합니다(`src/app/[locale]/layout.tsx`의 `generateStaticParams`). 지원하지 않는 locale의 주소(`/fr`)는 404입니다. 예로 홈(`/ko`, `/en`, 화면은 `src/features/home`)과 다국어 예시(`/ko/i18n`, `/en/i18n`: 날짜·통화 형식, 복수형, 클라이언트 컴포넌트의 번역)가 있습니다. 예시는 지워도 됩니다(`src/app/[locale]/i18n/`, `src/features/i18n-example/`, 카탈로그의 `I18nExample`과 `CartCounter`, `e2e/i18n.spec.ts`의 해당 테스트).
+- `[locale]` 밖의 페이지(`/products`, 다른 Recipe가 더한 페이지)는 번역하지 않은 페이지로, 주소와 화면이 그대로이고 locale 전환 UI에는 기본 locale로 보입니다. 번역하려면 페이지를 `src/app/[locale]/` 아래로 옮기고 문장을 메시지 카탈로그로 옮깁니다.
+- 메시지 카탈로그는 `src/shared/i18n/ko.json`(키의 기준)과 `en.json`이고, 메시지는 ICU 형식(`{count, plural, ...}`, `{date, date, full}`)으로 씁니다. 메시지 키는 `ko.json`의 타입으로 검사하므로(`src/shared/i18n/messages.ts`) 없는 키를 쓰면 `npm run typecheck`가 실패합니다. `en.json`에 키가 빠지면 타입 오류가 나고, 남는 키는 `npm test`(`messages.test.tsx`)가 잡습니다.
+- 서버 컴포넌트는 params의 locale을 넘겨 번역합니다: `const locale = await requireLocale(props)`(`src/shared/i18n/require-locale.ts`, 지원하지 않는 locale이면 404) 다음에 `getTranslations({ locale, namespace })`, `getFormatter({ locale })`. 루트 레이아웃(`src/app/layout.tsx`)이 `[locale]` 밖에 있어 next-intl이 요청의 locale을 스스로 알 수 없기 때문입니다. locale 없이 부르면 기본 locale로 조용히 그리지 않고 오류로 알립니다(`src/shared/i18n/request.ts`). params만 읽으므로 페이지는 빌드할 때 렌더링할 수 있습니다. 모든 페이지를 `[locale]` 아래로 옮겨 `src/app/[locale]/layout.tsx`가 루트 레이아웃이 되면 next-intl 문서의 `next/root-params` 방식으로 바꿀 수 있습니다.
+- 클라이언트 컴포넌트는 `useTranslations`, `useFormatter`를 씁니다. 앱 전체를 감싼 `I18nProvider`(`src/shared/i18n/i18n-provider.tsx`, `src/app/app-shell.tsx`)가 주소의 locale과 그 카탈로그를 넘깁니다. 어느 페이지가 올지 모르는 루트 레이아웃에서 넘기므로 모든 locale의 카탈로그가 브라우저 번들에 들어갑니다. 카탈로그가 커지면 클라이언트 컴포넌트가 쓰는 namespace만 넘기도록 나눕니다.
+- 링크와 이동은 `@/shared/i18n/navigation`의 `Link`, `useRouter`, `usePathname`을 씁니다. 지금 locale을 주소 앞에 붙입니다(`<Link href="/i18n">` → `/en/i18n`). 이 `Link`는 서버 컴포넌트에서도 씁니다.
+- 머리글의 locale 전환 UI(`src/features/locale-switcher`)는 번역한 페이지에서는 같은 페이지의 다른 locale 주소로 가고(`/ko/i18n` → `/en/i18n`), 번역하지 않은 페이지에서는 고른 locale의 홈으로 갑니다. 고른 locale은 `NEXT_LOCALE` 쿠키(브라우저를 닫으면 지워짐)에 저장됩니다.
+- 홈(`/`): server Starter에서는 proxy 처리기(`src/shared/i18n/i18n-proxy.ts`, `src/proxy.ts`)가 저장한 locale, 브라우저 언어(`Accept-Language`), 기본 locale 순으로 고른 locale의 홈으로 보냅니다. 브라우저 언어를 따르지 않으려면 `src/shared/i18n/routing.ts`에 `localeDetection: false`를 적습니다. static-export Starter에는 요청을 받는 서버가 없어 `/`가 기본 locale의 홈을 보여 줍니다(`src/app/page.tsx`).
+- 문서의 언어: 루트 레이아웃은 locale을 모르므로 `<html lang="ko">`로 그리고, `[locale]` 레이아웃이 페이지 내용을 `<div lang>`으로 감싸며, `I18nProvider`가 브라우저에서 `<html lang>`을 지금 locale로 바꿉니다. 기본 locale을 바꾸면 루트 레이아웃의 `lang`도 함께 바꿉니다.
+- 검색 엔진에 locale별 주소(hreflang)를 알리는 링크는 넣지 않았습니다(`routing.ts`의 `alternateLinks: false`). 필요하면 페이지의 metadata에 `alternates.languages`로 적습니다.
+- 날짜·시각은 `Asia/Seoul` 시간대로 보여 줍니다(`src/shared/i18n/messages.ts`의 `TIME_ZONE`). locale을 더하려면 `routing.ts`의 `locales`와 `LOCALE_NAMES`, 카탈로그(`<locale>.json`)와 `messages.ts`의 `MESSAGES`에 더합니다.
+- 다른 Recipe가 더한 화면(예: 머리글의 테마 전환)은 번역하지 않았습니다.
+- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `src/features/locale-switcher/locale-switcher.stories.tsx`(locale 전환), `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, inject, test } from 'vitest'
 import { freePort, run } from './run.ts'
-import { useStarter } from './starter.ts'
+import { buildRouteLine, useStarter } from './starter.ts'
 
 test('route-rendering Recipe는 요청을 받는 서버가 있어야 하므로 static-export Starter에는 이유와 함께 넣지 않는다', () => {
   const workdir = mkdtempSync(join(tmpdir(), 'dcgen-route-rendering-static-'))
@@ -47,15 +47,13 @@ describe('Rendering Mode server에 route-rendering Recipe를 넣은 Starter', ()
   })
 
   test('빌드하면 SSG 라우트는 HTML을 미리 만들고, SSR·스트리밍 라우트는 요청마다 렌더링한다', () => {
-    const result = starter.expectNpmSuccess(['run', 'build'])
+    const { output } = starter.expectNpmSuccess(['run', 'build'])
 
-    // next build는 라우트마다 미리 렌더링했는지(○ Static) 요청마다 렌더링하는지(ƒ Dynamic) 표로 보여 준다.
-    const routeLine = (route: string) => result.output.split('\n').find((line) => line.includes(` ${route}`)) ?? ''
-    expect(routeLine('/rendering/ssg'), result.output).toContain('○')
-    expect(routeLine('/rendering/csr'), result.output).toContain('○')
-    expect(routeLine('/rendering/isr'), result.output).toMatch(/○.*10s/)
-    expect(routeLine('/rendering/ssr'), result.output).toContain('ƒ')
-    expect(routeLine('/rendering/streaming'), result.output).toContain('ƒ')
+    expect(buildRouteLine(output, '/rendering/ssg'), output).toContain('○')
+    expect(buildRouteLine(output, '/rendering/csr'), output).toContain('○')
+    expect(buildRouteLine(output, '/rendering/isr'), output).toMatch(/○.*10s/)
+    expect(buildRouteLine(output, '/rendering/ssr'), output).toContain('ƒ')
+    expect(buildRouteLine(output, '/rendering/streaming'), output).toContain('ƒ')
   })
 
   // 위 빌드 결과를 next start로 띄워 검사한다(playwright.config.ts).

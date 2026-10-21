@@ -2,8 +2,8 @@
 >
 > Showcase는 Generator(`packages/devc-frontend-generator`)가 Base에 Rendering Mode `server`와 모든 Recipe를 덧입혀 만든 Starter입니다([ADR-0002](../../docs/adr/0002-recipes-are-source-of-truth.md)). 바꿀 것이 있으면 Base(`base/`)나 Recipe(`recipes/<이름>/`)를 고친 뒤 레포 최상위에서 `npm run showcase`로 다시 만들어 함께 커밋합니다. CI는 다시 만든 결과가 커밋된 Showcase와 다르면 실패합니다([Recipe 작성하기](../../docs/recipes.md)).
 >
-> - 켠 Recipe: `chart`, `dark-mode`, `route-rendering`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
-> - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`
+> - 켠 Recipe: `chart`, `dark-mode`, `i18n`, `route-rendering`, `table`. Recipe가 더한 화면과 쓰는 법은 아래 README의 Recipe 절에 있습니다.
+> - 주석을 달 수 있는 파일은 맨 위의 주석이 이 안내와 고칠 원본을 알립니다. 주석을 달 수 없는 파일: `.nvmrc`, `.prettierrc.json`, `package.json`, `src/shared/i18n/en.json`, `src/shared/i18n/ko.json`
 > - 실행: 레포 최상위에서 `npm run showcase:dev`. Showcase를 레포 밖의 디렉터리에 복사해 설치하고 MSW 목으로 개발 서버를 띄웁니다. 아래는 Starter의 README이고, 그 명령은 그 디렉터리에서 실행합니다.
 
 # Starter
@@ -353,6 +353,24 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 첫 화면이 다른 테마로 깜빡이지 않도록 `<body>` 맨 앞의 inline script(`ThemeScript`)가 페이지 내용과 React보다 먼저 테마를 적용합니다. 앱 전체를 가장 바깥에서 감싸는 `ThemeProvider`(`src/shared/theme/theme-provider.tsx`, `src/app/app-shell.tsx`)가 이 스크립트를 둡니다. 스크립트가 `<html>`의 속성을 바꾸므로 루트 레이아웃의 `<html>`에는 `suppressHydrationWarning`이 있습니다. Content-Security-Policy를 도입하면 이 스크립트에 nonce나 hash를 허용해야 합니다.
 - Storybook 툴바의 "테마"로 스토리를 테마별로 볼 수 있습니다. `npm run test:storybook`은 모든 스토리를 라이트 모드 브라우저와 다크 모드 브라우저(`storybook (chromium, dark)`)에서 한 번씩 실행해 두 테마 모두 접근성 검사를 합니다.
 - 테스트: `src/shared/theme/theme.test.ts`(테마 선택과 적용), `src/features/theme-switcher/theme-switcher.stories.tsx`(전환 UI), `e2e/dark-mode.spec.ts`(운영체제 설정, 저장한 선택, 깜빡임 없음, 두 테마의 접근성).
+
+## 다국어(i18n)
+
+`i18n` Recipe로 넣었습니다. [next-intl](https://next-intl.dev)로 한국어(기본 locale `ko`)와 영어(`en`)를 지원합니다.
+
+- 번역한 페이지는 `src/app/[locale]/` 아래에 둡니다. 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), 페이지는 locale마다 빌드할 때 렌더링합니다(`src/app/[locale]/layout.tsx`의 `generateStaticParams`). 지원하지 않는 locale의 주소(`/fr`)는 404입니다. 예로 홈(`/ko`, `/en`, 화면은 `src/features/home`)과 다국어 예시(`/ko/i18n`, `/en/i18n`: 날짜·통화 형식, 복수형, 클라이언트 컴포넌트의 번역)가 있습니다. 예시는 지워도 됩니다(`src/app/[locale]/i18n/`, `src/features/i18n-example/`, 카탈로그의 `I18nExample`과 `CartCounter`, `e2e/i18n.spec.ts`의 해당 테스트).
+- `[locale]` 밖의 페이지(`/products`, 다른 Recipe가 더한 페이지)는 번역하지 않은 페이지로, 주소와 화면이 그대로이고 locale 전환 UI에는 기본 locale로 보입니다. 번역하려면 페이지를 `src/app/[locale]/` 아래로 옮기고 문장을 메시지 카탈로그로 옮깁니다.
+- 메시지 카탈로그는 `src/shared/i18n/ko.json`(키의 기준)과 `en.json`이고, 메시지는 ICU 형식(`{count, plural, ...}`, `{date, date, full}`)으로 씁니다. 메시지 키는 `ko.json`의 타입으로 검사하므로(`src/shared/i18n/messages.ts`) 없는 키를 쓰면 `npm run typecheck`가 실패합니다. `en.json`에 키가 빠지면 타입 오류가 나고, 남는 키는 `npm test`(`messages.test.tsx`)가 잡습니다.
+- 서버 컴포넌트는 params의 locale을 넘겨 번역합니다: `const locale = await requireLocale(props)`(`src/shared/i18n/require-locale.ts`, 지원하지 않는 locale이면 404) 다음에 `getTranslations({ locale, namespace })`, `getFormatter({ locale })`. 루트 레이아웃(`src/app/layout.tsx`)이 `[locale]` 밖에 있어 next-intl이 요청의 locale을 스스로 알 수 없기 때문입니다. locale 없이 부르면 기본 locale로 조용히 그리지 않고 오류로 알립니다(`src/shared/i18n/request.ts`). params만 읽으므로 페이지는 빌드할 때 렌더링할 수 있습니다. 모든 페이지를 `[locale]` 아래로 옮겨 `src/app/[locale]/layout.tsx`가 루트 레이아웃이 되면 next-intl 문서의 `next/root-params` 방식으로 바꿀 수 있습니다.
+- 클라이언트 컴포넌트는 `useTranslations`, `useFormatter`를 씁니다. 앱 전체를 감싼 `I18nProvider`(`src/shared/i18n/i18n-provider.tsx`, `src/app/app-shell.tsx`)가 주소의 locale과 그 카탈로그를 넘깁니다. 어느 페이지가 올지 모르는 루트 레이아웃에서 넘기므로 모든 locale의 카탈로그가 브라우저 번들에 들어갑니다. 카탈로그가 커지면 클라이언트 컴포넌트가 쓰는 namespace만 넘기도록 나눕니다.
+- 링크와 이동은 `@/shared/i18n/navigation`의 `Link`, `useRouter`, `usePathname`을 씁니다. 지금 locale을 주소 앞에 붙입니다(`<Link href="/i18n">` → `/en/i18n`). 이 `Link`는 서버 컴포넌트에서도 씁니다.
+- 머리글의 locale 전환 UI(`src/features/locale-switcher`)는 번역한 페이지에서는 같은 페이지의 다른 locale 주소로 가고(`/ko/i18n` → `/en/i18n`), 번역하지 않은 페이지에서는 고른 locale의 홈으로 갑니다. 고른 locale은 `NEXT_LOCALE` 쿠키(브라우저를 닫으면 지워짐)에 저장됩니다.
+- 홈(`/`): server Starter에서는 proxy 처리기(`src/shared/i18n/i18n-proxy.ts`, `src/proxy.ts`)가 저장한 locale, 브라우저 언어(`Accept-Language`), 기본 locale 순으로 고른 locale의 홈으로 보냅니다. 브라우저 언어를 따르지 않으려면 `src/shared/i18n/routing.ts`에 `localeDetection: false`를 적습니다. static-export Starter에는 요청을 받는 서버가 없어 `/`가 기본 locale의 홈을 보여 줍니다(`src/app/page.tsx`).
+- 문서의 언어: 루트 레이아웃은 locale을 모르므로 `<html lang="ko">`로 그리고, `[locale]` 레이아웃이 페이지 내용을 `<div lang>`으로 감싸며, `I18nProvider`가 브라우저에서 `<html lang>`을 지금 locale로 바꿉니다. 기본 locale을 바꾸면 루트 레이아웃의 `lang`도 함께 바꿉니다.
+- 검색 엔진에 locale별 주소(hreflang)를 알리는 링크는 넣지 않았습니다(`routing.ts`의 `alternateLinks: false`). 필요하면 페이지의 metadata에 `alternates.languages`로 적습니다.
+- 날짜·시각은 `Asia/Seoul` 시간대로 보여 줍니다(`src/shared/i18n/messages.ts`의 `TIME_ZONE`). locale을 더하려면 `routing.ts`의 `locales`와 `LOCALE_NAMES`, 카탈로그(`<locale>.json`)와 `messages.ts`의 `MESSAGES`에 더합니다.
+- 다른 Recipe가 더한 화면(예: 머리글의 테마 전환)은 번역하지 않았습니다.
+- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `src/features/locale-switcher/locale-switcher.stories.tsx`(locale 전환), `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).
 
 ## 라우트별 Rendering Mode
 

@@ -1,0 +1,6 @@
+# i18n Recipe에서 지우는 Base의 경로. 한 줄에 하나씩, Starter 최상위 기준으로 적는다.
+
+# 홈은 locale마다 src/app/[locale]/page.tsx(/ko, /en)로 옮겼고, src/app/page.tsx는 이 Recipe의 파일이 대신한다.
+# 홈의 화면은 e2e/i18n.spec.ts와 Base의 e2e/home.spec.ts가 검사한다.
+src/app/page.test.tsx
+src/app/page.stories.tsx
