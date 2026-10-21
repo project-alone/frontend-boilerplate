@@ -146,6 +146,10 @@ test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패�
   expect(head(readShowcase('src/shared/mocks/handlers.ts'))).toContain('원본(packages/devc-frontend-generator/): recipes/auth/extensions.json')
   expect(head(readShowcase('src/shared/mocks/handlers.ts'))).toContain('recipes/table/extensions.json')
   expect(head(readShowcase('src/instrumentation.ts'))).toContain('원본(packages/devc-frontend-generator/): base/extensions.json')
+  // sitemap 규칙은 seo의 sitemap이 쓰지만, 규칙을 선언한 Recipe의 extensions.json으로 조립한다.
+  expect(head(readShowcase('src/app/sitemap-rules.ts'))).toContain(
+    '원본(packages/devc-frontend-generator/): recipes/auth/extensions.json, recipes/i18n/extensions.json',
+  )
   expect(head(readShowcase('src/features/theme-switcher/theme-switcher.tsx'))).toContain(
     'recipes/dark-mode/src/features/theme-switcher/theme-switcher.tsx',
   )

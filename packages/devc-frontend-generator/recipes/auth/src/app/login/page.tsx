@@ -2,8 +2,10 @@ import type { Metadata } from 'next'
 import { LoginForm } from '@/features/login-form/login-form'
 import { returnPathOf } from '@/shared/auth/access-rules'
 
+// 검색 결과에 보이지 않을 페이지다.
 export const metadata: Metadata = {
   title: '로그인',
+  robots: { index: false },
 }
 
 // auth Recipe: 보호된 라우트에 로그인하지 않고 들어오면 proxy가 돌아올 주소(next)를 담아 이 페이지로 보낸다.
