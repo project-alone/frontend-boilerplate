@@ -15,13 +15,14 @@ import { afterEach, beforeEach, expect, inject, test } from 'vitest'
 import { type BackgroundProcess, freePort, run, start, waitForServer } from './run.ts'
 import { SAMPLE_PRODUCTS } from './starter.ts'
 
-// Showcase(apps/showcase): Base에 Rendering Mode server와 모든 Recipe를 덧입혀 생성하고 커밋한 Starter(ADR-0002).
+// Showcase(apps/showcase): Base에 Rendering Mode server와 모든 Recipe·Archetype을 덧입혀 생성하고 커밋한 Starter(ADR-0002).
 // 레포 최상위의 npm 스크립트(showcase, showcase:check, showcase:watch, showcase:dev)를 실행해 검증한다.
-// Showcase를 설치해 Starter의 스크립트를 실행하는 검사(모든 Recipe를 켠 조합)는 showcase-starter.test.ts에 있다.
+// Showcase를 설치해 Starter의 스크립트를 실행하는 검사(모든 Recipe·Archetype을 켠 조합)는 showcase-starter.test.ts에 있다.
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
 const SHOWCASE_DIR = join(REPO_ROOT, 'apps', 'showcase')
 const RECIPES_DIR = join(REPO_ROOT, 'packages', 'devc-frontend-generator', 'recipes')
+const ARCHETYPES_DIR = join(REPO_ROOT, 'packages', 'devc-frontend-generator', 'archetypes')
 
 // 하네스가 npm pack으로 설치한 Generator로 Showcase를 만든다. 배포되는 패키지에 Base와 Recipe가 빠짐없이 담겼는지
 // (npm pack이 빼는 dotfile 등)도 함께 드러난다.
@@ -134,7 +135,7 @@ test('주석을 달 수 있는 Showcase 파일은 생성된 파일이니 고치�
   for (const path of withoutComments) expect(readme, path).toContain(`\`${path}\``)
 })
 
-test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패치, 확장 지점의 선언)을 알린다', () => {
+test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe·Archetype의 패치, 확장 지점의 선언)을 알린다', () => {
   expect(head(readShowcase('.storybook/preview.tsx'))).toContain(
     'base/.storybook/preview.tsx, recipes/dark-mode/.storybook/preview.tsx.patch',
   )
@@ -159,26 +160,45 @@ test('생성 안내는 고칠 원본(Base 파일, Recipe 파일, Recipe의 패�
     'recipes/route-rendering/src/app/rendering/isr/page.tsx',
   )
   expect(head(readShowcase('.gitignore'))).toContain('base/_gitignore')
+  // Archetype은 Recipe를 모두 덧입힌 뒤에 덧입히므로, Archetype의 파일과 Recipe 파일에 대한 Archetype의 패치도 원본으로 알린다.
+  expect(head(readShowcase('src/app/dashboard/page.tsx'))).toContain('archetypes/dashboard/src/app/dashboard/page.tsx')
+  expect(head(readShowcase('src/shared/auth/access-rules.ts'))).toContain(
+    'recipes/auth/src/shared/auth/access-rules.ts, archetypes/dashboard/src/shared/auth/access-rules.ts.patch',
+  )
+  expect(head(readShowcase('src/app/app-shell.tsx'))).toContain('archetypes/dashboard/extensions.json')
+  expect(head(readShowcase('openapi.yaml'))).toContain('archetypes/dashboard/openapi.yaml')
 })
 
-test('Showcase는 Generator에 담긴 모든 Recipe를 켠, 배포하지 않는 server Starter다', () => {
+test('Showcase는 Generator에 담긴 모든 Recipe와 Archetype을 켠, 배포하지 않는 server Starter다', () => {
   const readme = readShowcase('README.md')
 
-  for (const recipe of readdirSync(RECIPES_DIR)) {
-    // Recipe가 Starter에 그대로 더하는 파일(선언, 병합하는 package.json·README·명세 조각, 지울 목록, 패치를 뺀 나머지)이
+  const overlays = [
+    ...readdirSync(RECIPES_DIR).map((name) => ({ kind: 'Recipe', dir: join(RECIPES_DIR, name), name })),
+    ...readdirSync(ARCHETYPES_DIR).map((name) => ({ kind: 'Archetype', dir: join(ARCHETYPES_DIR, name), name })),
+  ]
+  expect(overlays.filter(({ kind }) => kind === 'Archetype').length).toBeGreaterThan(0)
+  for (const { kind, dir, name } of overlays) {
+    // overlay가 Starter에 그대로 더하는 파일(선언, 병합하는 package.json·README·명세 조각, 지울 목록, 패치를 뺀 나머지)이
     // 모두 있다.
-    const recipeDir = join(RECIPES_DIR, recipe)
-    const added = readdirSync(recipeDir, { recursive: true, withFileTypes: true })
+    const added = readdirSync(dir, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
-      .map((entry) => relative(recipeDir, join(entry.parentPath, entry.name)))
+      .map((entry) => relative(dir, join(entry.parentPath, entry.name)))
       .filter(
         (path) =>
-          !['recipe.json', 'extensions.json', 'openapi.yaml', 'package.json', 'README.md', 'remove.txt'].includes(path),
+          ![
+            'recipe.json',
+            'archetype.json',
+            'extensions.json',
+            'openapi.yaml',
+            'package.json',
+            'README.md',
+            'remove.txt',
+          ].includes(path),
       )
       .filter((path) => !path.endsWith('.patch'))
-    expect(added.length, recipe).toBeGreaterThan(0)
-    for (const path of added) expect(existsSync(join(SHOWCASE_DIR, path)), `${recipe}: ${path}`).toBe(true)
-    expect(readme, recipe).toContain(`\`${recipe}\``)
+    expect(added.length, `${kind} ${name}`).toBeGreaterThan(0)
+    for (const path of added) expect(existsSync(join(SHOWCASE_DIR, path)), `${kind} ${name}: ${path}`).toBe(true)
+    expect(readme, `${kind} ${name}`).toContain(`\`${name}\``)
   }
 
   const pkg = JSON.parse(readShowcase('package.json')) as { name: string; private?: boolean }
