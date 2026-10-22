@@ -1,14 +1,17 @@
 import type { OpenAPIV3 } from 'openapi-types'
-import type { SourceFile } from 'ts-morph'
 import type { RenderingMode } from '../rendering-mode.js'
 import { type Feature, FEATURES_DIR, featureNamed } from './feature.js'
-import { formComponentOf, formPropsOf, jsxText, PROP_SAMPLES } from './form.js'
+import { formComponentOf, formPropsOf } from './form.js'
 import { mutationHookName } from './mutation.js'
-import { kebabCase, pascalCase, splitWords, upperFirst } from './names.js'
-import { hasDeclaration, queryDomainOf, queryOptionsName } from './query-domain.js'
+import { jsxText, kebabCase, pascalCase, propertyAccess, splitWords, upperFirst } from './names.js'
+import { queryDomainOf, queryOptionsName } from './query-domain.js'
 import {
   type ChangedFile,
+  generatedNamesOf,
+  hasDeclaration,
+  hasExport,
   type Operation,
+  PROP_SAMPLES,
   SchematicError,
   StarterProject,
   successSchema,
@@ -74,9 +77,6 @@ const ISR_REVALIDATE_SECONDS = 60
 const STATIC_SEGMENT = /^[a-z\d]+(?:-[a-z\d]+)*$/
 const DYNAMIC_SEGMENT = /^\[([A-Za-z][A-Za-z\d]*)\]$/
 const GROUP_SEGMENT = /^\([a-z\d]+(?:-[a-z\d]+)*\)$/
-
-// JavaScript 식별자. 속성 접근을 item.name처럼 적을 수 있는지 본다.
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
 
 // 목록의 항목에서 보여 줄 값과 React key로 쓸 값을 고르는 속성 이름(앞의 것부터)
 const LABEL_PROPERTIES = ['name', 'title', 'label']
@@ -351,19 +351,17 @@ async function pageQuery(
   }
   const args = pathArguments('--query', operation, fetcher.parameters.slice(0, pathCount), route)
 
-  const operationName = upperFirst(fetcher.name)
-  const name = `${operationName}View`
+  const name = `${upperFirst(fetcher.name)}View`
   const fileName = `${kebabCase(splitWords(operationId))}-view`
   const stem = `${feature.directory}/${fileName}`
   const existing = starter.existingModule(`${stem}.tsx`)
-  const handler = `get${operationName}MockHandler`
+  const { mockHandler: handler, responseMock: response } = generatedNamesOf(fetcher)
   const mockModule = starter.generatedModuleOf(handler)
   if (mockModule === undefined) {
     throw new SchematicError(
       `재생성 계층에 ${operationId}의 MSW 핸들러(${handler})가 없습니다. openapi.yaml을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
     )
   }
-  const response = `get${operationName}ResponseMock`
   return {
     operationId,
     summary: summaryOf(operation),
@@ -477,11 +475,6 @@ function pathArguments(
 function summaryOf(operation: Operation): string | undefined {
   const summary = operation.definition.summary?.trim()
   return summary === '' ? undefined : summary
-}
-
-/** 모듈이 name이라는 함수나 변수를 내보내는지 본다. */
-function hasExport(file: SourceFile, name: string): boolean {
-  return file.getFunction(name)?.isExported() === true || file.getVariableDeclaration(name)?.isExported() === true
 }
 
 /** 응답 본문의 스키마로 결과를 그리는 방법을 정한다. 배열은 목록, 객체는 이름과 값의 목록, 그 밖은 값 그대로다. */
@@ -772,11 +765,11 @@ ${args.map(({ name, type }) => `  /** 요청 경로의 ${name} */\n  ${name}: ${
       case 'list': {
         const label =
           shape.label !== undefined
-            ? access('item', shape.label)
+            ? propertyAccess('item', shape.label)
             : shape.scalarItems
               ? 'item'
               : 'JSON.stringify(item)'
-        const key = shape.key === undefined ? 'index' : access('item', shape.key)
+        const key = shape.key === undefined ? 'index' : propertyAccess('item', shape.key)
         return {
           comment: `항목마다 ${shape.label ?? (shape.scalarItems ? '값' : 'JSON')}을 보여 준다.`,
           early: `  if (data.length === 0) return <p>항목이 없습니다.</p>\n`,
@@ -916,9 +909,4 @@ test('백엔드가 실패하면 불러오지 못했다고 알린다', async () =
   expect(await screen.findByRole('alert')).toHaveTextContent('불러오지 못했습니다.')
 })
 `
-}
-
-/** object의 속성 property를 읽는 식. 식별자가 아니면 대괄호로 읽는다. */
-function access(object: string, property: string): string {
-  return IDENTIFIER.test(property) ? `${object}.${property}` : `${object}[${JSON.stringify(property)}]`
 }

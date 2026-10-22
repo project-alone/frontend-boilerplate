@@ -1,6 +1,5 @@
 import { upperFirst } from './names.js'
 import {
-  hasDeclaration,
   openQueryDomain,
   type QueryDomain,
   queryDomainOf,
@@ -13,6 +12,7 @@ import {
   type ChangedFile,
   GENERATED_API_IMPORT,
   type GeneratedFunction,
+  hasDeclaration,
   type Operation,
   SchematicError,
   StarterProject,

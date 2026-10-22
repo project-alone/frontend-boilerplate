@@ -1,6 +1,5 @@
 import type { OpenAPIV3 } from 'openapi-types'
 import {
-  hasDeclaration,
   openQueryDomain,
   queryDomainOf,
   queryOptionsName,
@@ -12,6 +11,7 @@ import {
   type ChangedFile,
   GENERATED_API_IMPORT,
   type GeneratedFunction,
+  hasDeclaration,
   type Operation,
   QUERY_PARAMS_ARGUMENT,
   SchematicError,

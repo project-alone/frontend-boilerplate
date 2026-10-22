@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { readAllPaths } from './directory.ts'
 
 /** Showcase의 파일. 키는 Showcase 최상위 기준의 경로(구분자 /)이고, 경로 이름순이다. */
@@ -30,12 +31,29 @@ function overlayNames(generatorDir: string, kind: 'recipes' | 'archetypes'): str
     .sort()
 }
 
+// Showcase가 쓰는 Generator 코드의 모듈. Showcase를 만든 Generator의 빌드 결과(dist/<모듈>.js)를 불러와 쓴다.
+type Extensions = typeof import('../../packages/devc-frontend-generator/src/extensions.ts')
+type OpenApiSpec = typeof import('../../packages/devc-frontend-generator/src/openapi-spec.ts')
+
+/** Showcase를 만든 Generator. 파일의 원본을 찾을 때 Generator 패키지의 파일과 Generator 코드가 정한 이름을 쓴다. */
+interface Generator {
+  /** Generator 패키지의 디렉터리 */
+  dir: string
+  extensions: Pick<Extensions, 'ASSEMBLED_FILES' | 'EXTENSIONS_MANIFEST'>
+  spec: Pick<OpenApiSpec, 'OPENAPI_SPEC' | 'GENERATED_API_DIR'>
+}
+
+async function loadGenerator(dir: string): Promise<Generator> {
+  const load = async <T>(module: string) => (await import(pathToFileURL(join(dir, 'dist', module)).href)) as T
+  return { dir, extensions: await load<Extensions>('extensions.js'), spec: await load<OpenApiSpec>('openapi-spec.js') }
+}
+
 /**
  * generatorDir의 Generator(npm pack으로 묶이는 내용)로 Base에 Rendering Mode server와 Generator에 담긴 모든 Recipe와 Archetype을
  * 덧입힌 Starter를 만들고, 파일마다 생성 안내를 붙여 돌려준다(ADR-0002). 같은 Generator로 만들면 늘 같은 결과가 나온다(시각,
  * 난수를 쓰지 않는다).
  */
-export function generateShowcase(generatorDir: string): ShowcaseFiles {
+export async function generateShowcase(generatorDir: string): Promise<ShowcaseFiles> {
   const recipes = overlayNames(generatorDir, 'recipes')
   const archetypes = overlayNames(generatorDir, 'archetypes')
   const workdir = mkdtempSync(join(tmpdir(), 'devc-showcase-'))
@@ -62,7 +80,7 @@ export function generateShowcase(generatorDir: string): ShowcaseFiles {
 
     const starter = join(workdir, STARTER_NAME)
     const files: ShowcaseFiles = new Map(readAllPaths(starter).map((path) => [path, readFileSync(join(starter, path))]))
-    return addNotices(files, generatorDir, { recipes, archetypes })
+    return addNotices(files, await loadGenerator(generatorDir), { recipes, archetypes })
   } finally {
     rmSync(workdir, { recursive: true, force: true })
   }
@@ -75,7 +93,7 @@ interface Overlays {
 }
 
 /** 주석을 달 수 있는 파일에는 맨 위에 생성 안내와 원본을 붙이고, README에는 눈에 보이는 안내를 붙인다. */
-function addNotices(files: ShowcaseFiles, generatorDir: string, overlays: Overlays): ShowcaseFiles {
+function addNotices(files: ShowcaseFiles, generator: Generator, overlays: Overlays): ShowcaseFiles {
   const withNotices: ShowcaseFiles = new Map()
   const withoutComments: string[] = []
   for (const [path, content] of files) {
@@ -85,7 +103,7 @@ function addNotices(files: ShowcaseFiles, generatorDir: string, overlays: Overla
       withNotices.set(path, content)
       continue
     }
-    const sources = sourcesOf(path, generatorDir, overlays)
+    const sources = sourcesOf(path, generator, overlays)
     const origin =
       sources.length > 0
         ? `원본(${GENERATOR_PATH}/): ${sources.join(', ')}`
@@ -123,22 +141,6 @@ function commentFor(path: string): Comment | undefined {
   return undefined
 }
 
-// Generator가 확장 지점의 선언(Base와 Recipe의 extensions.json)으로 조립하는 파일과 그 파일에 모이는 확장 지점
-// (packages/devc-frontend-generator/src/extensions.ts)
-const EXTENSION_FILES: Record<string, readonly string[]> = {
-  'src/app/app-shell.tsx': ['providers', 'header'],
-  'next.config.plugins.ts': ['nextConfig'],
-  'src/instrumentation.ts': ['instrumentation'],
-  'src/instrumentation-client.ts': ['instrumentationClient'],
-  'src/proxy.ts': ['proxy'],
-  'src/shared/api/backend-fetch.ts': ['backendFetch'],
-  'src/shared/mocks/handlers.ts': ['mockHandlers'],
-  'src/app/sitemap-rules.ts': ['sitemap'],
-}
-
-const OPENAPI_SPEC = 'openapi.yaml'
-const GENERATED_API_DIR = 'src/shared/api/generated/'
-
 /**
  * Showcase의 path를 만든 원본(Generator 패키지 기준 경로). Base 파일에 Recipe를 이름순으로, 그 뒤에 Archetype을 이름순으로
  * 덧입혀, overlay의 파일은 앞의 원본을 대신하고 overlay의 패치(<경로>.patch)는 앞의 원본을 고친다고 본다(docs/recipes.md,
@@ -146,19 +148,22 @@ const GENERATED_API_DIR = 'src/shared/api/generated/'
  * 병합하거나 모아 만드는 파일은 그 원본을 모두 알린다: 확장 지점의 조립 파일은 그 지점을 선언한 extensions.json, 명세
  * (openapi.yaml)와 dotenv 파일은 Base와 overlay의 같은 파일, 재생성 API 계층은 overlay가 명세 조각을 더했으면 병합한 명세의 원본이다.
  */
-function sourcesOf(path: string, generatorDir: string, { recipes, archetypes }: Overlays): string[] {
+function sourcesOf(path: string, generator: Generator, { recipes, archetypes }: Overlays): string[] {
+  const generatorDir = generator.dir
+  const { ASSEMBLED_FILES, EXTENSIONS_MANIFEST } = generator.extensions
+  const { OPENAPI_SPEC, GENERATED_API_DIR } = generator.spec
   const overlayDirs = [...recipes.map((recipe) => `recipes/${recipe}`), ...archetypes.map((archetype) => `archetypes/${archetype}`)]
   const existing = (candidates: readonly string[]) =>
     candidates.filter((candidate) => existsSync(join(generatorDir, candidate)))
-  const points = EXTENSION_FILES[path]
-  if (points !== undefined) {
-    return existing(['base', ...overlayDirs].map((dir) => `${dir}/extensions.json`)).filter((manifest) => {
+  const assembled = ASSEMBLED_FILES.find((file) => file.path === path)
+  if (assembled !== undefined) {
+    return existing(['base', ...overlayDirs].map((dir) => `${dir}/${EXTENSIONS_MANIFEST}`)).filter((manifest) => {
       const declared = JSON.parse(readFileSync(join(generatorDir, manifest), 'utf8')) as Record<string, unknown>
-      return points.some((point) => point in declared)
+      return assembled.points.some((point) => point in declared)
     })
   }
   const specSources = existing([`base/${OPENAPI_SPEC}`, ...overlayDirs.map((dir) => `${dir}/${OPENAPI_SPEC}`)])
-  if (path === OPENAPI_SPEC || (path.startsWith(GENERATED_API_DIR) && specSources.length > 1)) return specSources
+  if (path === OPENAPI_SPEC || (path.startsWith(`${GENERATED_API_DIR}/`) && specSources.length > 1)) return specSources
   if (/^\.env(?:\.|$)/.test(path)) {
     return existing([`base/${path}`, ...overlayDirs.map((dir) => `${dir}/${path}`)])
   }

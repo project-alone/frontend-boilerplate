@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { isRecord } from './manifest.js'
 
 export type PackageJson = Record<string, unknown>
 
@@ -17,7 +18,7 @@ export async function updatePackageJson(
   const updated = update(JSON.parse(await readFile(path, 'utf8')) as PackageJson)
   for (const field of DEPENDENCY_FIELDS) {
     const dependencies = updated[field]
-    if (isObject(dependencies)) updated[field] = Object.fromEntries(Object.entries(dependencies).sort(byKey))
+    if (isRecord(dependencies)) updated[field] = Object.fromEntries(Object.entries(dependencies).sort(byKey))
   }
   await writeFile(path, `${JSON.stringify(updated, null, 2)}\n`)
 }
@@ -27,13 +28,9 @@ export function mergePackageJson(base: PackageJson, patch: PackageJson): Package
   const merged = { ...base }
   for (const [key, value] of Object.entries(patch)) {
     const current = merged[key]
-    merged[key] = isObject(current) && isObject(value) ? mergePackageJson(current, value) : value
+    merged[key] = isRecord(current) && isRecord(value) ? mergePackageJson(current, value) : value
   }
   return merged
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function byKey([a]: [string, unknown], [b]: [string, unknown]): number {

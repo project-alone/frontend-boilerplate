@@ -18,7 +18,7 @@ import { join, relative, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { runDev } from './showcase/dev.ts'
 import { compareFiles, listShowcaseFiles, syncDirectory, watchDirectories } from './showcase/directory.ts'
-import { generateShowcase } from './showcase/generate.ts'
+import { generateShowcase, type ShowcaseFiles } from './showcase/generate.ts'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
 const REPO_GENERATOR = join(REPO_ROOT, 'packages', 'devc-frontend-generator')
@@ -28,13 +28,13 @@ const [command, ...args] = process.argv.slice(2)
 
 switch (command) {
   case 'generate':
-    generate()
+    await generate()
     break
   case 'check':
-    check()
+    await check()
     break
   case 'watch':
-    watchSources()
+    await watchSources()
     break
   case 'dev':
     process.exitCode = await dev()
@@ -78,7 +78,7 @@ function exec(command: string, commandArgs: readonly string[], cwd: string): str
  * dotfile이 드러나 어디서 만들어도 같은 결과가 나온다. 레포의 node_modules 아래에 꺼내 Generator의 의존성(레포 최상위에
  * 설치된)을 그대로 찾게 한다.
  */
-function buildShowcase({ generatorDir }: ShowcaseOptions, build: boolean) {
+async function buildShowcase({ generatorDir }: ShowcaseOptions, build: boolean): Promise<ShowcaseFiles> {
   if (generatorDir !== undefined) return generateShowcase(generatorDir)
 
   if (build) exec('npm', ['run', 'build'], REPO_GENERATOR)
@@ -92,27 +92,28 @@ function buildShowcase({ generatorDir }: ShowcaseOptions, build: boolean) {
     const tarball = packed[0]?.filename
     if (tarball === undefined) throw new Error('npm pack이 만든 Generator tarball을 찾지 못했습니다.')
     exec('tar', ['-xzf', join(packDir, tarball), '-C', packDir], REPO_ROOT)
-    return generateShowcase(join(packDir, 'package'))
+    return await generateShowcase(join(packDir, 'package'))
   } finally {
     rmSync(packDir, { recursive: true, force: true })
   }
 }
 
 /** Showcase를 만들어 out을 그 결과와 같게 맞추고, 바꾸거나 지운 파일 수를 알리는 문장을 돌려준다. */
-function regenerate(options: ShowcaseOptions, build: boolean): string {
-  const { written, removed } = syncDirectory(options.out, buildShowcase(options, build), listShowcaseFiles(options.out))
+async function regenerate(options: ShowcaseOptions, build: boolean): Promise<string> {
+  const files = await buildShowcase(options, build)
+  const { written, removed } = syncDirectory(options.out, files, listShowcaseFiles(options.out))
   return `바꾼 파일 ${String(written.length)}개, 지운 파일 ${String(removed.length)}개`
 }
 
-function generate(): void {
+async function generate(): Promise<void> {
   const options = parseShowcaseOptions()
-  console.log(`Showcase를 만들었습니다: ${relativeToCwd(options.out)} (${regenerate(options, true)})`)
+  console.log(`Showcase를 만들었습니다: ${relativeToCwd(options.out)} (${await regenerate(options, true)})`)
 }
 
-function check(): void {
+async function check(): Promise<void> {
   const options = parseShowcaseOptions()
   const { out } = options
-  const { changed, missing, extra } = compareFiles(out, buildShowcase(options, true), listShowcaseFiles(out))
+  const { changed, missing, extra } = compareFiles(out, await buildShowcase(options, true), listShowcaseFiles(out))
   if (changed.length + missing.length + extra.length === 0) {
     console.log(`Showcase(${relativeToCwd(out)})가 Base와 Recipe·Archetype으로 다시 만든 결과와 같습니다.`)
     return
@@ -131,27 +132,29 @@ function check(): void {
   process.exitCode = 1
 }
 
-function watchSources(): void {
+async function watchSources(): Promise<void> {
   const options = parseShowcaseOptions()
   const generatorDir = options.generatorDir ?? REPO_GENERATOR
-  const run = (build: boolean) => {
+  const run = async (build: boolean) => {
     try {
-      const summary = regenerate(options, build)
+      const summary = await regenerate(options, build)
       console.log(`[${new Date().toLocaleTimeString('ko-KR')}] Showcase를 다시 만들었습니다(${summary}).`)
     } catch (error) {
       // 패치가 맞지 않는 등 생성이 실패해도 고칠 때까지 계속 지켜본다.
       console.error(error instanceof Error ? error.message : error)
     }
   }
-  run(true)
+  await run(true)
 
   // Generator의 소스(src)가 바뀌었으면 빌드한 뒤에 만든다.
   const src = join(generatorDir, 'src')
   const sources = ['base', 'recipes', 'archetypes', 'rendering-modes', 'src']
     .map((name) => join(generatorDir, name))
     .filter((directory) => existsSync(directory))
+  // 다시 만드는 동안 파일이 또 바뀌면 앞의 생성이 끝난 뒤에 다시 만든다.
+  let running = Promise.resolve()
   watchDirectories(sources, (changed) => {
-    run(changed.has(src))
+    running = running.then(() => run(changed.has(src)))
   })
   console.log(
     `Generator(${relativeToCwd(generatorDir)})의 base, recipes, archetypes, rendering-modes, src에서 파일이 바뀌면 Showcase(${relativeToCwd(options.out)})를 다시 만듭니다.`,

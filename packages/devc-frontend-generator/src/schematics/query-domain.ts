@@ -66,11 +66,6 @@ export function queryOptionsParameters(parameters: GeneratedFunction['parameters
   return parameters.map(({ name, type, optional }) => `${name}: ${type}${optional ? ' = {}' : ''}`).join(', ')
 }
 
-/** 모듈에 name이라는 함수나 변수가 이미 있는지 본다. */
-export function hasDeclaration(file: SourceFile, name: string): boolean {
-  return file.getFunction(name) !== undefined || file.getVariableDeclaration(name) !== undefined
-}
-
 /** 만들려는 코드와 이름이 겹치는 기존 코드('<파일>: <이름>')가 있으면 아무 파일도 바꾸지 않고 멈춘다. */
 export function rejectConflicts(conflicts: readonly (string | false | undefined)[]): void {
   const found = conflicts.filter((conflict) => typeof conflict === 'string')
