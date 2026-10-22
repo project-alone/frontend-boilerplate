@@ -230,6 +230,116 @@ test('목은 선택 속성을 값과 함께 넣거나 키째 빼고 undefined를
 })
 `
 
+// 응답 스키마가 이름 있는 스키마가 아니라 그 자리에 적은 oneOf·anyOf인 명세 조각(#79). Base의 샘플 명세에 더한다.
+// getPayment는 이름 있는 스키마 둘의 oneOf, listPayments는 그런 oneOf의 배열, getLatestPayment는 이름 있는 스키마와 null의 anyOf다.
+// getPayment만 example이 있고 나머지는 faker가 목을 만든다.
+const PAYMENT_OPERATIONS = `
+tags:
+  - name: payments
+    description: 결제
+paths:
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      responses:
+        '200':
+          description: 결제 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - $ref: '#/components/schemas/CardPayment'
+                    - $ref: '#/components/schemas/BankPayment'
+  /payments/{paymentId}:
+    get:
+      operationId: getPayment
+      tags: [payments]
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 결제
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/CardPayment'
+                  - $ref: '#/components/schemas/BankPayment'
+              example:
+                method: card
+                cardNumber: '1234-5678'
+  /latest-payment:
+    get:
+      operationId: getLatestPayment
+      tags: [payments]
+      responses:
+        '200':
+          description: 가장 최근 결제. 결제가 없으면 null
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/CardPayment'
+                  - type: 'null'
+components:
+  schemas:
+    CardPayment:
+      type: object
+      required: [method, cardNumber]
+      properties:
+        method:
+          type: string
+          enum: [card]
+        cardNumber:
+          type: string
+    BankPayment:
+      type: object
+      required: [method, account]
+      properties:
+        method:
+          type: string
+          enum: [bank]
+        account:
+          type: string
+`
+
+// oneOf·anyOf 응답을 생성된 fetch 함수로 받는 Starter 테스트. 응답이 어느 스키마에도 맞지 않으면 fetch 함수가 거부해야
+// 응답을 Zod 스키마로 검증한 것이다.
+const PAYMENTS_TEST = `import { http, HttpResponse } from 'msw'
+import { expect, test } from 'vitest'
+import { z } from 'zod'
+import { getLatestPayment, getPayment, listPayments } from '@/shared/api/generated'
+import { server } from '@/shared/mocks/node'
+
+test('MSW 핸들러가 돌려준 oneOf·anyOf 응답이 fetch 함수의 Zod 검증을 통과한다', async () => {
+  expect(await getPayment(7)).toEqual({ method: 'card', cardNumber: '1234-5678' })
+  const payments = await listPayments()
+  expect(payments.length).toBeGreaterThan(0)
+  for (const payment of payments) expect(['card', 'bank']).toContain(payment.method)
+  const latest = await getLatestPayment()
+  expect([null, 'card']).toContain(latest?.method ?? null)
+})
+
+test('fetch 함수는 oneOf·anyOf의 어느 스키마에도 맞지 않는 응답을 거부한다', async () => {
+  server.use(
+    http.get('*/payments/:paymentId', () => HttpResponse.json({ method: 'cash' })),
+    http.get('*/payments', () => HttpResponse.json([{ method: 'card', account: '110-123' }])),
+    http.get('*/latest-payment', () => HttpResponse.json({ method: 'bank', account: '110-123' })),
+  )
+
+  await expect(getPayment(7)).rejects.toThrow(z.ZodError)
+  await expect(listPayments()).rejects.toThrow(z.ZodError)
+  await expect(getLatestPayment()).rejects.toThrow(z.ZodError)
+})
+`
+
 describe('api:gen', () => {
   test('Starter에 담긴 재생성 결과는 샘플 명세로 api:gen을 다시 실행해도 바뀌지 않는다', () => {
     const before = readTree(join(starter.dir, GENERATED_DIR))
@@ -263,6 +373,18 @@ describe('api:gen', () => {
       starter.expectNpmSuccess(['run', 'typecheck'])
       starter.expectNpmSuccess(['run', 'lint'])
       starter.expectNpmSuccess(['test', '--', 'src/shared/api/reviews.test.ts'])
+    })
+  })
+
+  test('응답 스키마가 그 자리에 적은 oneOf·anyOf인 명세 조각으로 다시 만들어도 Starter의 typecheck·lint·테스트를 통과하고, fetch 함수가 응답을 Zod 스키마로 검증한다', () => {
+    restoringAfter(['src', 'openapi.yaml'], () => {
+      addOperations(starter, PAYMENT_OPERATIONS)
+      writeFileSync(join(starter.dir, 'src/shared/api/payments.test.ts'), PAYMENTS_TEST)
+
+      // orval이 이런 응답의 Zod 스키마를 만들지 않으면 fetch 함수가 schema 없이 options(ApiRequestInit<unknown>)를 넘겨 TS2379로 실패한다(#79).
+      starter.expectNpmSuccess(['run', 'typecheck'])
+      starter.expectNpmSuccess(['run', 'lint'])
+      starter.expectNpmSuccess(['test', '--', 'src/shared/api/payments.test.ts'])
     })
   })
 
