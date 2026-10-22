@@ -32,6 +32,10 @@ export default defineConfig({
         // 맞춰 Zod 스키마는 .exactOptional()로 만들고, 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 뺀다(undefined를 넣지 않는다).
         zod: { version: 4, exactOptional: true },
         mock: { exactOptional: true },
+        // 컴포넌트의 string enum을 $ref로 가리키는 속성의 목은 명세의 enum 값을 바로 적은 배열에서 고른다. 기본값('const')이면
+        // 목이 enum 상수 객체의 값(Object.values(<enum>))에서 고르는데, 스키마를 Zod로 만들면 그 이름은 Zod enum이라 Zod 내부 값이
+        // 골라지고 응답의 Zod 검증이 실패한다. 타입과 Zod 스키마는 Zod로 만들므로 이 설정으로 바뀌지 않는다.
+        enumGenerationType: 'union',
       },
     },
   },
