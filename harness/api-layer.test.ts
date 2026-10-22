@@ -107,6 +107,75 @@ test('example이 없으면 MSW 핸들러가 스키마에 맞는 값을 만들어
 })
 `
 
+// 속성이 컴포넌트의 string enum을 $ref로 가리키는 명세 조각(#78). 실제 명세처럼 상태 값을 컴포넌트로 따로 두고 여러 곳에서 가리킨다.
+// 필수 속성, 선택 속성, 배열의 항목이 모두 $ref enum이고, example이 없어 faker가 목을 만든다.
+const TICKET_OPERATIONS = `
+tags:
+  - name: tickets
+    description: 문의
+paths:
+  /tickets:
+    get:
+      operationId: listTickets
+      tags: [tickets]
+      responses:
+        '200':
+          description: 문의 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+components:
+  schemas:
+    TicketStatus:
+      type: string
+      enum: [open, answered, closed]
+    TicketChannel:
+      type: string
+      enum: [email, phone, chat]
+    Ticket:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        channel:
+          $ref: '#/components/schemas/TicketChannel'
+        statusHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketStatus'
+`
+
+// $ref enum 속성이 있는 응답을 생성된 fetch 함수(Zod 검증)와 목 함수로 확인하는 Starter 테스트. 기대하는 값은 명세의 enum 값을 그대로 적는다.
+const TICKETS_TEST = `import { expect, test } from 'vitest'
+import { listTickets } from '@/shared/api/generated'
+import { Ticket } from '@/shared/api/generated/model'
+import { getListTicketsResponseMock } from '@/shared/api/generated/tickets/tickets.msw'
+
+const STATUSES = ['open', 'answered', 'closed']
+const CHANNELS = ['email', 'phone', 'chat']
+
+test('MSW 핸들러가 돌려준 $ref enum 속성이 있는 응답이 fetch 함수의 Zod 검증을 통과한다', async () => {
+  expect((await listTickets()).length).toBeGreaterThan(0)
+})
+
+test('목은 $ref enum 속성에 명세의 enum 값만 넣는다', () => {
+  const tickets = Array.from({ length: 50 }, () => getListTicketsResponseMock()).flat()
+
+  for (const ticket of tickets) {
+    expect(Ticket.parse(ticket)).toEqual(ticket)
+    expect(STATUSES).toContain(ticket.status)
+    if (ticket.channel !== undefined) expect(CHANNELS).toContain(ticket.channel)
+    for (const status of ticket.statusHistory ?? []) expect(STATUSES).toContain(status)
+  }
+})
+`
+
 // 실제 고객사 명세처럼 응답 스키마에 선택 속성(required에 없는 속성)이 있는 명세 조각(#75). Base의 샘플 명세에 더한다.
 // 문자열, 배열, enum, 중첩 객체(그 안의 선택 속성), null을 받는 선택 속성과, 선택 속성만 있는 인라인 응답이 섞여 있다.
 // listReviews와 getReviewStats는 example이 없어 faker가 목을 만들고, getReview의 example은 선택 속성을 적지 않았다.
@@ -361,6 +430,17 @@ describe('api:gen', () => {
       starter.expectNpmSuccess(['test', '--', 'src/shared/api/orders.test.ts'])
       const generated = Object.values(readTree(join(starter.dir, GENERATED_DIR))).join('\n')
       expect(generated).not.toContain('@tanstack/react-query')
+    })
+  })
+
+  test('속성이 $ref string enum을 가리키는 명세 조각으로 다시 만든 MSW 목은 명세의 enum 값만 돌려주고 fetch 함수의 Zod 검증을 통과한다', () => {
+    restoringAfter(['src', 'openapi.yaml'], () => {
+      addOperations(starter, TICKET_OPERATIONS)
+      writeFileSync(join(starter.dir, 'src/shared/api/tickets.test.ts'), TICKETS_TEST)
+
+      // 목이 Zod enum 객체의 속성 값(Object.values)에서 골라 typecheck는 통과하고 응답의 Zod 검증만 invalid_value로 실패했다(#78).
+      starter.expectNpmSuccess(['run', 'typecheck'])
+      starter.expectNpmSuccess(['test', '--', 'src/shared/api/tickets.test.ts'])
     })
   })
 
