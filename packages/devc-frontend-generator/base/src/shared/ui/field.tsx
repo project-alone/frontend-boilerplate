@@ -1,6 +1,8 @@
 import { Field as FieldPrimitive } from '@base-ui/react/field'
 import { cx } from 'class-variance-authority'
+import { useId } from 'react'
 import type { WithClassName } from './class-name'
+import { FieldLabelIdProvider } from './field-label-id'
 
 // 폼 컨트롤(Input, Select)과 그 레이블이 함께 쓰는 모양
 export const formControlClassName =
@@ -18,9 +20,19 @@ export function Field({ className, ...props }: WithClassName<FieldPrimitive.Root
   return <FieldPrimitive.Root className={cx('flex flex-col gap-1', className)} {...props} />
 }
 
-export function FieldLabel({ className, ...props }: WithClassName<FieldPrimitive.Label.Props>) {
+export function FieldLabel({ className, id, children, ...props }: WithClassName<FieldPrimitive.Label.Props>) {
+  // 레이블이 감싼 Checkbox는 이 id로 레이블에 이어진다(aria-labelledby). Base UI도 레이블의 id로 잇지만 hydration 뒤에야
+  // 이으므로, 서버가 그린 HTML에서도 체크박스에 이름이 있도록 id를 미리 정해 감싼 컨트롤에 알린다.
+  const generatedId = useId()
+  const labelId = id ?? generatedId
   return (
-    <FieldPrimitive.Label className={cx('inline-flex items-center gap-2', formLabelClassName, className)} {...props} />
+    <FieldPrimitive.Label
+      id={labelId}
+      className={cx('inline-flex items-center gap-2', formLabelClassName, className)}
+      {...props}
+    >
+      <FieldLabelIdProvider id={labelId}>{children}</FieldLabelIdProvider>
+    </FieldPrimitive.Label>
   )
 }
 

@@ -27,6 +27,12 @@ export default defineConfig({
       override: {
         mutator: { path: './src/shared/api/api-fetch.ts', name: 'apiFetch' },
         fetch: { includeHttpResponseReturnType: false, runtimeValidation: true },
+        // fetch 함수는 응답 타입과 같은 이름의 Zod 스키마로 응답을 검증한다. 응답이 이름 있는 스키마가 아니라 그 자리에 적은
+        // oneOf·anyOf(스키마 둘 중 하나, 스키마 또는 null 등)이면 orval은 타입을 `A | B`로만 적어 검증할 Zod 스키마가 없고,
+        // fetch 함수는 응답을 검증하지 않은 채 typecheck에서 실패한다(TS2379). 그래서 이런 응답에도 `<operationId><상태 코드>`
+        // (예: GetPayment200, 배열의 항목은 ListPayments200Item) 이름의 타입과 Zod 스키마를 만든다. 이런 요청 본문은 fetch 함수가
+        // `A | B` 대신 `<operationId>Body` 타입으로 받는다.
+        aliasCombinedTypes: true,
         includeZodSchemaInArguments: true,
         // 선택 속성(required에 없는 속성)은 값이 undefined인 키가 아니라 빠진 키로 다룬다. tsconfig의 exactOptionalPropertyTypes에
         // 맞춰 Zod 스키마는 .exactOptional()로 만들고, 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 뺀다(undefined를 넣지 않는다).
