@@ -6,12 +6,18 @@ import {
   type ListUsersParamsOutput,
   Role,
   UpdateUserBody,
+  type User,
   type UserAccount,
   type UserAccountPage,
   type UserStats,
   UserStatus,
 } from '@/shared/api/generated/model'
-import { mockUserOf } from '@/shared/auth/auth-mock-handlers'
+import {
+  mockUserOf,
+  mockUsers,
+  resetMockUsers as resetAuthMockUsers,
+  saveMockUser,
+} from '@/shared/auth/auth-mock-handlers'
 
 // 대시보드 Archetype: 사용자 관리 API(users tag)를 흉내 내는 목 백엔드. 명세에서 생성한 핸들러는 늘 같은 example을
 // 돌려주므로, 추가하고 고친 사용자를 기억하고 쿼리 파라미터대로 거르고 정렬하는 핸들러를 따로 둔다. 확장 지점 mockHandlers
@@ -24,6 +30,11 @@ import { mockUserOf } from '@/shared/auth/auth-mock-handlers'
 // 백엔드(src/shared/auth/auth-mock-handlers.ts)가 발급한 것이고, 앱에서는 BFF 프록시와 서버의 apiFetch가 세션의 accessToken을
 // 붙인다(auth-backend-fetch.ts). 화면 쪽 접근 규칙(src/shared/auth/access-rules.ts의 PROTECTED_ROUTES)이 관리자가 아닌 사용자를
 // 추가·수정 화면에 들이지 않아도, 백엔드는 따로 요청을 거절한다.
+//
+// 실제 백엔드에서는 대시보드가 관리하는 사용자와 로그인하는 사용자가 같은 사용자 저장소에 있으므로, 사용자의 이름, 이메일, 역할은
+// 따로 두지 않고 auth의 목 백엔드가 가진 사용자 저장소(mockUsers, saveMockUser)에 둔다. 그래서 대시보드에서 추가한 사용자도
+// MOCK_PASSWORD로 로그인하고, 바꾼 역할은 목 백엔드의 다음 요청부터, 로그인 세션에는 다음 로그인이나 refresh부터 쓰인다.
+// 대시보드에만 있는 정보(상태, 부서, 추가한 날)는 이 파일이 사용자 id마다 기억한다.
 
 /** 목 백엔드의 처음 사용자. auth Recipe의 목 계정(user@example.com, admin@example.com)도 들어 있다. */
 const SEED_USERS: readonly UserAccount[] = [
@@ -121,17 +132,48 @@ const SEED_USERS: readonly UserAccount[] = [
   },
 ]
 
-let users: UserAccount[] = [...SEED_USERS]
+/** 대시보드에만 있는 사용자 정보. 이름, 이메일, 역할은 auth의 사용자 저장소에 있다. */
+type Profile = Omit<UserAccount, 'id' | 'name' | 'email' | 'role'>
 
-/** 사용자를 처음 상태로 되돌린다. 테스트가 서로의 추가·수정에 영향을 받지 않게 할 때 쓴다. */
-export function resetMockUsers(): void {
-  users = [...SEED_USERS]
+let profiles = new Map<number, Profile>()
+
+/** 대시보드는 사용자마다 역할 하나를 고르고, 로그인하는 사용자(auth의 User)는 역할 목록을 갖는다. 관리자는 사용자 역할도 갖는다. */
+const ROLES_OF: Record<Role, readonly Role[]> = { admin: ['admin', 'user'], user: ['user'] }
+
+function roleOf(user: User): Role {
+  return user.roles.includes('admin') ? 'admin' : 'user'
 }
+
+/** 사용자를 기억한다. 이름, 이메일, 역할은 auth의 사용자 저장소에, 나머지는 profiles에 둔다. */
+function saveUser({ id, name, email, role, ...profile }: UserAccount): void {
+  saveMockUser({ id, email, name, roles: [...ROLES_OF[role]] })
+  profiles.set(id, profile)
+}
+
+/** 대시보드의 사용자. auth의 사용자 저장소의 사용자에 대시보드의 정보를 붙인다(대시보드가 더하지 않은 사용자는 뺀다). */
+function allUsers(): UserAccount[] {
+  return mockUsers().flatMap((user) => {
+    const profile = profiles.get(user.id)
+    return profile === undefined
+      ? []
+      : [{ id: user.id, name: user.name, email: user.email, role: roleOf(user), ...profile }]
+  })
+}
+
+/** 사용자를 처음 상태로 되돌린다(auth의 사용자 저장소도 함께). 테스트가 서로의 추가·수정에 영향을 받지 않게 할 때 쓴다. */
+export function resetMockUsers(): void {
+  resetAuthMockUsers([])
+  profiles = new Map()
+  for (const user of SEED_USERS) saveUser(user)
+}
+
+// 서버가 이 핸들러를 불러오면 처음 사용자를 auth의 사용자 저장소에 넣는다.
+resetMockUsers()
 
 /** 명세의 listUsers처럼 사용자를 거르고(q, role, status) 정렬하고(sort, order) 한 페이지(page, pageSize)를 잘라 돌려준다. */
 function listUsersPage({ q, role, status, sort, order, page, pageSize }: ListUsersParamsOutput): UserAccountPage {
   const keyword = q?.trim().toLowerCase() ?? ''
-  const filtered = users.filter(
+  const filtered = allUsers().filter(
     (user) =>
       (role === undefined || user.role === role) &&
       (status === undefined || user.status === status) &&
@@ -171,11 +213,12 @@ function readParams(url: URL): Record<string, unknown> {
 }
 
 function userAt(userId: unknown): UserAccount | undefined {
-  return users.find((user) => String(user.id) === userId)
+  return allUsers().find((user) => String(user.id) === userId)
 }
 
+/** 같은 이메일로는 로그인할 사용자를 가릴 수 없으므로, 대시보드가 모르는 사용자까지 auth의 사용자 저장소에서 찾는다. */
 function emailTaken(email: string, exceptId?: number): boolean {
-  return users.some((user) => user.email.toLowerCase() === email.toLowerCase() && user.id !== exceptId)
+  return mockUsers().some((user) => user.email.toLowerCase() === email.toLowerCase() && user.id !== exceptId)
 }
 
 const DUPLICATE_EMAIL = '같은 이메일의 사용자가 이미 있습니다.'
@@ -205,7 +248,7 @@ export const usersHandlers = [
   http.get(`${MOCK_API_BASE_URL}/users/stats`, ({ request }) => {
     const rejection = rejectionOf(request)
     if (rejection !== undefined) return rejection
-    return HttpResponse.json(statsOf(users))
+    return HttpResponse.json(statsOf(allUsers()))
   }),
 
   http.get(`${MOCK_API_BASE_URL}/users`, ({ request }) => {
@@ -225,11 +268,11 @@ export const usersHandlers = [
     if (emailTaken(body.data.email)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
     const created: UserAccount = {
       ...body.data,
-      id: Math.max(0, ...users.map((user) => user.id)) + 1,
+      id: Math.max(0, ...mockUsers().map((user) => user.id)) + 1,
       status: 'invited',
       joinedAt: new Date().toISOString().slice(0, 10),
     }
-    users = [...users, created]
+    saveUser(created)
     return HttpResponse.json(created, { status: 201 })
   }),
 
@@ -252,7 +295,7 @@ export const usersHandlers = [
     if (emailTaken(body.data.email, current.id)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
     // PUT이므로 보내지 않은 선택 항목(department)은 지운다.
     const updated: UserAccount = { ...body.data, id: current.id, joinedAt: current.joinedAt }
-    users = users.map((user) => (user.id === current.id ? updated : user))
+    saveUser(updated)
     return HttpResponse.json(updated)
   }),
 ]

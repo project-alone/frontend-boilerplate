@@ -38,8 +38,8 @@ test('auth Recipe를 dark-mode Recipe와 함께 켜면 머리글에 두 Recipe�
 })
 
 // 하네스 매트릭스: Base에 auth Recipe를 넣은 server Starter를 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트
-// (세션 쿠키, BFF 프록시의 토큰 첨부와 refresh, proxy의 보호된 라우트, 로그인 Route Handler, 로그인 폼, e2e/auth.spec.ts)가
-// 통과하는지 본다. auth는 server만 지원한다.
+// (세션 쿠키, BFF 프록시의 토큰 첨부와 refresh, proxy의 보호된 라우트, 로그인 Route Handler, 목 백엔드의 사용자 저장소,
+// 로그인 폼, e2e/auth.spec.ts)가 통과하는지 본다. auth는 server만 지원한다.
 describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
   const starter = useStarter({
     prefix: 'dcgen-auth-',
@@ -61,6 +61,8 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
       'session-routes.test.ts',
       'access-rules.test.ts',
       'mock-session.test.ts',
+      // 목 백엔드의 사용자 저장소: 바꾼 역할은 목 백엔드가 바로, 세션은 refresh하거나 다시 로그인할 때 받는다.
+      'auth-mock-handlers.test.ts',
       'login-form.test.tsx',
     ]) {
       expectFileToPass(report, file, 1)
