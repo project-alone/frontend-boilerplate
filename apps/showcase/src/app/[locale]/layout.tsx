@@ -13,6 +13,11 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
 }
 
+// 위의 locale만 있다. 그 밖의 값(/fr, 한 단계짜리 없는 주소 /no-such-page 등)은 렌더링하지 않고 앱의 404 화면
+// (src/app/not-found.tsx)을 상태 코드 404로 보낸다. 렌더링하다 notFound()로 알리면, 요청마다 렌더링하는 개발 서버에서는 앱 수준의
+// 로딩 상태를 먼저 보내 상태 코드가 200이 되고, generateMetadata가 멈춰 404 화면의 제목도 빠진다.
+export const dynamicParams = false
+
 // 번역한 페이지의 og:locale을 그 locale로 알린다(ko_KR, en_US). 위 레이아웃의 OpenGraph(예: seo Recipe의 기본값)는 그대로 둔다.
 export async function generateMetadata(props: LocaleRouteProps, parent: ResolvingMetadata): Promise<Metadata> {
   const locale = await requireLocale(props)
