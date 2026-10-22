@@ -139,12 +139,13 @@ overlay 최상위에 두고, 확장 지점마다 조각의 배열을 적는다. 
 | 항목     | 뜻                                                                                                                                                                             |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `path`   | Starter 최상위 기준의 `.ts`·`.tsx` 모듈. 보통 그 Recipe가 더한 파일이다. 모든 overlay를 덧입힌 뒤의 Starter에 없으면 생성이 실패한다.                                          |
-| `export` | 그 모듈이 내보내는 이름. 조립 파일이 이 이름으로 import한다. 한 조립 파일에서 다른 조각과 이름이 겹치면 생성이 실패하므로 Recipe 이름을 담아 짓는다.                           |
+| `export` | 그 모듈이 내보내는 이름. 조립 파일이 이 이름으로 import한다. 짓는 법은 아래 목록에 있다.                                                                                       |
 | `order`  | 같은 지점의 조각 사이의 순서(정수). 작은 것이 먼저이고, 감싸는 지점(Provider, proxy, next.config)에서는 바깥이다. 같으면 덧입힌 순서(Base → Rendering Mode → Recipe)를 따른다. |
 
 - 조립 파일은 Generator가 모든 overlay를 덧입힌 뒤 매번 새로 쓴다. 패치하거나 대신할 수 없다. 조립 파일의 틀(머리글의 모양, proxy의 matcher 등)은 Generator 코드(`src/extensions.ts`)가 정한다.
 - 조각의 모양은 조립 파일의 타입이 정하므로 Starter의 `typecheck`가 검사한다. 모듈은 ADR-0005의 계층과 폴더 깊이를 지킨다. `src/app/app-shell.tsx`는 `app` 계층이라 `features`와 `shared`의 컴포넌트를 모두 쓸 수 있다.
 - 알 수 없는 지점이나 항목은 오타로 보고 생성이 실패한다.
+- `export` 이름이 한 조립 파일에서 다른 조각과 겹치면 생성이 실패한다. 조각이 하는 일이나 다루는 리소스를 드러내 짓고(`authProxy`, `ThemeProvider`, `membersHandlers`), 다른 Recipe도 쓸 만한 흔한 이름이면 Recipe 이름을 담는다. Showcase가 모든 Recipe와 Archetype을 함께 켜므로 겹친 이름은 CI에서 드러난다.
 - Base의 조각은 `base/extensions.json`에 있다: `QueryProvider`(100), `ToastProvider`(200), 서버 `apiInstrumentation`(100, MSW나 백엔드 주소 확인), MSW 핸들러 `pageNavigationHandlers`(0, 페이지 탐색 요청은 목 응답 없이 보냄). Rendering Mode `static-export`는 브라우저 `browserMockingInstrumentation`(100)을 더한다.
 
 #### Provider와 머리글(`providers`, `header`)
