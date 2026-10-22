@@ -4,10 +4,18 @@ import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import type { OpenAPIV3 } from 'openapi-types'
-import { Node, Project, QuoteKind, type SourceFile, type TypeNode } from 'ts-morph'
+import {
+  type FunctionDeclaration,
+  Node,
+  Project,
+  QuoteKind,
+  type SourceFile,
+  type TypeNode,
+  type VariableDeclaration,
+} from 'ts-morph'
 import { GENERATED_API_DIR, HTTP_METHODS, type HttpMethod, OPENAPI_SPEC } from '../openapi-spec.js'
 import type { RenderingMode } from '../rendering-mode.js'
-import { camelCase, splitWords } from './names.js'
+import { camelCase, splitWords, upperFirst } from './names.js'
 
 /** 재생성 계층의 fetch 함수를 가져오는 경로. orval의 tags-split 결과를 index.ts가 모두 다시 내보낸다. */
 export const GENERATED_API_IMPORT = '@/shared/api/generated'
@@ -54,6 +62,36 @@ export interface GeneratedFunction {
   /** fetch 함수가 돌려주는 데이터의 타입(Promise<T>의 T)과 그 타입이 쓰는 이름의 import */
   data: { type: string; typeImports: TypeImport[] }
 }
+
+/**
+ * 재생성 계층(orval)이 fetch 함수와 함께 operation마다 만드는 이름. orval은 fetch 함수 이름(camelCase로 바꾼 operationId)의
+ * 첫 글자를 대문자로 바꿔 쓴다. 명세에 따라 만들지 않는 것도 있으므로 쓰기 전에 generatedModuleOf로 찾는다.
+ */
+export function generatedNamesOf(fetcher: GeneratedFunction): {
+  /** 요청 본문의 Zod 스키마(<OperationId>Body) */
+  requestBody: string
+  /** MSW 핸들러를 만드는 함수(get<OperationId>MockHandler) */
+  mockHandler: string
+  /** 응답 본문을 만드는 MSW 목 함수(get<OperationId>ResponseMock). 응답 본문이 없는 operation에는 없다. */
+  responseMock: string
+} {
+  const operationName = upperFirst(fetcher.name)
+  return {
+    requestBody: `${operationName}Body`,
+    mockHandler: `get${operationName}MockHandler`,
+    responseMock: `get${operationName}ResponseMock`,
+  }
+}
+
+/**
+ * Schematic이 만든 컴포넌트가 props로 받는 인자(경로 파라미터, 뮤테이션 훅의 인자)의 타입마다 생성한 테스트와 스토리가 넘길
+ * 값(TypeScript 식). 여기 없는 타입의 인자는 값을 정할 수 없다.
+ */
+export const PROP_SAMPLES: ReadonlyMap<string, string> = new Map([
+  ['number', '1'],
+  ['string', "'1'"],
+  ['boolean', 'true'],
+])
 
 /** 바꾼 파일. path는 Starter 최상위 기준이다. */
 export interface ChangedFile {
@@ -135,7 +173,7 @@ export class StarterProject {
     // orval은 operationId를 camelCase로 바꿔 fetch 함수 이름으로 쓴다.
     const name = camelCase(splitWords(operation.operationId))
     for (const file of this.generatedFiles()) {
-      const declaration = file.getVariableDeclaration(name) ?? file.getFunction(name)
+      const declaration = declarationOf(file, name)
       if (declaration?.isExported() !== true) continue
       const fn = Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : declaration
       if (!Node.isFunctionLikeDeclaration(fn)) continue
@@ -188,8 +226,7 @@ export class StarterProject {
   /** 재생성 계층에서 name을 내보내는 모듈의 import 경로(`@/shared/api/generated/...`). 없으면 undefined다. */
   generatedModuleOf(name: string): string | undefined {
     for (const file of this.generatedFiles()) {
-      const declaration = file.getVariableDeclaration(name) ?? file.getFunction(name)
-      if (declaration?.isExported() === true) return this.importPath(relative(this.root, file.getFilePath()))
+      if (hasExport(file, name)) return this.importPath(relative(this.root, file.getFilePath()))
     }
     return undefined
   }
@@ -286,6 +323,21 @@ export function successSchema(operation: Operation): OpenAPIV3.SchemaObject | un
   return (response as OpenAPIV3.ResponseObject | undefined)?.content?.['application/json']?.schema as
     | OpenAPIV3.SchemaObject
     | undefined
+}
+
+/** 모듈에 name이라는 함수나 변수가 이미 있는지 본다. */
+export function hasDeclaration(file: SourceFile, name: string): boolean {
+  return declarationOf(file, name) !== undefined
+}
+
+/** 모듈이 name이라는 함수나 변수를 내보내는지 본다. */
+export function hasExport(file: SourceFile, name: string): boolean {
+  return declarationOf(file, name)?.isExported() === true
+}
+
+/** 모듈의 최상위에 있는 name이라는 함수나 변수의 선언 */
+function declarationOf(file: SourceFile, name: string): FunctionDeclaration | VariableDeclaration | undefined {
+  return file.getFunction(name) ?? file.getVariableDeclaration(name)
 }
 
 /**

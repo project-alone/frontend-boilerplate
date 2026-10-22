@@ -2,12 +2,15 @@ import type { OpenAPIV3 } from 'openapi-types'
 import { Node, type SourceFile, type TypeNode } from 'ts-morph'
 import { type Feature, featureNamed } from './feature.js'
 import { mutationHookName } from './mutation.js'
-import { camelCase, kebabCase, splitWords, upperFirst } from './names.js'
-import { hasDeclaration, queryDomainOf } from './query-domain.js'
+import { camelCase, jsxText, kebabCase, propertyAccess, splitWords, upperFirst } from './names.js'
+import { queryDomainOf } from './query-domain.js'
 import {
   type ChangedFile,
   type GeneratedFunction,
+  generatedNamesOf,
+  hasDeclaration,
   type Operation,
+  PROP_SAMPLES,
   SchematicError,
   StarterProject,
   type TypeImport,
@@ -35,7 +38,6 @@ const JSON_MEDIA_TYPE = /^application\/([\w.-]+\+)?json\s*(;.*)?$/i
 
 // React Hook Form의 필드 이름으로 쓸 수 있는 속성 이름. 점(.)과 대괄호는 중첩 경로로 읽히므로 받지 않는다.
 const FIELD_NAME = /^[A-Za-z_$][\w$-]*$/
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
 
 // null을 받는 필드의 Select에서 고른 값을 비우는 선택지의 문구(Select의 clearLabel)
 const CLEAR_SELECT_LABEL = '선택 안 함'
@@ -56,13 +58,6 @@ const FORMAT_SAMPLES = new Map([
   ['time', '12:00:00'],
   ['date-time', '2026-01-01T00:00:00Z'],
   ['date-time-local', '2026-01-01T00:00:00'],
-])
-
-// 폼의 props로 받는 인자(경로 파라미터)의 타입마다 테스트와 스토리가 넘길 값. page Schematic이 만드는 컴포넌트의 테스트도 쓴다.
-export const PROP_SAMPLES = new Map([
-  ['number', '1'],
-  ['string', "'1'"],
-  ['boolean', 'true'],
 ])
 
 // 재생성 계층(orval)이 Zod로 검증하는 문자열 format. 'a'는 이 format에 맞지 않는다(검증 실패 테스트가 입력한다).
@@ -255,18 +250,14 @@ export async function generateForm(
     )
   }
   const { props, hookArguments, variables, bodyType } = formArguments(operation, fetcher, hook)
-  // orval이 operation마다 만드는 이름은 fetch 함수 이름(camelCase operationId)을 PascalCase로 바꿔 쓴다.
-  const operationName = upperFirst(fetcher.name)
-  const schemaName = `${operationName}Body`
+  const { requestBody: schemaName, mockHandler: mockHandlerName, responseMock } = generatedNamesOf(fetcher)
   const schemaModule = starter.generatedModuleOf(schemaName)
-  const mockHandlerName = `get${operationName}MockHandler`
   const mockHandlerModule = starter.generatedModuleOf(mockHandlerName)
   if (schemaModule === undefined || mockHandlerModule === undefined) {
     throw new SchematicError(
       `재생성 계층에 ${operationId}의 요청 본문 Zod 스키마(${schemaName})나 MSW 핸들러(${mockHandlerName})가 없습니다. openapi.yaml을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
     )
   }
-  const responseMock = `get${operationName}ResponseMock`
 
   const form: FormModel = {
     operationId,
@@ -811,7 +802,7 @@ function nullableNote(fields: readonly FormField[]): string {
 
 /** 필드 하나의 입력 요소. 레이블과 설명, 오류 메시지를 Field로 묶어 입력 요소의 접근 가능한 이름과 설명으로 잇는다. */
 function fieldSource(field: FormField): string {
-  const error = `errors${IDENTIFIER.test(field.name) ? `.${field.name}` : `[${JSON.stringify(field.name)}]`}`
+  const error = propertyAccess('errors', field.name)
   const invalid = `${error} !== undefined`
   const name = JSON.stringify(field.name)
   const description =
@@ -1100,11 +1091,6 @@ function successTitle(form: FormModel): string {
 
 function failureTitle(form: FormModel): string {
   return `${form.submitLabel} 실패`
-}
-
-// JSX 안의 글자. JSX가 해석하는 문자(중괄호, 꺾쇠, &)나 줄바꿈이 있으면 문자열 식으로 넣는다.
-export function jsxText(text: string): string {
-  return /[{}<>&\n]/.test(text) ? `{${JSON.stringify(text)}}` : text
 }
 
 // JSX 속성 값. 큰따옴표나 줄바꿈이 있으면 문자열 식으로 넣는다.

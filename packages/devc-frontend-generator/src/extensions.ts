@@ -5,6 +5,7 @@ import { formatForStarter } from './format.js'
 import { isRecord } from './manifest.js'
 import { exists, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
 import type { RenderingMode } from './rendering-mode.js'
+import { isIdentifier } from './schematics/names.js'
 
 // 확장 지점: 여러 Recipe가 같은 Base 파일(루트 레이아웃, proxy, next.config, instrumentation, 서버가 백엔드로 보내는 요청,
 // MSW 핸들러 목록)이나 sitemap의 규칙에 끼어들어야 하는 곳.
@@ -74,7 +75,7 @@ export async function readExtensions({ dir, label }: Overlay): Promise<Extension
       if (typeof path !== 'string' || !/^[\w@.-]+(?:\/[\w@.[\]()-]+)*\.tsx?$/.test(path) || path.split('/').includes('..')) {
         throw fail(`의 ${where}.path는 Starter 최상위 기준의 .ts·.tsx 파일 경로여야 합니다(예: src/shared/<이름>/<파일>.ts).`)
       }
-      if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(name)) {
+      if (typeof name !== 'string' || !isIdentifier(name)) {
         throw fail(`의 ${where}.export는 모듈이 내보내는 이름이어야 합니다.`)
       }
       if (typeof order !== 'number' || !Number.isInteger(order)) throw fail(`의 ${where}.order는 정수여야 합니다.`)
