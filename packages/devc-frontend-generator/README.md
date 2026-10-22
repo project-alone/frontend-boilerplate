@@ -26,7 +26,10 @@ Archetype은 여러 Recipe를 조합해 만든 완성된 앱 유형입니다(예
 | `--rendering-mode <mode>` | Starter 전체의 Rendering Mode입니다. `server`(기본) 또는 `static-export`         |
 | `--archetype <name>`      | 넣을 Archetype입니다. 여러 번 쓸 수 있고, 그 Archetype이 쓰는 Recipe도 넣습니다  |
 | `--recipe <name>`         | 넣을 Recipe입니다. 여러 번 쓸 수 있고, Recipe에 필요한 다른 Recipe는 함께 넣습니다 |
+| `--skip-git`              | Starter에 git 저장소를 만들지 않습니다(`git init`)                               |
 | `--skip-install`          | Starter를 만든 뒤 `npm install`을 하지 않습니다                                  |
+
+`new`는 Starter를 만든 뒤 Starter 디렉터리에 git 저장소를 만들고(`git init`) 의존성을 설치합니다. 설치하면서 lefthook이 커밋 훅(pre-commit의 린트·포맷·타입 검사, commit-msg의 Conventional Commits 검사)을 설치합니다. 첫 커밋은 만들지 않으니 직접 만드세요. 이미 git 저장소 안(모노레포 등)에 만들면 새 저장소를 만들지 않습니다. git 저장소 밖에서 `--skip-git`으로 만들었거나 git을 찾지 못해 저장소 없이 만들었으면, 끝에 나오는 다음 단계대로 `git init` 뒤 `npx lefthook install`(설치 전이면 `npm install`)을 실행해 훅을 설치합니다.
 
 Starter는 자신을 만든 Generator를 정확한 버전으로 `devDependencies`에 고정합니다. 팀원 모두가 같은 Schematic 결과를 얻고, Starter가 Generator 업데이트를 저절로 받지는 않습니다.
 

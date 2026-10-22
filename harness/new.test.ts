@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, test } from 'vitest'
 import { type PackedGeneratorRegistry, startPackedGeneratorRegistry } from './registry.ts'
-import { KEYS, run, runInTerminal, start } from './run.ts'
-import { GENERATOR_PACKAGE, newStarter, readTree } from './starter.ts'
+import { KEYS, run, type RunResult, runInTerminal, start } from './run.ts'
+import { GENERATOR_PACKAGE, GIT_ENV, newStarter, readTree } from './starter.ts'
 
 let workdir: string
 
@@ -91,6 +91,51 @@ test('new는 Rendering Mode를 지정하지 않으면 server Starter를 만든�
   const server = generate('server', ['--rendering-mode', 'server', '--skip-install'])
 
   expect(readTree(omitted)).toEqual(readTree(server))
+})
+
+describe('new가 만드는 git 저장소', () => {
+  const git = (cwd: string, args: readonly string[]) => run('git', args, cwd, GIT_ENV)
+
+  test.each([
+    { command: 'new', flags: [] },
+    { command: 'new --skip-git', flags: ['--skip-git'] },
+  ])(
+    'git 저장소 안에서 $command 명령으로 만들면 Starter에 새 git 저장소를 만들지 않고, 다음 단계로 git init을 안내하지 않는다',
+    ({ flags }) => {
+      // 모노레포처럼 이미 git 저장소인 디렉터리 안에 Starter를 만든다.
+      expect(git(workdir, ['init', '--quiet']).status).toBe(0)
+
+      const result = run(inject('dcgenBin'), ['new', 'my-app', ...flags, '--skip-install'], workdir, GIT_ENV)
+
+      expect(result.status, result.output).toBe(0)
+      expect(existsSync(join(workdir, 'my-app', '.git'))).toBe(false)
+      expect(git(join(workdir, 'my-app'), ['rev-parse', '--show-toplevel']).output.trim()).toBe(realpathSync(workdir))
+      expect(result.output).toMatch(/다음 단계:\s+cd my-app\s+npm install\s+npm run dev/)
+    },
+  )
+
+  test('new --skip-git은 git 저장소를 만들지 않고, 다음 단계로 git init 뒤에 설치하라고 안내한다(설치가 커밋 훅을 설치한다)', () => {
+    const result = run(inject('dcgenBin'), ['new', 'my-app', '--skip-git', '--skip-install'], workdir, GIT_ENV)
+
+    expect(result.status, result.output).toBe(0)
+    expect(existsSync(join(workdir, 'my-app', '.git'))).toBe(false)
+    expect(result.output).toMatch(/cd my-app\s+git init\s+npm install\s+npm run dev/)
+  })
+
+  test('git을 찾지 못하면 new는 경고하고 Starter를 만들며, 다음 단계로 git init을 안내한다', () => {
+    // git이 없는 환경: PATH에는 빈 디렉터리만 두고, dcgen은 node로 직접 실행한다.
+    const emptyPath = join(workdir, 'empty-path')
+    mkdirSync(emptyPath)
+    const cli = join(inject('generatorDir'), 'dist', 'cli.js')
+
+    const result = run(process.execPath, [cli, 'new', 'my-app', '--skip-install'], workdir, { PATH: emptyPath })
+
+    expect(result.status, result.output).toBe(0)
+    expect(result.output).toContain('git을 찾지 못해')
+    expect(existsSync(join(workdir, 'my-app', 'package.json'))).toBe(true)
+    expect(existsSync(join(workdir, 'my-app', '.git'))).toBe(false)
+    expect(result.output).toMatch(/cd my-app\s+git init\s+npm install\s+npm run dev/)
+  })
 })
 
 describe('터미널에서 실행한 new', () => {
@@ -209,4 +254,51 @@ describe('--skip-install 없이 실행한 new', () => {
       expect(existsSync(join(starter, '.gitignore'))).toBe(true)
     },
   )
+
+  /**
+   * 사람이 터미널에서 하듯 `dcgen new`로 Starter를 만들고 의존성까지 설치한다. lefthook은 CI 환경 변수가 있으면 설치할 때 훅을
+   * 설치하지 않으므로, 하네스가 CI에서 돌더라도 CI는 빼고 실행한다. git은 사용자 설정과 격리한다.
+   */
+  async function createInstalledStarter(args: readonly string[]): Promise<{ starter: string; output: string }> {
+    const creating = start(inject('dcgenBin'), ['new', 'my-app', ...args], workdir, {
+      ...GIT_ENV,
+      CI: undefined,
+      npm_config_registry: registry.url,
+    })
+    expect(await creating.exited, creating.output()).toBe(0)
+    return { starter: join(workdir, 'my-app'), output: creating.output() }
+  }
+
+  const git = (starter: string, args: readonly string[]): RunResult => run('git', args, starter, GIT_ENV)
+
+  /** commit-msg 훅이 Conventional Commits 형식이 아닌 메시지를 거부하는지 본다. 스테이징한 파일이 없어 pre-commit 훅은 타입 검사만 돈다. */
+  function expectNonConventionalCommitToBeRejected(starter: string): void {
+    const result = git(starter, ['commit', '--allow-empty', '--message', '프로젝트 시작'])
+    expect(result.status, result.output).not.toBe(0)
+    expect(result.output).toContain('type-empty')
+  }
+
+  test('new는 git 저장소 밖에 만든 Starter를 설치하기 전에 git 저장소로 만들고(첫 커밋 없이), 설치가 넣은 commit-msg 훅은 Conventional Commits 형식이 아닌 메시지를 거부한다', async () => {
+    const { starter, output } = await createInstalledStarter([])
+
+    expect(git(starter, ['rev-parse', '--show-toplevel']).output.trim()).toBe(realpathSync(starter))
+    expect(git(starter, ['rev-parse', '--verify', '--quiet', 'HEAD']).status).not.toBe(0)
+    expect(output).toMatch(/cd my-app\s+npm run dev/)
+    expectNonConventionalCommitToBeRejected(starter)
+  })
+
+  test('new --skip-git은 git 저장소 없이 설치한 뒤 git init과 npx lefthook install을 안내하고, 안내대로 하면 commit-msg 훅이 Conventional Commits 형식이 아닌 메시지를 거부한다', async () => {
+    const { starter, output } = await createInstalledStarter(['--skip-git'])
+
+    expect(existsSync(join(starter, '.git'))).toBe(false)
+    expect(output).toMatch(/cd my-app\s+git init\s+npx lefthook install\s+npm run dev/)
+    for (const [command, ...args] of [
+      ['git', 'init'],
+      ['npx', 'lefthook', 'install'],
+    ] as const) {
+      const result = run(command, args, starter, GIT_ENV)
+      expect(result.status, `${command} ${args.join(' ')}\n${result.output}`).toBe(0)
+    }
+    expectNonConventionalCommitToBeRejected(starter)
+  })
 })
