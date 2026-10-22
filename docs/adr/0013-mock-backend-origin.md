@@ -13,6 +13,6 @@ MSW 핸들러는 처음에 `*/products`처럼 백엔드 주소를 가리지 않�
 ## Consequences
 
 - MSW를 켜 둬도 `API_BASE_URL`(`NEXT_PUBLIC_API_BASE_URL`)을 넣으면 그 백엔드를 부르고 MSW는 그 요청을 받지 않는다. 예전에는 핸들러가 주소를 가리지 않아 실제 백엔드 주소로 가는 요청도 MSW가 받았다.
-- Vitest의 브라우저 코드(jsdom)는 `server`에서도 BFF 프록시 대신 목 백엔드를 부른다(`vitest.setup.ts`). 테스트에는 BFF 프록시를 받을 Next.js 서버가 없다.
+- Vitest의 브라우저 코드(jsdom)는 `server`에서도 BFF 프록시 대신 목 백엔드를 부른다. 테스트에는 BFF 프록시를 받을 Next.js 서버가 없다. `server`는 `src/shared/api/base-url.ts`가 Vitest가 넣는 `VITEST=true`를 보고 고르며, 빌드한 앱의 브라우저에는 이 값이 박히지 않아 늘 BFF 프록시를 부른다(#93). `static-export`는 `vitest.setup.ts`가 `NEXT_PUBLIC_API_BASE_URL`에 목 백엔드 주소를 넣는다.
 - `static-export`의 브라우저는 다른 출처를 부르므로, 목 백엔드도 실제 백엔드처럼 CORS를 다룬다(예: file-upload의 업로드 preflight). 서비스 워커가 만든 응답에는 브라우저가 CORS를 검사하지 않지만 Vitest의 jsdom은 검사한다.
 - 테스트 하나의 `server.use(...)`는 서비스 워커에 들어가지 않으므로 `*/<경로>`로 써도 된다.

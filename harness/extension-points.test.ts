@@ -98,12 +98,14 @@ function variables(text: string): string[] {
 }
 
 describe('환경 변수', () => {
+  // Rendering Mode가 더하는 변수. 브라우저가 직접 부를 백엔드 주소(NEXT_PUBLIC_API_BASE_URL)는 BFF 프록시가 없는 static-export만
+  // 쓴다(#93).
   test.each([
-    ['server', []],
-    ['static-export', ['NEXT_PUBLIC_API_MOCKING']],
+    ['server', [], []],
+    ['static-export', ['NEXT_PUBLIC_API_MOCKING'], ['NEXT_PUBLIC_API_BASE_URL']],
   ])(
     'Rendering Mode %s: Recipe가 더한 변수는 예시 파일(.env.example)과 개발용 값(.env.development)에 변수 단위로 병합된다',
-    (renderingMode, modeVariables) => {
+    (renderingMode, modeVariables, modeExampleVariables) => {
       const result = dcgenNew(['--rendering-mode', renderingMode, ...FIXTURES])
       expect(result.status, result.output).toBe(0)
 
@@ -116,7 +118,7 @@ describe('환경 변수', () => {
       expect(development.startsWith('# `npm run dev`에서만 읽는다.'), development).toBe(true)
 
       const example = readFileSync(join(result.starter, '.env.example'), 'utf8')
-      expect(variables(example)).toEqual(['API_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL', 'FIXTURE_A_SECRET', 'FIXTURE_B_SECRET'])
+      expect(variables(example)).toEqual(['API_BASE_URL', ...modeExampleVariables, 'FIXTURE_A_SECRET', 'FIXTURE_B_SECRET'])
       expect(example).toContain('# extension-a-fixture의 배포 환경 값\nFIXTURE_A_SECRET=\n')
     },
   )
