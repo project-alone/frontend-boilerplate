@@ -30,7 +30,31 @@ jobs:
       - name: Install Chromium system dependencies
         run: npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
       - run: npm run typecheck
-      - run: npm test
+      # docker Recipe의 이미지 검사(harness/docker.test.ts)는 아래 docker 잡이 따로 돌린다. 같은 러너에서 컨테이너를 띄우는 동안
+      # 막 시작한 Storybook 테스트의 브라우저가 setup 모듈을 불러오지 못하는 일이 있었다(#88).
+      - run: npm test -- --exclude harness/docker.test.ts
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # 이미지로 띄운 Starter에 E2E를 돌리므로 harness 잡처럼 Chromium을 준비한다.
+      - name: Read the Playwright version of the Base
+        id: playwright
+        run: echo "version=$(node -p "require('./packages/devc-frontend-generator/base/package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium system dependencies
+        run: npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+      - run: npx vitest run harness/docker.test.ts
 
   showcase:
     name: Showcase drift

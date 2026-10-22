@@ -326,7 +326,7 @@ components:
           maxLength: 200
     Review:
       type: object
-      required: [id, productId, rating, comment]
+      required: [id, productId, rating]
       properties:
         id:
           type: integer
