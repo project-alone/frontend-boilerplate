@@ -65,7 +65,7 @@ Recipe의 코드와 테스트는 Starter의 같은 경로에 새 파일로 더�
 Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `.storybook/preview.tsx.patch`, `vitest.config.ts.patch`. 패치 하나는 파일 하나만 고친다. 사본 대신 패치를 쓰는 이유는 ADR-0007에 있다. 확장 지점이 있는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`의 래퍼, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수 파일)는 패치하지 않는다. 같은 자리를 패치하는 Recipe끼리는 Showcase에서 함께 켤 수 없다(ADR-0010).
 
 - 패치는 덧입히는 시점의 Starter 파일, 곧 Base에 Rendering Mode와 앞서 덧입힌 Recipe가 적용된 파일에 적용된다. 줄 번호가 달라도 맥락 줄이 맞는 곳을 찾아 적용하지만, 맥락 줄이 맞지 않으면 생성이 어느 패치인지 알리며 실패하고 만들던 Starter를 지운다.
-- Recipe가 지원하는 모든 Rendering Mode에서 맞아야 한다. Rendering Mode가 대신하는 파일(`rendering-modes/<mode>/`에 있는 파일)은 되도록 고치지 않는다.
+- Recipe가 지원하는 모든 Rendering Mode에서 맞아야 한다. Rendering Mode가 패치로 고치는 파일(`rendering-modes/<mode>/`의 `<경로>.patch`)은 Rendering Mode마다 내용이 다르므로 되도록 고치지 않는다.
 - 맥락 줄은 꼭 필요한 만큼만 둔다. 다른 Recipe가 같은 파일의 가까운 곳을 고치면 맥락 줄이 어긋날 수 있다. 부딪치면 하네스의 조합 매트릭스가 잡는다.
 
 패치는 이렇게 만든다.

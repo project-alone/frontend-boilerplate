@@ -4,7 +4,7 @@ Starter는 Base를 복사한 뒤 Rendering Mode(`rendering-modes/<mode>/`)와 Re
 
 ## Considered Options
 
-- **파일 통째로 교체**: 단순하지만 Base와의 차이가 사본 안에 숨어 쌓이고, 같은 파일을 바꾸는 Recipe 둘을 함께 쓸 수 없다. 내용이 Base와 전혀 다른 파일(예: static-export의 `e2e/products.spec.ts`)에만 쓴다.
+- **파일 통째로 교체**: 단순하지만 Base와의 차이가 사본 안에 숨어 쌓이고, 같은 파일을 바꾸는 Recipe 둘을 함께 쓸 수 없다. 내용이 Base와 전혀 다른 파일에만 쓴다. static-export는 API 계층 샘플(API base URL 모듈, 상품 목록 페이지와 Feature, 그 테스트와 E2E)을 통째로 대신했다가, Base만 고쳐지고 사본은 그대로 남는 일이 생겨 모두 패치로 바꿨다(#94).
 - **파일 종류별 구조적 편집(AST, YAML 편집기)**: 맥락이 조금 바뀌어도 적용되지만 파일 종류마다 편집기가 필요하고 Recipe 작성자가 편집 API를 익혀야 한다. 형식이 단순하고 여러 overlay가 자주 함께 고치는 `package.json`과 README에만 병합 규칙을 둔다.
 - **Rendering Mode와 Recipe가 조립 방식을 따로 가짐**(Recipe 전의 Rendering Mode 적용 코드): 기여자가 두 형식을 익혀야 하고, 패치 같은 기능이 한쪽에만 생긴다.
 
