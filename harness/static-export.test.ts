@@ -1,6 +1,16 @@
-import { readdirSync, readFileSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
-import { beforeAll, describe, expect, test } from 'vitest'
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, extname, join, relative } from 'node:path'
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, test } from 'vitest'
 import { freePort, run, start, waitForServer } from './run.ts'
 import { MSW_PROBE_ROUTE, runPlaywrightAgainst, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
 
@@ -135,5 +145,82 @@ describe('페이지 주소와 같은 경로의 API를 쓰는 Recipe를 넣은 st
     withRecipes.expectNpmSuccess(['run', 'test:e2e', '--', 'e2e/mock-api-pages.spec.ts'], {
       E2E_PORT: String(await freePort()),
     })
+  })
+})
+
+// #94: Rendering Mode overlay는 Base 파일을 통째로 대신하지 않고 바꿀 부분만 패치(<경로>.patch)로 고친다(ADR-0007). 대신한
+// 사본은 Base를 고쳐도 따라가지 않아 조용히 어긋난다. 하네스가 설치한 Generator를 복사해 Base를 고친 뒤 static-export Starter를
+// 만들어 본다. 설치하지 않으므로 금방 끝난다.
+describe('Base를 고친 Generator로 만든 static-export Starter', () => {
+  let workdir: string
+  let generator: string
+
+  beforeEach(() => {
+    workdir = mkdtempSync(join(tmpdir(), 'dcgen-static-export-base-edit-'))
+    // 같은 node_modules에 두어 Generator의 의존성을 그대로 찾게 한다(global-setup.ts의 시험용 Generator와 같은 방법).
+    const source = inject('generatorDir')
+    generator = join(dirname(source), `devc-frontend-generator-${basename(workdir)}`)
+    cpSync(source, generator, { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(workdir, { recursive: true, force: true })
+    rmSync(generator, { recursive: true, force: true })
+  })
+
+  function dcgenNew() {
+    const result = run(
+      join(generator, 'dist', 'cli.js'),
+      ['new', 'my-app', '--rendering-mode', 'static-export', '--skip-install'],
+      workdir,
+    )
+    return { ...result, starter: join(workdir, 'my-app') }
+  }
+
+  // 끝에 주석 한 줄을 덧붙일 수 있는 파일과 그 주석. 병합하는 파일(package.json, README.md, dotenv)은 대신될 일이 없어 뺀다.
+  const COMMENTS: Record<string, (text: string) => string> = {
+    '.ts': (text) => `// ${text}`,
+    '.tsx': (text) => `// ${text}`,
+    '.mjs': (text) => `// ${text}`,
+    '.css': (text) => `/* ${text} */`,
+    '.yml': (text) => `# ${text}`,
+    '.yaml': (text) => `# ${text}`,
+  }
+
+  test('Base 파일 끝에 더한 줄은 static-export가 지우지 않은 파일에 모두 남는다(static-export가 고치는 파일도 대신하지 않고 패치한다)', () => {
+    const baseDir = join(generator, 'base')
+    const marker = 'Base에서 더한 줄(하네스)'
+    const files = readdirSync(baseDir, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(baseDir, join(entry.parentPath, entry.name)))
+      .filter((path) => COMMENTS[extname(path)] !== undefined)
+    for (const path of files) appendFileSync(join(baseDir, path), `\n${COMMENTS[extname(path)]?.(marker) ?? ''}\n`)
+
+    const result = dcgenNew()
+    expect(result.status, result.output).toBe(0)
+
+    const kept = files.filter((path) => existsSync(join(result.starter, path)))
+    // static-export가 고치는 Base 파일(브라우저가 백엔드를 직접 부르는 base-url.ts, Suspense 없이 상태를 그리는 상품 목록 등)
+    expect(kept).toEqual(
+      expect.arrayContaining([
+        'src/shared/api/base-url.ts',
+        'src/features/product-list/product-list.tsx',
+        'next.config.ts',
+        'vitest.setup.ts',
+      ]),
+    )
+    expect(kept.filter((path) => !readFileSync(join(result.starter, path), 'utf8').includes(marker))).toEqual([])
+  })
+
+  test('static-export가 고치는 Base 파일의 그 부분이 바뀌면 어느 패치인지 알리며 실패하고 만들던 Starter를 남기지 않는다', () => {
+    const file = join(generator, 'base', 'src/features/product-list/product-list.tsx')
+    writeFileSync(file, readFileSync(file, 'utf8').replaceAll('useSuspenseQuery', 'useQuery'))
+
+    const result = dcgenNew()
+
+    expect(result.status).not.toBe(0)
+    expect(result.output).toContain('Rendering Mode static-export')
+    expect(result.output).toContain('src/features/product-list/product-list.tsx.patch')
+    expect(readdirSync(workdir)).toEqual([])
   })
 })
