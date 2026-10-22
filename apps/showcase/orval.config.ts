@@ -31,7 +31,10 @@ export default defineConfig({
         mutator: { path: './src/shared/api/api-fetch.ts', name: 'apiFetch' },
         fetch: { includeHttpResponseReturnType: false, runtimeValidation: true },
         includeZodSchemaInArguments: true,
+        // 선택 속성(required에 없는 속성)은 값이 undefined인 키가 아니라 빠진 키로 다룬다. tsconfig의 exactOptionalPropertyTypes에
+        // 맞춰 Zod 스키마는 .exactOptional()로 만들고, 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 뺀다(undefined를 넣지 않는다).
         zod: { version: 4, exactOptional: true },
+        mock: { exactOptional: true },
       },
     },
   },
