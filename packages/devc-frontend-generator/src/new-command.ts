@@ -108,7 +108,7 @@ async function runNew(name: string, options: NewOptions, command: Command): Prom
   )
 
   // 설치하기 전에 git 저장소를 만들어야 lefthook이 설치(postinstall)하면서 커밋 훅을 설치한다.
-  const inRepository = options.skipGit !== true && initGitRepository(target)
+  const inRepository = prepareGitRepository(target, { create: options.skipGit !== true })
   const installed = options.skipInstall !== true && installDependencies(target)
   const steps = nextSteps(relative(process.cwd(), target), { inRepository, installed })
   console.log(`\n다음 단계:\n\n${steps.map((step) => `  ${step}`).join('\n')}\n`)
@@ -124,22 +124,26 @@ function nextSteps(starterPath: string, { inRepository, installed }: { inReposit
 }
 
 /**
- * Starter 디렉터리에 git 저장소를 만들고(git init) Starter가 git 저장소 안에 있게 되었는지 돌려준다. 첫 커밋은 만들지 않는다
- * (사용자의 git 이름·이메일 설정이 없을 수 있다). 기본 브랜치 이름은 사용자의 git 설정을 따른다.
- * 이미 git 저장소 안이면(모노레포 등) 새 저장소를 만들지 않는다. git이 없거나 git init이 실패하면 경고만 하고 false를 돌려준다.
+ * Starter가 git 저장소 안에 있게 되었는지 돌려준다. create이면 저장소 밖일 때 Starter 디렉터리에 git 저장소를 만든다(git init).
+ * 첫 커밋은 만들지 않는다(사용자의 git 이름·이메일 설정이 없을 수 있다). 기본 브랜치 이름은 사용자의 git 설정을 따른다.
+ * 이미 git 저장소 안이면(모노레포 등) 새 저장소를 만들지 않는다. create가 아니어도(--skip-git) 저장소 안인지는 보아, 다음 단계
+ * 안내가 바깥 저장소 안에 git init을 적지 않게 한다. git이 없거나 git init이 실패하면 경고만 하고 false를 돌려준다.
  * Starter는 이미 만들었으므로 실패로 끝내지 않고, 다음 단계에서 저장소를 만들도록 안내한다.
  */
-function initGitRepository(target: string): boolean {
+function prepareGitRepository(target: string, { create }: { create: boolean }): boolean {
   const git = (args: readonly string[]) => spawnSync('git', args, { cwd: target, encoding: 'utf8' })
   const repository = git(['rev-parse', '--git-dir'])
   if (repository.error !== undefined) {
-    console.warn('\ngit을 찾지 못해 git 저장소를 만들지 않았습니다. git을 설치한 뒤 다음 단계대로 저장소를 만드세요.')
+    if (create) {
+      console.warn('\ngit을 찾지 못해 git 저장소를 만들지 않았습니다. git을 설치한 뒤 다음 단계대로 저장소를 만드세요.')
+    }
     return false
   }
   if (repository.status === 0) {
-    console.log('\n이미 git 저장소 안이라 새 git 저장소를 만들지 않았습니다.')
+    if (create) console.log('\n이미 git 저장소 안이라 새 git 저장소를 만들지 않았습니다.')
     return true
   }
+  if (!create) return false
   // --quiet는 기본 브랜치 이름을 정하라는 git의 안내(hint)도 숨긴다.
   const created = git(['init', '--quiet'])
   if (created.status === 0) {

@@ -96,17 +96,23 @@ test('new는 Rendering Mode를 지정하지 않으면 server Starter를 만든�
 describe('new가 만드는 git 저장소', () => {
   const git = (cwd: string, args: readonly string[]) => run('git', args, cwd, GIT_ENV)
 
-  test('git 저장소 안에서 실행한 new는 Starter에 새 git 저장소를 만들지 않는다', () => {
-    // 모노레포처럼 이미 git 저장소인 디렉터리 안에 Starter를 만든다.
-    expect(git(workdir, ['init', '--quiet']).status).toBe(0)
+  test.each([
+    { command: 'new', flags: [] },
+    { command: 'new --skip-git', flags: ['--skip-git'] },
+  ])(
+    'git 저장소 안에서 $command 명령으로 만들면 Starter에 새 git 저장소를 만들지 않고, 다음 단계로 git init을 안내하지 않는다',
+    ({ flags }) => {
+      // 모노레포처럼 이미 git 저장소인 디렉터리 안에 Starter를 만든다.
+      expect(git(workdir, ['init', '--quiet']).status).toBe(0)
 
-    const result = run(inject('dcgenBin'), ['new', 'my-app', '--skip-install'], workdir, GIT_ENV)
+      const result = run(inject('dcgenBin'), ['new', 'my-app', ...flags, '--skip-install'], workdir, GIT_ENV)
 
-    expect(result.status, result.output).toBe(0)
-    expect(existsSync(join(workdir, 'my-app', '.git'))).toBe(false)
-    expect(git(join(workdir, 'my-app'), ['rev-parse', '--show-toplevel']).output.trim()).toBe(realpathSync(workdir))
-    expect(result.output).toMatch(/cd my-app\s+npm install\s+npm run dev/)
-  })
+      expect(result.status, result.output).toBe(0)
+      expect(existsSync(join(workdir, 'my-app', '.git'))).toBe(false)
+      expect(git(join(workdir, 'my-app'), ['rev-parse', '--show-toplevel']).output.trim()).toBe(realpathSync(workdir))
+      expect(result.output).toMatch(/다음 단계:\s+cd my-app\s+npm install\s+npm run dev/)
+    },
+  )
 
   test('new --skip-git은 git 저장소를 만들지 않고, 다음 단계로 git init 뒤에 설치하라고 안내한다(설치가 커밋 훅을 설치한다)', () => {
     const result = run(inject('dcgenBin'), ['new', 'my-app', '--skip-git', '--skip-install'], workdir, GIT_ENV)
