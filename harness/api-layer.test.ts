@@ -107,6 +107,75 @@ test('example이 없으면 MSW 핸들러가 스키마에 맞는 값을 만들어
 })
 `
 
+// 속성이 컴포넌트의 string enum을 $ref로 가리키는 명세 조각(#78). 실제 명세처럼 상태 값을 컴포넌트로 따로 두고 여러 곳에서 가리킨다.
+// 필수 속성, 선택 속성, 배열의 항목이 모두 $ref enum이고, example이 없어 faker가 목을 만든다.
+const TICKET_OPERATIONS = `
+tags:
+  - name: tickets
+    description: 문의
+paths:
+  /tickets:
+    get:
+      operationId: listTickets
+      tags: [tickets]
+      responses:
+        '200':
+          description: 문의 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+components:
+  schemas:
+    TicketStatus:
+      type: string
+      enum: [open, answered, closed]
+    TicketChannel:
+      type: string
+      enum: [email, phone, chat]
+    Ticket:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        channel:
+          $ref: '#/components/schemas/TicketChannel'
+        statusHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketStatus'
+`
+
+// $ref enum 속성이 있는 응답을 생성된 fetch 함수(Zod 검증)와 목 함수로 확인하는 Starter 테스트. 기대하는 값은 명세의 enum 값을 그대로 적는다.
+const TICKETS_TEST = `import { expect, test } from 'vitest'
+import { listTickets } from '@/shared/api/generated'
+import { Ticket } from '@/shared/api/generated/model'
+import { getListTicketsResponseMock } from '@/shared/api/generated/tickets/tickets.msw'
+
+const STATUSES = ['open', 'answered', 'closed']
+const CHANNELS = ['email', 'phone', 'chat']
+
+test('MSW 핸들러가 돌려준 $ref enum 속성이 있는 응답이 fetch 함수의 Zod 검증을 통과한다', async () => {
+  expect((await listTickets()).length).toBeGreaterThan(0)
+})
+
+test('목은 $ref enum 속성에 명세의 enum 값만 넣는다', () => {
+  const tickets = Array.from({ length: 50 }, () => getListTicketsResponseMock()).flat()
+
+  for (const ticket of tickets) {
+    expect(Ticket.parse(ticket)).toEqual(ticket)
+    expect(STATUSES).toContain(ticket.status)
+    if (ticket.channel !== undefined) expect(CHANNELS).toContain(ticket.channel)
+    for (const status of ticket.statusHistory ?? []) expect(STATUSES).toContain(status)
+  }
+})
+`
+
 // 실제 고객사 명세처럼 응답 스키마에 선택 속성(required에 없는 속성)이 있는 명세 조각(#75). Base의 샘플 명세에 더한다.
 // 문자열, 배열, enum, 중첩 객체(그 안의 선택 속성), null을 받는 선택 속성과, 선택 속성만 있는 인라인 응답이 섞여 있다.
 // listReviews와 getReviewStats는 example이 없어 faker가 목을 만들고, getReview의 example은 선택 속성을 적지 않았다.
@@ -230,6 +299,116 @@ test('목은 선택 속성을 값과 함께 넣거나 키째 빼고 undefined를
 })
 `
 
+// 응답 스키마가 이름 있는 스키마가 아니라 그 자리에 적은 oneOf·anyOf인 명세 조각(#79). Base의 샘플 명세에 더한다.
+// getPayment는 이름 있는 스키마 둘의 oneOf, listPayments는 그런 oneOf의 배열, getLatestPayment는 이름 있는 스키마와 null의 anyOf다.
+// getPayment만 example이 있고 나머지는 faker가 목을 만든다.
+const PAYMENT_OPERATIONS = `
+tags:
+  - name: payments
+    description: 결제
+paths:
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      responses:
+        '200':
+          description: 결제 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - $ref: '#/components/schemas/CardPayment'
+                    - $ref: '#/components/schemas/BankPayment'
+  /payments/{paymentId}:
+    get:
+      operationId: getPayment
+      tags: [payments]
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 결제
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/CardPayment'
+                  - $ref: '#/components/schemas/BankPayment'
+              example:
+                method: card
+                cardNumber: '1234-5678'
+  /latest-payment:
+    get:
+      operationId: getLatestPayment
+      tags: [payments]
+      responses:
+        '200':
+          description: 가장 최근 결제. 결제가 없으면 null
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/CardPayment'
+                  - type: 'null'
+components:
+  schemas:
+    CardPayment:
+      type: object
+      required: [method, cardNumber]
+      properties:
+        method:
+          type: string
+          enum: [card]
+        cardNumber:
+          type: string
+    BankPayment:
+      type: object
+      required: [method, account]
+      properties:
+        method:
+          type: string
+          enum: [bank]
+        account:
+          type: string
+`
+
+// oneOf·anyOf 응답을 생성된 fetch 함수로 받는 Starter 테스트. 응답이 어느 스키마에도 맞지 않으면 fetch 함수가 거부해야
+// 응답을 Zod 스키마로 검증한 것이다.
+const PAYMENTS_TEST = `import { http, HttpResponse } from 'msw'
+import { expect, test } from 'vitest'
+import { z } from 'zod'
+import { getLatestPayment, getPayment, listPayments } from '@/shared/api/generated'
+import { server } from '@/shared/mocks/node'
+
+test('MSW 핸들러가 돌려준 oneOf·anyOf 응답이 fetch 함수의 Zod 검증을 통과한다', async () => {
+  expect(await getPayment(7)).toEqual({ method: 'card', cardNumber: '1234-5678' })
+  const payments = await listPayments()
+  expect(payments.length).toBeGreaterThan(0)
+  for (const payment of payments) expect(['card', 'bank']).toContain(payment.method)
+  const latest = await getLatestPayment()
+  expect([null, 'card']).toContain(latest?.method ?? null)
+})
+
+test('fetch 함수는 oneOf·anyOf의 어느 스키마에도 맞지 않는 응답을 거부한다', async () => {
+  server.use(
+    http.get('*/payments/:paymentId', () => HttpResponse.json({ method: 'cash' })),
+    http.get('*/payments', () => HttpResponse.json([{ method: 'card', account: '110-123' }])),
+    http.get('*/latest-payment', () => HttpResponse.json({ method: 'bank', account: '110-123' })),
+  )
+
+  await expect(getPayment(7)).rejects.toThrow(z.ZodError)
+  await expect(listPayments()).rejects.toThrow(z.ZodError)
+  await expect(getLatestPayment()).rejects.toThrow(z.ZodError)
+})
+`
+
 describe('api:gen', () => {
   test('Starter에 담긴 재생성 결과는 샘플 명세로 api:gen을 다시 실행해도 바뀌지 않는다', () => {
     const before = readTree(join(starter.dir, GENERATED_DIR))
@@ -254,6 +433,17 @@ describe('api:gen', () => {
     })
   })
 
+  test('속성이 $ref string enum을 가리키는 명세 조각으로 다시 만든 MSW 목은 명세의 enum 값만 돌려주고 fetch 함수의 Zod 검증을 통과한다', () => {
+    restoringAfter(['src', 'openapi.yaml'], () => {
+      addOperations(starter, TICKET_OPERATIONS)
+      writeFileSync(join(starter.dir, 'src/shared/api/tickets.test.ts'), TICKETS_TEST)
+
+      // 목이 Zod enum 객체의 속성 값(Object.values)에서 골라 typecheck는 통과하고 응답의 Zod 검증만 invalid_value로 실패했다(#78).
+      starter.expectNpmSuccess(['run', 'typecheck'])
+      starter.expectNpmSuccess(['test', '--', 'src/shared/api/tickets.test.ts'])
+    })
+  })
+
   test('응답 스키마에 선택 속성이 있는 명세 조각으로 다시 만든 MSW 목도 Starter의 typecheck·lint·테스트를 통과하고, 선택 속성은 값과 함께 넣거나 키째 뺀다', () => {
     restoringAfter(['src', 'openapi.yaml'], () => {
       addOperations(starter, REVIEW_OPERATIONS)
@@ -263,6 +453,18 @@ describe('api:gen', () => {
       starter.expectNpmSuccess(['run', 'typecheck'])
       starter.expectNpmSuccess(['run', 'lint'])
       starter.expectNpmSuccess(['test', '--', 'src/shared/api/reviews.test.ts'])
+    })
+  })
+
+  test('응답 스키마가 그 자리에 적은 oneOf·anyOf인 명세 조각으로 다시 만들어도 Starter의 typecheck·lint·테스트를 통과하고, fetch 함수가 응답을 Zod 스키마로 검증한다', () => {
+    restoringAfter(['src', 'openapi.yaml'], () => {
+      addOperations(starter, PAYMENT_OPERATIONS)
+      writeFileSync(join(starter.dir, 'src/shared/api/payments.test.ts'), PAYMENTS_TEST)
+
+      // orval이 이런 응답의 Zod 스키마를 만들지 않으면 fetch 함수가 schema 없이 options(ApiRequestInit<unknown>)를 넘겨 TS2379로 실패한다(#79).
+      starter.expectNpmSuccess(['run', 'typecheck'])
+      starter.expectNpmSuccess(['run', 'lint'])
+      starter.expectNpmSuccess(['test', '--', 'src/shared/api/payments.test.ts'])
     })
   })
 

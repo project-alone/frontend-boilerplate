@@ -142,6 +142,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 - `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
 - 명세의 선택 속성(`required`에 없는 속성)은 `comment?: string`처럼 키를 뺄 수 있는 속성이 되고, `undefined`를 값으로 넣을 수는 없습니다(`tsconfig.json`의 `exactOptionalPropertyTypes`). Zod 스키마는 `.exactOptional()`로, MSW 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 빼는 것으로 이를 따릅니다(`orval.config.ts`). 그래서 백엔드의 명세를 선택 속성 그대로 쓰면 됩니다.
+- 응답 스키마가 이름 있는 스키마가 아니라 그 자리에 적은 `oneOf`·`anyOf`여도(스키마 둘 중 하나, 스키마 또는 `null` 등) fetch 함수가 응답을 Zod 스키마로 검증합니다. 이런 응답의 타입과 Zod 스키마는 `<operationId><상태 코드>` 이름(예: `GetPayment200`, 배열의 항목은 `ListPayments200Item`)으로 만들어집니다(`orval.config.ts`의 `aliasCombinedTypes`). 이런 요청 본문은 `<operationId>Body` 타입으로 받습니다.
 - Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'listProducts', params]`처럼 계층으로 만듭니다. `src/queries`의 코드는 `npm run g -- query <operationId>`와 `npm run g -- mutation <operationId>`로 만들 수 있습니다(아래 "코드 생성(Schematic)").
 - 샘플: `/products` 페이지(`src/app/products/page.tsx`)가 서버에서 `listProductsQueryOptions()`로 데이터를 가져오고(prefetch), `HydrationBoundary`로 넘긴 데이터를 `src/features/product-list`가 이어받습니다. 브라우저는 같은 데이터를 다시 요청하지 않습니다(`e2e/products.spec.ts`).
 
@@ -181,6 +182,8 @@ MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세�
 - 빌드: `API_MOCKING=enabled`로 빌드하면(목 빌드) 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다. 목 빌드의 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").
 
 MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저의 요청도 BFF 프록시를 거쳐 서버에서 나가므로 MSW가 받습니다. 브라우저의 MSW(서비스 워커)를 쓰는 Rendering Mode(`static-export`)에서 fetch를 쓰지 않는 요청(XMLHttpRequest 등)은 `src/shared/mocks/mock-readiness.ts`의 `waitForMocks()`로 서비스 워커가 준비되기를 기다린 뒤 보냅니다. 이 Rendering Mode에서는 바로 끝나므로 두 Rendering Mode에서 같은 코드를 씁니다. `NEXT_PUBLIC_API_BASE_URL`로 브라우저가 백엔드를 직접 부르면 MSW가 받지 않습니다. 서버의 MSW(`msw/node`)는 번들에 넣지 않고 `node_modules`에서 불러옵니다(`next.config.ts`의 `serverExternalPackages`).
+
+서버의 MSW는 목 백엔드와의 TLS 연결을 흉내 내면서 가짜 TLS 세션을 내보냅니다. Node.js의 `fetch`가 그 세션을 같은 주소로 여는 다음 연결에 넘기면 Node.js 24는 OpenSSL의 오류를 남겨 두고, 그사이에 끝난 WebCrypto의 AES 작업(auth Recipe의 세션 쿠키 등)이 그 오류 때문에 `Assertion failed: errors->Empty()`로 서버를 끝냅니다. 그래서 `src/shared/mocks/node.ts`는 목 백엔드로 여는 TLS 연결에 앞 연결의 세션을 넘기지 않습니다.
 
 실제 백엔드로 바꾸려면 `.env.development.local`에 다음 두 줄을 적고 개발 서버를 다시 띄웁니다. `API_MOCKING`만 끄고 `API_BASE_URL`을 빠뜨리면 개발 서버가 오류를 내고 요청을 처리하지 않습니다. 배포 환경에서는 `API_MOCKING`을 켜지 않습니다(MSW는 devDependency입니다).
 

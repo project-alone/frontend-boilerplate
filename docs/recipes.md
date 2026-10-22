@@ -274,6 +274,7 @@ components:
 - 병합한 명세는 Starter의 `openapi.yaml`이 되고, Generator가 이 명세로 재생성 계층(`src/shared/api/generated`)을 다시 만든다(`npm run api:gen`과 같은 결과. Generator는 Base와 같은 버전의 orval을 담고 있다. [의존성 버전 올리기](release.md#의존성-버전-올리기)). `npm run g -- query`·`mutation`도 이 `openapi.yaml`을 읽는다.
 - MSW 목이 늘 같은 값을 돌려주도록 응답에 `example`을 적는다.
 - 응답 스키마의 선택 속성(`required`에 없는 속성)은 실제 명세처럼 그대로 둔다. 생성된 타입과 Zod 스키마는 선택 속성을 빠질 수 있는 키로 다루고(`exactOptionalPropertyTypes`), `example`이 없는 응답의 목은 선택 속성을 응답마다 넣거나 키째 뺀다(Base의 `orval.config.ts`). typecheck를 통과하려고 속성을 모두 `required`로 바꾸지 않는다.
+- 응답 스키마도 실제 명세처럼 그 자리에 적은 `oneOf`·`anyOf`(스키마 둘 중 하나, 스키마 또는 `null` 등)로 둬도 된다. 재생성 계층은 이런 응답의 Zod 스키마를 `<operationId><상태 코드>` 이름(예: `GetPayment200`)으로 만들어 fetch 함수가 응답을 검증한다(Base의 `orval.config.ts`의 `aliasCombinedTypes`). 이름 있는 스키마로 옮기지 않아도 된다.
 
 ### 환경 변수
 
