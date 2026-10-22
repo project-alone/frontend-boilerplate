@@ -78,7 +78,7 @@ Settings → Actions → General → Workflow permissions에서 **Allow GitHub A
 ### 2. GitHub: `npm` environment와 브랜치 보호
 
 - Settings → Environments → **New environment** `npm`(첫 Release 실행 때 저절로 생기지만 미리 만들어 규칙을 건다). Deployment branches and tags를 **Selected branches and tags**로 바꾸고 `master`만 허락한다. 배포 전에 사람의 승인을 받으려면 Required reviewers에 메인테이너를 넣는다.
-- Settings → Rules(또는 Branches)에서 `master`에 PR 필수, force push 금지, 필수 status check `Typecheck and harness`와 `Showcase drift`를 건다. Version PR은 위에 적은 대로 CI가 저절로 돌지 않으므로, 필수 status check를 걸었다면 머지하기 직전에 PR을 닫았다 다시 열어 CI를 돌린 뒤 머지한다.
+- Settings → Rules(또는 Branches)에서 `master`에 PR 필수, force push 금지, 필수 status check `Typecheck and harness`, `Docker image`, `Showcase drift`를 건다. Version PR은 위에 적은 대로 CI가 저절로 돌지 않으므로, 필수 status check를 걸었다면 머지하기 직전에 PR을 닫았다 다시 열어 CI를 돌린 뒤 머지한다.
 - 선택: [Changesets bot](https://github.com/apps/changeset-bot)을 저장소에 설치하면 PR마다 changeset이 있는지 댓글로 알려 준다.
 
 ### 3. npm: 계정과 2FA
