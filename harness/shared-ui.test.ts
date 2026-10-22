@@ -193,7 +193,7 @@ describe('공통 UI 컴포넌트', () => {
       starter.expectNpmSuccess(['run', 'build'])
     })
 
-    test('빌드된 페이지는 팝업을 연 상태까지 WCAG 2.2 AA 위반이 없다', async () => {
+    test('빌드된 페이지는 서버가 그린 HTML부터 팝업을 연 상태까지 WCAG 2.2 AA 위반이 없다', async () => {
       const spec = 'e2e/harness-ui.spec.ts'
       starter.writeFile(
         spec,
@@ -208,6 +208,33 @@ test('공통 컴포넌트를 쓴 페이지', async ({ page }) => {
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG_22_AA_TAGS).analyze()
     expect(violations).toEqual([])
   })
+})
+
+// 앱의 스크립트를 막아 hydration 전의 화면, 곧 페이지를 연 직후에 보조 기술이 읽는 화면을 검사한다. 위 검사는 hydration보다
+// 먼저 돌 수도 늦게 돌 수도 있어, 서버가 그린 HTML에만 있는 위반을 늘 잡지는 못한다.
+test('JavaScript가 실행되기 전에도 레이블로 감싼 체크박스에 이름이 있고 접근성 위반이 없다', async ({ page }) => {
+  await page.route('**/*', (route) =>
+    route.request().resourceType() === 'script' ? route.abort() : route.continue(),
+  )
+
+  await page.goto('${UI_ROUTE}')
+
+  await expect(page.getByRole('checkbox', { name: '약관에 동의합니다' })).toBeVisible()
+  const { violations } = await new AxeBuilder({ page }).withTags(WCAG_22_AA_TAGS).analyze()
+  expect(violations).toEqual([])
+})
+
+test('hydration 뒤에도 레이블로 감싼 체크박스의 이름이 그대로이고, 레이블을 눌러 체크를 바꾼다', async ({ page }) => {
+  await page.goto('${UI_ROUTE}')
+  // 선택 목록이 열리면 hydration을 마친 것이다.
+  await page.getByRole('combobox', { name: '지역' }).click()
+  await expect(page.getByRole('option', { name: '부산' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  const checkbox = page.getByRole('checkbox', { name: '약관에 동의합니다' })
+  await expect(checkbox).toBeChecked()
+  await page.getByText('약관에 동의합니다').click()
+  await expect(checkbox).not.toBeChecked()
 })
 `,
       )

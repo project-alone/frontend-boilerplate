@@ -7,13 +7,40 @@ import { LoginRequest, LogoutRequest, RefreshRequest, type TokenPair, type User 
 // 핸들러를 따로 둔다. 확장 지점 mockHandlers(Recipe의 extensions.json)로 선언해 MSW의 핸들러 목록(src/shared/mocks/handlers.ts)이
 // 생성된 핸들러보다 앞에 두므로 Vitest, 개발 서버, E2E 대상 서버가 모두 이 핸들러를 쓴다. 실제 백엔드로 바꾸면 쓰이지 않는다.
 
-/** 목 백엔드의 사용자. 비밀번호는 모두 MOCK_PASSWORD다. */
+/** 목 백엔드가 처음 가진 사용자(목 계정). 비밀번호는 모두 MOCK_PASSWORD다. */
 export const MOCK_USERS: readonly User[] = [
   { id: 1, email: 'user@example.com', name: '김사용', roles: ['user'] },
   { id: 2, email: 'admin@example.com', name: '박관리', roles: ['admin', 'user'] },
 ]
 
 export const MOCK_PASSWORD = 'password'
+
+// 목 백엔드의 사용자 저장소. 실제 백엔드의 사용자 테이블처럼 하나만 두고 로그인, refresh, getMe, mockUserOf가 모두 여기서
+// 사용자를 찾는다. 사용자를 더하고 고치는 다른 목 핸들러(예: 대시보드 Archetype의 src/shared/mocks/users.ts)도 사용자를 따로
+// 두지 않고 이 저장소를 고친다(saveMockUser). 바꾼 역할은 목 백엔드가 요청마다 accessToken의 사용자를 다시 찾으므로 다음
+// 요청의 401·403부터 쓰이고, BFF 세션에는 다음 로그인이나 refresh부터 담긴다(auth-backend.ts가 그때마다 getMe로 사용자를 다시
+// 받는다). 서버 프로세스의 메모리에만 있어 서버를 다시 띄우면 처음 상태로 돌아간다.
+let users: readonly User[] = MOCK_USERS
+
+/** 목 백엔드의 사용자 */
+export function mockUsers(): readonly User[] {
+  return users
+}
+
+/** id가 같은 사용자를 user로 바꾸고, 없으면 더한다. 더한 사용자도 MOCK_PASSWORD로 로그인한다. */
+export function saveMockUser(user: User): void {
+  users = users.some(({ id }) => id === user.id)
+    ? users.map((saved) => (saved.id === user.id ? user : saved))
+    : [...users, user]
+}
+
+/**
+ * 사용자를 seed(기본은 MOCK_USERS)로 되돌린다. 테스트가 서로의 변경에 영향을 받지 않게 하거나, 사용자를 더 두고 시작하는 다른
+ * 목 핸들러(예: 대시보드)가 처음 사용자를 정할 때 쓴다.
+ */
+export function resetMockUsers(seed: readonly User[] = MOCK_USERS): void {
+  users = seed
+}
 
 /** 목 백엔드가 발급하는 accessToken의 수명(초). 개발 서버에서도 refresh가 일어나는 것을 볼 수 있게 짧게 둔다. */
 export const MOCK_ACCESS_TOKEN_TTL_SECONDS = 10
@@ -48,7 +75,7 @@ export function mockUserOf(request: Request): User | undefined {
   const token = accessTokenOf(request)
   const grant = token === undefined ? undefined : accessTokens.get(token)
   if (grant === undefined || grant.expiresAt <= Date.now()) return undefined
-  return MOCK_USERS.find((user) => user.id === grant.userId)
+  return users.find((user) => user.id === grant.userId)
 }
 
 function unauthorized(message: string) {
@@ -63,7 +90,7 @@ export const authMockHandlers = [
   http.post(`${MOCK_API_BASE_URL}/auth/login`, async ({ request }) => {
     const credentials = LoginRequest.safeParse(await jsonBody(request))
     const user = credentials.success
-      ? MOCK_USERS.find(({ email }) => email === credentials.data.email && credentials.data.password === MOCK_PASSWORD)
+      ? users.find(({ email }) => email === credentials.data.email && credentials.data.password === MOCK_PASSWORD)
       : undefined
     if (user === undefined) return unauthorized('이메일이나 비밀번호가 맞지 않습니다.')
     return HttpResponse.json(issueTokens(user.id))

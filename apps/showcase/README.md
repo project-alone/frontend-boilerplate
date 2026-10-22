@@ -98,7 +98,7 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 | `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                                          |
 | `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                                          |
 
-컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 훅을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
+컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 클라이언트에서만 쓰는 훅(상태, 컨텍스트)을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `field-label-id.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
 
 ### 디자인 반영하기
 
@@ -140,6 +140,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 - `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
+- 명세의 선택 속성(`required`에 없는 속성)은 `comment?: string`처럼 키를 뺄 수 있는 속성이 되고, `undefined`를 값으로 넣을 수는 없습니다(`tsconfig.json`의 `exactOptionalPropertyTypes`). Zod 스키마는 `.exactOptional()`로, MSW 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 빼는 것으로 이를 따릅니다(`orval.config.ts`). 그래서 백엔드의 명세를 선택 속성 그대로 쓰면 됩니다.
 - Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'listProducts', params]`처럼 계층으로 만듭니다. `src/queries`의 코드는 `npm run g -- query <operationId>`와 `npm run g -- mutation <operationId>`로 만들 수 있습니다(아래 "코드 생성(Schematic)").
 - 샘플: `/products` 페이지(`src/app/products/page.tsx`)가 서버에서 `listProductsQueryOptions()`로 데이터를 가져오고(prefetch), `HydrationBoundary`로 넘긴 데이터를 `src/features/product-list`가 이어받습니다. 브라우저는 같은 데이터를 다시 요청하지 않습니다(`e2e/products.spec.ts`).
 
@@ -169,7 +170,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 ## API 목킹(MSW)
 
-MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
+MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. faker가 만든 값에는 선택 속성이 응답마다 있기도 하고 빠지기도 하므로, 화면이 선택 속성이 빠진 응답도 다루는지 개발 중에 드러납니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
 
 목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. MSW를 켜고 `API_BASE_URL`을 넣지 않으면 서버가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`orval.config.ts`). 그래서 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고, 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`는 페이지를 열거나 새로 고치는 요청을 목 응답 없이 그대로 보냅니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다. MSW를 켜 둬도 `API_BASE_URL`을 넣으면 그 백엔드를 부르고, MSW는 그 요청을 받지 않습니다.
 
@@ -446,12 +447,13 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 샘플 명세(`openapi.yaml`)에 `auth` tag의 `login`, `refreshTokens`, `getMe`, `logout`이 있습니다. 서버(BFF)만 이 operation을 부릅니다(`src/shared/auth/auth-backend.ts`).
 - MSW를 켜면(`API_MOCKING=enabled`) 발급한 토큰을 기억하는 목 백엔드(`src/shared/auth/auth-mock-handlers.ts`)가 받습니다. 계정은 `user@example.com`(사용자)과 `admin@example.com`(관리자), 비밀번호는 모두 `password`입니다. accessToken은 10초 뒤에 만료되어 refresh가 일어나는 것을 볼 수 있고, refreshToken은 한 번만 쓸 수 있습니다.
 - 로그인해야 쓰는 API의 목 핸들러를 더하면 실제 백엔드처럼 accessToken을 확인합니다. `mockUserOf(request)`(`auth-mock-handlers.ts`)가 요청의 accessToken이 가리키는 사용자(역할 포함)를 돌려주므로, 없으면 401, 역할이 맞지 않으면 403으로 답합니다.
+- 사용자를 더하고 고치는 목 핸들러(예: 사용자 관리 화면)를 더하면 사용자를 따로 두지 않고 목 백엔드의 사용자 저장소를 읽고 고칩니다(`mockUsers()`, `saveMockUser(user)`, `resetMockUsers()`). 실제 백엔드의 사용자 테이블처럼 로그인, refresh, `getMe`, `mockUserOf`가 모두 이 저장소를 보므로, 더한 사용자는 `password`로 로그인하고 바꾼 이메일로 로그인합니다. 역할을 바꾸면 목 백엔드는 다음 요청부터 바뀐 역할로 401·403을 정하고(요청마다 accessToken의 사용자를 다시 찾습니다), 로그인 세션의 사용자 정보(보호된 라우트와 역할)는 다음 로그인이나 refresh부터 바뀝니다. 세션은 그때마다 `getMe`로 사용자를 다시 받습니다.
 - Vitest의 브라우저 코드는 BFF 프록시 없이 목 백엔드를 바로 부르므로 accessToken이 붙지 않습니다(로그인하지 않은 요청). 로그인한 사용자의 요청을 시험하려면 `signInAsMockUser(email)`(`src/shared/auth/mock-session.ts`)을 `beforeEach(() => signInAsMockUser('user@example.com'))`나 `onTestFinished(signInAsMockUser('admin@example.com'))`처럼 부릅니다. BFF 프록시 대신 그 계정의 accessToken을 목 백엔드로 가는 요청에 붙이고, 돌려준 함수로 되돌립니다.
 - 실제 백엔드로 바꿀 때는 백엔드의 명세로 `openapi.yaml`의 auth operation을 바꾸고 `npm run api:gen`을 실행한 뒤, 경로나 응답 모양이 다르면 `src/shared/auth/auth-backend.ts`를 맞춥니다. 백엔드가 accessToken의 수명(`expiresIn`)을 주지 않으면 proxy가 미리 refresh하지 못하므로 `createSession`(`session.ts`)에서 정합니다.
 
 ### 테스트
 
-`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(규칙의 경로와 동적 세그먼트, 로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `mock-session.test.ts`(테스트에서 목 계정으로 로그인한 요청), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
+`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(규칙의 경로와 동적 세그먼트, 로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `mock-session.test.ts`(테스트에서 목 계정으로 로그인한 요청), `auth-mock-handlers.test.ts`(목 백엔드의 사용자 저장소: 바꾼 역할을 목 백엔드는 바로, 세션은 refresh하거나 다시 로그인할 때 받음, 더한 사용자와 바꾼 이메일로 로그인), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
 
 ## 차트
 
@@ -858,8 +860,8 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 - 명세: `openapi.yaml`의 `users` tag에 `listUsers`, `createUser`, `getUserStats`, `getUser`, `updateUser`가 있습니다. 역할(`Role`)과 인증(`bearerAuth`)은 auth Recipe의 것을 그대로 씁니다.
 - Query Domain: `src/queries/users/`는 `npm run g -- query listUsers`, `query getUserStats`, `query getUser`, `mutation createUser`, `mutation updateUser`를 차례로 실행해 만든 코드 그대로입니다. 사용자를 추가하거나 고치면 users Query Domain 전체를 무효화하므로 목록과 통계를 다시 가져옵니다.
 - Feature: 사용자 현황 `src/features/user-stats/`(차트는 chart Recipe의 `ChartFigure`로 감싸 데이터 표를 함께 둔다), 사용자 목록 `src/features/user-table/`(table Recipe의 회원 테이블을 복사해 열과 파라미터를 바꾼 것), 추가·수정 폼 `src/features/user-form/`(`npm run g -- form createUser|updateUser --feature user-form`이 만든 폼에서 레이블, 지금 값 채우기, 저장한 뒤 목록으로 옮겨 가기, 같은 이메일 알림을 고친 것), 대시보드 안의 이동과 머리글 링크 `src/features/dashboard-nav/`.
-- 목 백엔드: `src/shared/mocks/users.ts`가 처음 사용자 12명(auth의 목 계정 `user@example.com`, `admin@example.com` 포함)으로 시작해 추가·수정한 사용자를 서버 프로세스의 메모리에 기억합니다. 요청한 사용자는 auth의 목 백엔드가 발급한 accessToken으로 확인합니다(`mockUserOf`). 확장 지점 `mockHandlers`로 생성된 핸들러보다 앞에 두고, 생성된 핸들러처럼 목 백엔드 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 서버를 다시 띄우면 처음 상태로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 그 테스트(`users.test.ts`), `src/shared/mocks/handlers.ts`의 `usersHandlers`를 지웁니다.
-- 테스트: `src/shared/mocks/users.test.ts`(로그인하지 않으면 401, 관리자가 아닌 사용자의 추가·수정은 403, 관리자는 추가·수정), `src/features/user-stats/user-stats-overview.test.tsx`, `src/features/user-table/user-table.test.tsx`(정렬·검색·역할·상태 필터가 요청 파라미터로 이어짐, 수정 링크), `src/features/user-form/*.test.tsx`(추가하면 목록을 무효화하고 목록으로 옮겨 감, 지금 값 채우기, 부서 지우기, 같은 이메일, 401·403이면 알리고 접근 규칙을 다시 확인), `src/shared/dashboard/dashboard-routes.test.ts`(역할마다 들어가는 화면), 폼과 차트의 스토리, `e2e/dashboard.spec.ts`(로그인 → 통계 확인 → 사용자 추가 → 목록과 통계에 반영 → 수정, 관리자가 아니면 추가·수정 화면에 들어가지 못함, BFF 프록시로 바로 보낸 요청도 401·403, 폼을 연 뒤 세션이 바뀌면 접근 권한 없음·로그인 페이지, 접근성). 컴포넌트 테스트는 `signInAsMockUser`(auth Recipe의 `src/shared/auth/mock-session.ts`)로 누구로 로그인했는지 정합니다.
+- 목 백엔드: `src/shared/mocks/users.ts`가 처음 사용자 12명(auth의 목 계정 `user@example.com`, `admin@example.com` 포함)으로 시작해 추가·수정한 사용자를 서버 프로세스의 메모리에 기억합니다. 실제 백엔드처럼 대시보드가 관리하는 사용자와 로그인하는 계정은 같은 사용자 저장소에 있습니다. 이름·이메일·역할은 auth의 목 백엔드가 가진 사용자 저장소(`mockUsers`, `saveMockUser`)에 두고, 상태·부서·추가한 날만 이 파일이 기억합니다. 그래서 목록의 사용자와 추가한 사용자 모두 비밀번호 `password`로 로그인하고, 역할을 바꾸면 목 백엔드는 다음 요청부터 바뀐 역할로 추가·수정을 받거나 403으로 거절하며, 그 계정의 화면 접근 규칙은 다음 로그인이나 refresh(목 백엔드의 accessToken은 10초 뒤에 만료됩니다)부터 바뀝니다. 상태는 대시보드에만 있어 목 백엔드는 정지한 사용자의 로그인도 받습니다. 요청한 사용자는 auth의 목 백엔드가 발급한 accessToken으로 확인합니다(`mockUserOf`). 확장 지점 `mockHandlers`로 생성된 핸들러보다 앞에 두고, 생성된 핸들러처럼 목 백엔드 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 서버를 다시 띄우면 처음 상태로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 그 테스트(`users.test.ts`), `src/shared/mocks/handlers.ts`의 `usersHandlers`를 지웁니다.
+- 테스트: `src/shared/mocks/users.test.ts`(로그인하지 않으면 401, 관리자가 아닌 사용자의 추가·수정은 403, 관리자는 추가·수정, 역할을 바꾼 계정은 다시 로그인하면 바뀐 역할로 동작, 추가한 사용자와 바꾼 이메일로 로그인), `src/features/user-stats/user-stats-overview.test.tsx`, `src/features/user-table/user-table.test.tsx`(정렬·검색·역할·상태 필터가 요청 파라미터로 이어짐, 수정 링크), `src/features/user-form/*.test.tsx`(추가하면 목록을 무효화하고 목록으로 옮겨 감, 지금 값 채우기, 부서 지우기, 같은 이메일, 401·403이면 알리고 접근 규칙을 다시 확인), `src/shared/dashboard/dashboard-routes.test.ts`(역할마다 들어가는 화면), 폼과 차트의 스토리, `e2e/dashboard.spec.ts`(로그인 → 통계 확인 → 사용자 추가 → 목록과 통계에 반영 → 수정, 관리자가 아니면 추가·수정 화면에 들어가지 못함, BFF 프록시로 바로 보낸 요청도 401·403, 폼을 연 뒤 세션이 바뀌면 접근 권한 없음·로그인 페이지, 관리자가 역할을 바꾼 계정은 다시 로그인하면 바뀐 역할로 추가·수정 화면에 들어가거나 접근 권한 없음과 403을 받음, 접근성). 컴포넌트 테스트는 `signInAsMockUser`(auth Recipe의 `src/shared/auth/mock-session.ts`)로 누구로 로그인했는지 정합니다.
 - 대시보드를 지우려면 `src/app/dashboard/`, `src/features/user-stats/`, `user-table/`, `user-form/`, `dashboard-nav/`, `src/queries/users/`, `src/shared/dashboard/`, `src/shared/mocks/users.ts`와 `users.test.ts`(와 `handlers.ts`의 `usersHandlers`), `e2e/dashboard.spec.ts`를 지우고, `src/app/app-shell.tsx`의 `DashboardLink`, `access-rules.ts`의 대시보드 규칙, `openapi.yaml`의 `users` tag·경로·스키마를 뺀 뒤 `npm run api:gen`을 실행합니다.
 
 ## 마케팅 랜딩
