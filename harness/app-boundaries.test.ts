@@ -4,9 +4,10 @@ import { describe, expect, test } from 'vitest'
 import { freePort } from './run.ts'
 import { expectFileToPass, runVitestScript, type RenderingMode, type Starter, useStarter } from './starter.ts'
 
-// 하네스 매트릭스: Base의 앱 수준 화면(src/app/error.tsx, global-error.tsx, loading.tsx, not-found.tsx)을 Rendering Mode마다 본다.
+// 하네스 매트릭스: Base의 앱 수준 화면(src/app/error.tsx, global-error.tsx, not-found.tsx)을 Rendering Mode마다 본다.
 // Base의 스토리와 E2E(e2e/not-found.spec.ts)에 더해, 라우트에 경계가 없는 페이지와 루트 레이아웃에서 오류를 내는 탐침
-// (harness/fixtures/app-boundaries)을 Starter에 두고 빌드한 앱에서 E2E로 확인한다. 라우트 수준의 경계(npm run g -- page,
+// (harness/fixtures/app-boundaries)을 Starter에 두고 빌드한 앱에서 E2E로 확인한다. server Starter에서는 서버 컴포넌트의 오류와
+// notFound()가 상태 코드 500·404로 나가는지도 본다. 앱 수준의 loading.tsx를 두면 응답을 먼저 보내 200이 되므로 이 검사가 실패한다. 라우트 수준의 경계(npm run g -- page,
 // 대시보드·커머스 Archetype)가 먼저 받는 것은 그 경계를 만든 쪽의 E2E가 본다(fixtures/g-page/server.spec.ts, Archetype의 e2e).
 
 const FIXTURES = join(import.meta.dirname, 'fixtures/app-boundaries')
@@ -31,12 +32,12 @@ function writeProbes(starter: Starter, renderingMode: RenderingMode): void {
   starter.writeFile(LAYOUT, withLayoutErrorTrigger(readFileSync(join(starter.dir, LAYOUT), 'utf8')))
   if (renderingMode === 'server') {
     starter.writeFile('src/app/harness-server-error/page.tsx', fixture('server-error.tsx'))
-    starter.writeFile('src/app/harness-slow/page.tsx', fixture('slow.tsx'))
+    starter.writeFile('src/app/harness-not-found/page.tsx', fixture('not-found.tsx'))
   }
   starter.writeFile('e2e/harness-app-boundaries.spec.ts', fixture('app-boundaries.spec.ts'))
 }
 
-describe.each(['server', 'static-export'] as const)('Rendering Mode %s Starter의 앱 수준 오류·로딩·404 화면', (renderingMode) => {
+describe.each(['server', 'static-export'] as const)('Rendering Mode %s Starter의 앱 수준 오류·404 화면', (renderingMode) => {
   const starter = useStarter({
     prefix: `dcgen-app-boundaries-${renderingMode}-`,
     renderingMode,
@@ -50,7 +51,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s Starter�
     }
 
     const stories = runVitestScript(starter, ['run', 'test:storybook'])
-    for (const file of ['src/app/error.stories.tsx', 'src/app/not-found.stories.tsx', 'src/app/loading.stories.tsx']) {
+    for (const file of ['src/app/error.stories.tsx', 'src/app/not-found.stories.tsx']) {
       expectFileToPass(stories, file, 1)
     }
   })
@@ -63,7 +64,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s Starter�
   })
 
   // server는 이 빌드 결과를 next start로 띄우고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(playwright.config.ts).
-  test('빌드한 앱에서 없는 주소, 페이지의 오류, 루트 레이아웃의 오류(와 server의 서버 오류, 로딩 상태)를 앱 수준 화면이 받는다', async () => {
+  test('빌드한 앱에서 없는 주소, 페이지의 오류, 루트 레이아웃의 오류(와 server의 서버 오류 500, notFound() 404)를 앱 수준 화면이 받는다', async () => {
     writeProbes(starter, renderingMode)
     if (renderingMode === 'server') starter.expectNpmSuccess(['run', 'build'])
 

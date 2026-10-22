@@ -4,13 +4,12 @@ import { expect, test, type Page } from '@playwright/test'
 import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
 
 // 하네스(harness/app-boundaries.test.ts)가 Starter에 둔 탐침으로, 라우트에 경계가 없는 페이지와 루트 레이아웃에서 난 오류를
-// Base의 앱 수준 화면(src/app/error.tsx, global-error.tsx, loading.tsx)이 받는지 빌드한 앱에서 본다. 서버에서 렌더링하는
-// 탐침(서버 오류, 느린 페이지)은 요청을 받는 서버가 있는 server Starter에만 둔다.
+// Base의 앱 수준 화면(src/app/error.tsx, global-error.tsx, not-found.tsx)이 받는지 빌드한 앱에서 본다. 서버에서 렌더링하는
+// 탐침(서버 오류, notFound())은 요청을 받는 서버가 있는 server Starter에만 둔다.
 const HAS_SERVER_PROBES = existsSync('src/app/harness-server-error/page.tsx')
 
 const APP_ERROR_HEADING = '문제가 생겼습니다'
 const APP_ERROR_MESSAGE = '페이지를 불러오지 못했습니다.'
-const APP_LOADING_MESSAGE = '불러오는 중입니다.'
 
 async function expectNoAxeViolations(page: Page) {
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG_22_AA_TAGS).analyze()
@@ -58,17 +57,20 @@ test('루트 레이아웃에서 오류가 나면 global-error가 문서 전체�
   await expect(page.getByRole('button', { name: '레이아웃 오류 내기' })).toBeVisible()
 })
 
+// 응답의 상태 코드는 응답을 보내기 시작할 때 정해진다. 앱 수준의 loading.tsx가 있으면 모든 라우트가 그 로딩 상태를 먼저 보내므로
+// 아래 오류와 notFound()가 200으로 나간다. Base가 앱 수준의 loading.tsx를 두지 않는 이유다(README의 "오류·404 화면").
 test.describe('요청마다 서버에서 렌더링하는 페이지', () => {
   test.skip(!HAS_SERVER_PROBES, 'static-export Starter는 서버 컴포넌트를 빌드할 때만 렌더링한다')
 
-  test('서버에서 렌더링하다 오류가 나면 앱 수준의 오류 화면을 보이고, 다시 시도하면 서버에서 다시 렌더링한다', async ({
+  test('서버에서 렌더링하다 오류가 나면 상태 코드 500과 앱 수준의 오류 화면을 보내고, 다시 시도하면 서버에서 다시 렌더링한다', async ({
     page,
     context,
     baseURL,
   }) => {
     await context.addCookies([{ name: 'harness-fail', value: '1', url: baseURL ?? '' }])
-    await page.goto('/harness-server-error')
+    const response = await page.goto('/harness-server-error')
 
+    expect(response?.status()).toBe(500)
     await expectAppError(page)
     await expectNoAxeViolations(page)
 
@@ -78,31 +80,13 @@ test.describe('요청마다 서버에서 렌더링하는 페이지', () => {
     await expect(page.getByRole('heading', { level: 1, name: '서버 오류 탐침' })).toBeVisible()
   })
 
-  test('서버가 페이지를 기다리는 동안 앱 수준의 로딩 상태를 먼저 보내고, 같은 응답에 이어 페이지를 보낸다', async ({
-    baseURL,
+  test('페이지가 데이터를 기다린 뒤 notFound()를 부르면 상태 코드 404와 앱 수준의 404 화면을 보낸다', async ({
+    page,
   }) => {
-    const response = await fetch(new URL('/harness-slow', baseURL))
-    const reader = response.body?.getReader()
-    if (reader === undefined) throw new Error('응답 본문이 없습니다.')
+    const response = await page.goto('/harness-not-found')
 
-    // 응답을 조각(chunk)마다 읽으며, 로딩 상태와 페이지가 각각 몇 번째 조각까지 받았을 때 처음 보였는지 기록한다.
-    const decoder = new TextDecoder()
-    let received = ''
-    let chunkCount = 0
-    let loadingSeenAt: number | undefined
-    let pageSeenAt: number | undefined
-    let chunk = await reader.read()
-    while (!chunk.done) {
-      received += decoder.decode(chunk.value, { stream: true })
-      chunkCount += 1
-      if (received.includes(APP_LOADING_MESSAGE)) loadingSeenAt ??= chunkCount
-      if (received.includes('느린 페이지 탐침')) pageSeenAt ??= chunkCount
-      chunk = await reader.read()
-    }
-
-    expect(response.status).toBe(200)
-    expect(loadingSeenAt).toBeDefined()
-    expect(pageSeenAt).toBeDefined()
-    expect(loadingSeenAt).toBeLessThan(pageSeenAt ?? 0)
+    expect(response?.status()).toBe(404)
+    await expect(page.getByRole('heading', { level: 1, name: '찾는 화면이 없습니다' })).toBeVisible()
+    await expect(page).toHaveTitle(/찾는 화면이 없습니다/)
   })
 })

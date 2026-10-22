@@ -16,11 +16,6 @@ const CLIENT_ERROR = 'harness-sentry-client-error'
 const SERVER_ERROR = 'harness-sentry-server-error'
 /** 렌더링할 때마다 SERVER_ERROR를 던지는 탐침 페이지. 요청을 받는 서버가 있는 server Starter에만 만든다. */
 const SERVER_ERROR_ROUTE = '/harness-sentry'
-/**
- * SERVER_ERROR_ROUTE의 상태 코드. Base의 앱 수준 로딩 상태(src/app/loading.tsx)가 요청마다 렌더링하는 페이지의 응답을 먼저
- * 보내므로(스트리밍), 그 뒤에 난 렌더링 오류는 200 응답에 담겨 브라우저의 오류 화면으로 알려진다.
- */
-const SERVER_ERROR_STATUS = 200
 /** 브라우저로 SERVER_ERROR_ROUTE를 열어 앱 수준의 오류 화면을 확인한 뒤 SDK가 보낼 시간을 기다리는 Playwright 테스트 */
 const SERVER_ERROR_SPEC = 'e2e/harness-sentry-server.spec.ts'
 /** 서버 컴포넌트의 오류가 브라우저에 넘어올 때 Next.js가 메시지 대신 넣는 문장(배포용 빌드). digest만 함께 담긴다. */
@@ -168,7 +163,7 @@ async function expectNothingSent(
   app: BackgroundProcess,
   ingest: FakeIngest,
 ): Promise<void> {
-  expect((await fetch(`${origin}${SERVER_ERROR_ROUTE}`)).status).toBe(SERVER_ERROR_STATUS)
+  expect((await fetch(`${origin}${SERVER_ERROR_ROUTE}`)).status).toBe(500)
   throwInBrowser(starter, origin, app.output)
 
   await setTimeout(2000)
@@ -271,7 +266,7 @@ describe.each(['server', 'static-export'] as const)(
 
       test.runIf(renderingMode === 'server')('서버가 페이지를 렌더링하다 난 오류를 Sentry로 보낸다', async () => {
         const response = await fetch(`${origin}${SERVER_ERROR_ROUTE}`)
-        expect(response.status).toBe(SERVER_ERROR_STATUS)
+        expect(response.status).toBe(500)
 
         await expectReceived(ingest, SERVER_ERROR)
       })
