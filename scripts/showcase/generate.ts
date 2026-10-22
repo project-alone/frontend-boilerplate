@@ -31,14 +31,21 @@ function overlayNames(generatorDir: string, kind: 'recipes' | 'archetypes'): str
     .sort()
 }
 
-// Generator의 확장 지점 모듈. Showcase를 만든 Generator의 빌드 결과(dist/extensions.js)를 불러와 쓴다.
+// Showcase가 쓰는 Generator 코드의 모듈. Showcase를 만든 Generator의 빌드 결과(dist/<모듈>.js)를 불러와 쓴다.
 type Extensions = typeof import('../../packages/devc-frontend-generator/src/extensions.ts')
+type OpenApiSpec = typeof import('../../packages/devc-frontend-generator/src/openapi-spec.ts')
 
 /** Showcase를 만든 Generator. 파일의 원본을 찾을 때 Generator 패키지의 파일과 Generator 코드가 정한 이름을 쓴다. */
 interface Generator {
   /** Generator 패키지의 디렉터리 */
   dir: string
   extensions: Pick<Extensions, 'ASSEMBLED_FILES' | 'EXTENSIONS_MANIFEST'>
+  spec: Pick<OpenApiSpec, 'OPENAPI_SPEC' | 'GENERATED_API_DIR'>
+}
+
+async function loadGenerator(dir: string): Promise<Generator> {
+  const load = async <T>(module: string) => (await import(pathToFileURL(join(dir, 'dist', module)).href)) as T
+  return { dir, extensions: await load<Extensions>('extensions.js'), spec: await load<OpenApiSpec>('openapi-spec.js') }
 }
 
 /**
@@ -71,8 +78,7 @@ export async function generateShowcase(generatorDir: string): Promise<ShowcaseFi
 
     const starter = join(workdir, STARTER_NAME)
     const files: ShowcaseFiles = new Map(readAllPaths(starter).map((path) => [path, readFileSync(join(starter, path))]))
-    const extensions = (await import(pathToFileURL(join(generatorDir, 'dist', 'extensions.js')).href)) as Extensions
-    return addNotices(files, { dir: generatorDir, extensions }, { recipes, archetypes })
+    return addNotices(files, await loadGenerator(generatorDir), { recipes, archetypes })
   } finally {
     rmSync(workdir, { recursive: true, force: true })
   }
@@ -133,9 +139,6 @@ function commentFor(path: string): Comment | undefined {
   return undefined
 }
 
-const OPENAPI_SPEC = 'openapi.yaml'
-const GENERATED_API_DIR = 'src/shared/api/generated/'
-
 /**
  * Showcase의 path를 만든 원본(Generator 패키지 기준 경로). Base 파일에 Recipe를 이름순으로, 그 뒤에 Archetype을 이름순으로
  * 덧입혀, overlay의 파일은 앞의 원본을 대신하고 overlay의 패치(<경로>.patch)는 앞의 원본을 고친다고 본다(docs/recipes.md,
@@ -146,6 +149,7 @@ const GENERATED_API_DIR = 'src/shared/api/generated/'
 function sourcesOf(path: string, generator: Generator, { recipes, archetypes }: Overlays): string[] {
   const generatorDir = generator.dir
   const { ASSEMBLED_FILES, EXTENSIONS_MANIFEST } = generator.extensions
+  const { OPENAPI_SPEC, GENERATED_API_DIR } = generator.spec
   const overlayDirs = [...recipes.map((recipe) => `recipes/${recipe}`), ...archetypes.map((archetype) => `archetypes/${archetype}`)]
   const existing = (candidates: readonly string[]) =>
     candidates.filter((candidate) => existsSync(join(generatorDir, candidate)))
@@ -157,7 +161,7 @@ function sourcesOf(path: string, generator: Generator, { recipes, archetypes }: 
     })
   }
   const specSources = existing([`base/${OPENAPI_SPEC}`, ...overlayDirs.map((dir) => `${dir}/${OPENAPI_SPEC}`)])
-  if (path === OPENAPI_SPEC || (path.startsWith(GENERATED_API_DIR) && specSources.length > 1)) return specSources
+  if (path === OPENAPI_SPEC || (path.startsWith(`${GENERATED_API_DIR}/`) && specSources.length > 1)) return specSources
   if (/^\.env(?:\.|$)/.test(path)) {
     return existing([`base/${path}`, ...overlayDirs.map((dir) => `${dir}/${path}`)])
   }

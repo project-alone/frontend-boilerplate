@@ -1,8 +1,6 @@
 import { isMap, isScalar, isSeq, type Node, parseDocument, YAMLMap, YAMLSeq } from 'yaml'
+import { isHttpMethod, OPENAPI_SPEC } from './openapi-spec.js'
 import { OverlayError } from './overlay.js'
-
-/** Starter의 OpenAPI 명세. overlay 최상위에 같은 이름으로 둔 파일은 이 명세에 병합할 명세 조각이다. */
-export const OPENAPI_SPEC = 'openapi.yaml'
 
 /** 명세 조각이 담을 수 있는 최상위 항목. info, servers, security처럼 명세 전체에 걸리는 값은 Base만 정한다. */
 const FRAGMENT_KEYS = ['paths', 'components', 'tags']
@@ -76,8 +74,6 @@ export function mergeOpenApiFragments(base: string, fragments: readonly SpecFrag
   return spec.toString(STRINGIFY_OPTIONS)
 }
 
-const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']
-
 /**
  * 명세(또는 조각)가 정의한 이름: `paths.<경로>`, `components.<종류>.<이름>`, `tags.<이름>`, `operationId <id>`.
  * 이 이름이 겹치면 병합할 수 없다. 모양이 잘못된 항목은 invalid에 담는다.
@@ -92,7 +88,7 @@ function definedNames(contents: unknown, label: string): { names: string[]; inva
   for (const { key, value } of isMap(paths) ? paths.items : []) {
     names.push(`paths.${templatedPath(keyOf(key))}`)
     for (const { key: method, value: operation } of isMap(value) ? value.items : []) {
-      if (!HTTP_METHODS.includes(keyOf(method)) || !isMap(operation)) continue
+      if (!isHttpMethod(keyOf(method)) || !isMap(operation)) continue
       const operationId = operation.get('operationId')
       if (typeof operationId === 'string') names.push(`operationId ${operationId}`)
     }

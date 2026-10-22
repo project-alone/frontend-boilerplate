@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { join, posix } from 'node:path'
 import { Project } from 'ts-morph'
 import { formatForStarter } from './format.js'
+import { isRecord } from './manifest.js'
 import { exists, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
 import type { RenderingMode } from './rendering-mode.js'
 
@@ -458,8 +459,4 @@ function moduleSpecifier(file: string, modulePath: string): string {
 
 function isExtensionPoint(value: string): value is ExtensionPoint {
   return EXTENSION_POINTS.some((point) => point === value)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

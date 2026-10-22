@@ -5,12 +5,9 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import SwaggerParser from '@apidevtools/swagger-parser'
 import type { OpenAPIV3 } from 'openapi-types'
 import { Node, Project, QuoteKind, type SourceFile, type TypeNode } from 'ts-morph'
+import { GENERATED_API_DIR, HTTP_METHODS, type HttpMethod, OPENAPI_SPEC } from '../openapi-spec.js'
 import type { RenderingMode } from '../rendering-mode.js'
 import { camelCase, splitWords } from './names.js'
-
-// `dcgen g`가 읽고 쓰는 곳. 모두 Starter 최상위(package.json이 있는 디렉터리) 기준이다.
-const SPEC_FILE = 'openapi.yaml'
-const GENERATED_API_DIR = 'src/shared/api/generated'
 
 /** 재생성 계층의 fetch 함수를 가져오는 경로. orval의 tags-split 결과를 index.ts가 모두 다시 내보낸다. */
 export const GENERATED_API_IMPORT = '@/shared/api/generated'
@@ -19,8 +16,6 @@ export const GENERATED_API_IMPORT = '@/shared/api/generated'
 /** fetch 함수에서 쿼리 파라미터 객체를 받는 인자의 이름 */
 export const QUERY_PARAMS_ARGUMENT = 'params'
 const REQUEST_OPTIONS_ARGUMENT = 'options'
-
-const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const
 
 // Starter의 Next.js 설정 파일. output: 'export'면 Rendering Mode static-export다.
 const NEXT_CONFIG_FILES = ['next.config.ts', 'next.config.mjs', 'next.config.js']
@@ -36,7 +31,7 @@ export class SchematicError extends Error {
 /** OpenAPI 명세에서 찾은 operation. `$ref`는 모두 풀려 있다. */
 export interface Operation {
   operationId: string
-  method: (typeof HTTP_METHODS)[number]
+  method: HttpMethod
   path: string
   definition: OpenAPIV3.OperationObject
   /** path와 operation에 적힌 파라미터 */
@@ -119,9 +114,9 @@ export class StarterProject {
   }
 
   async findOperation(operationId: string): Promise<Operation> {
-    const specPath = join(this.root, SPEC_FILE)
+    const specPath = join(this.root, OPENAPI_SPEC)
     if (!existsSync(specPath)) {
-      throw new SchematicError(`${specPath} 파일이 없습니다. dcgen g는 Starter 최상위의 ${SPEC_FILE}에서 operation을 찾습니다.`)
+      throw new SchematicError(`${specPath} 파일이 없습니다. dcgen g는 Starter 최상위의 ${OPENAPI_SPEC}에서 operation을 찾습니다.`)
     }
     // 명세 버전(3.0, 3.1)과 상관없이 Schematic이 읽는 필드는 같으므로 3.0 타입으로 읽는다.
     const spec = (await SwaggerParser.dereference(specPath)) as OpenAPIV3.Document
@@ -133,7 +128,7 @@ export class StarterProject {
         return { operationId, method, path, definition, parameters: parameters as OpenAPIV3.ParameterObject[] }
       }
     }
-    throw new SchematicError(`${SPEC_FILE}에 operationId가 '${operationId}'인 operation이 없습니다.`)
+    throw new SchematicError(`${OPENAPI_SPEC}에 operationId가 '${operationId}'인 operation이 없습니다.`)
   }
 
   generatedFunction(operation: Operation): GeneratedFunction {
@@ -167,7 +162,7 @@ export class StarterProject {
       }
     }
     throw new SchematicError(
-      `${GENERATED_API_DIR}에 ${operation.operationId}의 fetch 함수(${name})가 없습니다. ${SPEC_FILE}을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
+      `${GENERATED_API_DIR}에 ${operation.operationId}의 fetch 함수(${name})가 없습니다. ${OPENAPI_SPEC}을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
     )
   }
 
