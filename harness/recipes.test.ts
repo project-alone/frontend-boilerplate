@@ -98,6 +98,9 @@ describe('Recipe 사이의 의존과 Rendering Mode 제약', () => {
     await terminal.waitFor('Rendering Mode를 고르세요')
     terminal.press(KEYS.down) // static-export
     terminal.press(KEYS.enter)
+    // static-export에서도 쓸 수 있는 Archetype(landing)이 있어 Archetype도 묻는다. 고르지 않고 넘어간다.
+    await terminal.waitFor('Archetype(완성된 앱 유형)을 고르세요')
+    terminal.press(KEYS.enter)
     await terminal.waitFor('넣을 Recipe를 고르세요')
 
     await terminal.waitFor('요청을 받는 서버가 있어야 하는 시험용 Recipe입니다.')

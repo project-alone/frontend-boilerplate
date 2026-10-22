@@ -3,6 +3,7 @@ import type { SourceFile } from 'ts-morph'
 import type { RenderingMode } from '../rendering-mode.js'
 import { type Feature, FEATURES_DIR, featureNamed } from './feature.js'
 import { formComponentOf, formPropsOf, jsxText, PROP_SAMPLES } from './form.js'
+import { mutationHookName } from './mutation.js'
 import { kebabCase, pascalCase, splitWords, upperFirst } from './names.js'
 import { hasDeclaration, queryDomainOf, queryOptionsName } from './query-domain.js'
 import {
@@ -419,11 +420,19 @@ async function pageForm(
       `${componentName}가 여러 Feature에 있습니다: ${chosen.join(', ')}. 페이지에 넣을 폼이 있는 Feature를 --feature로 고르세요.${elsewhere}`,
     )
   }
+  const props = formPropsOf(starter, operation, fetcher)
+  // 뮤테이션 훅에만 넘기는 props(--optimistic 훅이 응답 전에 고칠 쿼리의 인자)도 경로 파라미터처럼 동적 세그먼트에서 읽어 넘긴다.
+  const missing = props.filter((prop) => prop.hookOnly && !route.params.includes(prop.name)).map(({ name }) => name)
+  if (missing.length > 0) {
+    throw new SchematicError(
+      `${componentName}는 경로 파라미터 말고도 ${mutationHookName(fetcher)}에 넘길 인자(${missing.join(', ')})를 props로 받습니다. 페이지가 넘기려면 라우트에 같은 이름의 동적 세그먼트(${missing.map((name) => `[${name}]`).join(', ')})가 있어야 합니다. 값을 다른 곳에서 받는다면 --form 없이 페이지를 만들고 폼을 직접 넣으세요.`,
+    )
+  }
   return {
     summary: summaryOf(operation),
     componentName,
     importPath: starter.importPath(`${FEATURES_DIR}/${only}/${fileName}`),
-    args: pathArguments('--form', operation, formPropsOf(operation, fetcher), route),
+    args: pathArguments('--form', operation, props, route),
   }
 }
 

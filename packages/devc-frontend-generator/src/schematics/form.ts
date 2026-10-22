@@ -1,4 +1,5 @@
 import type { OpenAPIV3 } from 'openapi-types'
+import { Node, type SourceFile, type TypeNode } from 'ts-morph'
 import { type Feature, featureNamed } from './feature.js'
 import { mutationHookName } from './mutation.js'
 import { camelCase, kebabCase, splitWords, upperFirst } from './names.js'
@@ -81,6 +82,10 @@ export interface GeneratedForm {
   componentName: string
   /** 입력 요소를 만들지 않은 선택 필드('<이름>(<모양>)') */
   skippedFields: string[]
+  /** 폼이 연 뮤테이션 훅 */
+  hookName: string
+  /** 폼이 props로 받아 뮤테이션 훅에 넘기는 인자. 훅이 인자를 받지 않으면 빈 목록이다. */
+  hookArguments: string[]
   changed: ChangedFile[]
 }
 
@@ -162,12 +167,34 @@ type ValidationCheck =
   | { kind: 'invalid'; field: FormField; input: string }
   | undefined
 
-/** 폼이 props로 받아 뮤테이션에 함께 넘기는 인자(경로 파라미터) */
+/** 폼이 props로 받는 값. 경로 파라미터는 뮤테이션에 요청 본문과 함께 넘기고, 뮤테이션 훅의 인자는 훅에 넘긴다. */
 interface FormProp {
   name: string
   type: string
-  /** 테스트와 스토리가 넘길 값(TypeScript 식) */
-  sample: string
+  /** props 선언에 다는 설명 */
+  description: string
+  /** 생략할 수 있는 props. 기본값이 있는 뮤테이션 훅의 인자다. */
+  optional: boolean
+  /** 경로 파라미터가 아니라 뮤테이션 훅에만 넘기는 props */
+  hookOnly: boolean
+  /** 테스트와 스토리가 넘길 값(TypeScript 식). 생략할 수 있는 props는 넘기지 않으므로 undefined다. */
+  sample: string | undefined
+}
+
+/** 뮤테이션 훅이 받는 인자. mutation Schematic의 --optimistic으로 만든 훅은 응답 전에 고칠 쿼리의 인자를 받는다. */
+interface HookParameter {
+  name: string
+  /** 폼의 props에 적을 타입 */
+  type: string
+  /** 기본값이 있거나 생략할 수 있는 인자 */
+  optional: boolean
+  /** type이 쓰는 타입 이름의 import */
+  typeImports: TypeImport[]
+}
+
+/** 폼이 요청을 보내는 뮤테이션 훅(use<OperationId>Mutation) */
+interface MutationHook extends TypeImport {
+  parameters: HookParameter[]
 }
 
 /** 생성할 폼. 세 파일(컴포넌트, 스토리, 테스트)의 소스를 이것으로 만든다. */
@@ -187,6 +214,10 @@ interface FormModel {
   skippedFields: string[]
   validationCheck: ValidationCheck
   props: FormProp[]
+  /** props의 타입이 쓰는 이름의 import(뮤테이션 훅의 인자 타입) */
+  propTypeImports: TypeImport[]
+  /** 뮤테이션 훅에 넘기는 props. 순서는 훅의 인자와 같다. */
+  hookArguments: string[]
   /** mutate에 넘길 값(TypeScript 식). 폼 값은 values다. */
   variables: string
   /** 재생성 계층의 MSW 핸들러(get<OperationId>MockHandler) */
@@ -217,14 +248,13 @@ export async function generateForm(
 
   const domain = queryDomainOf(operation)
   const fetcher = starter.generatedFunction(operation)
-  const hookName = mutationHookName(fetcher)
-  const queries = starter.existingModule(domain.queriesPath)
-  if (queries === undefined || !hasDeclaration(queries, hookName)) {
+  const hook = mutationHookOf(starter, operation, fetcher)
+  if (hook === undefined) {
     throw new SchematicError(
-      `${domain.queriesPath}에 ${hookName}가 없습니다. 폼은 이 뮤테이션 훅으로 요청을 보내므로 먼저 npm run g -- mutation ${operationId}로 만드세요.`,
+      `${domain.queriesPath}에 ${mutationHookName(fetcher)}가 없습니다. 폼은 이 뮤테이션 훅으로 요청을 보내므로 먼저 npm run g -- mutation ${operationId}로 만드세요.`,
     )
   }
-  const { props, variables, bodyType } = formArguments(operation, fetcher)
+  const { props, hookArguments, variables, bodyType } = formArguments(operation, fetcher, hook)
   // orval이 operation마다 만드는 이름은 fetch 함수 이름(camelCase operationId)을 PascalCase로 바꿔 쓴다.
   const operationName = upperFirst(fetcher.name)
   const schemaName = `${operationName}Body`
@@ -244,7 +274,7 @@ export async function generateForm(
     feature,
     submitLabel: operation.definition.summary?.trim() || '제출',
     domainName: domain.name,
-    hook: { name: hookName, moduleSpecifier: starter.importPath(domain.queriesPath) },
+    hook: { name: hook.name, moduleSpecifier: hook.moduleSpecifier },
     // 스키마는 요청 본문 타입을 가져오는 곳(model의 index)에서 함께 가져온다.
     schema: {
       name: schemaName,
@@ -255,6 +285,9 @@ export async function generateForm(
     skippedFields,
     validationCheck: validationCheckOf(fields),
     props,
+    // 훅의 인자는 모두 같은 타입의 props가 된다(경로 파라미터와 같은 인자는 그 props를 함께 쓴다).
+    propTypeImports: hook.parameters.flatMap((parameter) => parameter.typeImports),
+    hookArguments,
     variables,
     mockHandler: { name: mockHandlerName, moduleSpecifier: mockHandlerModule },
     responseMock: starter.generatedModuleOf(responseMock) === undefined ? undefined : responseMock,
@@ -266,7 +299,13 @@ export async function generateForm(
     { stem: `${stem}.stories`, source: storySource(form) },
     { stem: `${stem}.test`, source: testSource(form) },
   ])
-  return { componentName: form.componentName, skippedFields, changed: await starter.save() }
+  return {
+    componentName: form.componentName,
+    skippedFields,
+    hookName: hook.name,
+    hookArguments,
+    changed: await starter.save(),
+  }
 }
 
 /** operation의 폼 컴포넌트(<OperationId>Form)와 파일 이름(<operation-id>-form). page Schematic이 끼워 넣을 폼을 찾을 때도 쓴다. */
@@ -274,9 +313,69 @@ export function formComponentOf(operationId: string, fetcher: GeneratedFunction)
   return { componentName: `${upperFirst(fetcher.name)}Form`, fileName: `${kebabCase(splitWords(operationId))}-form` }
 }
 
-/** 폼이 props로 받는 인자(필수 경로 파라미터)의 이름과 타입. page Schematic이 폼에 넘길 값을 정할 때 쓴다. */
-export function formPropsOf(operation: Operation, fetcher: GeneratedFunction): { name: string; type: string }[] {
-  return formArguments(operation, fetcher).props.map(({ name, type }) => ({ name, type }))
+/**
+ * 폼이 꼭 받아야 하는 props(필수 경로 파라미터와 뮤테이션 훅의 필수 인자)의 이름과 타입. page Schematic이 폼에 넘길 값을 정할 때
+ * 쓴다. hookOnly는 경로 파라미터가 아니라 뮤테이션 훅에만 넘기는 인자다. 뮤테이션 훅이 없으면 경로 파라미터만 본다.
+ */
+export function formPropsOf(
+  starter: StarterProject,
+  operation: Operation,
+  fetcher: GeneratedFunction,
+): { name: string; type: string; hookOnly: boolean }[] {
+  const hook = mutationHookOf(starter, operation, fetcher)
+  return formArguments(operation, fetcher, hook)
+    .props.filter((prop) => !prop.optional)
+    .map(({ name, type, hookOnly }) => ({ name, type, hookOnly }))
+}
+
+/**
+ * operation의 뮤테이션 훅(use<OperationId>Mutation)과 그 훅이 받는 인자를 Query Domain의 쿼리 모듈에서 찾는다. 없으면 undefined다.
+ * 훅은 만든 뒤 프로젝트가 고칠 수 있으므로 mutation Schematic이 무엇을 만들었는지가 아니라 지금 쿼리 모듈에 있는 훅을 읽는다.
+ */
+function mutationHookOf(
+  starter: StarterProject,
+  operation: Operation,
+  fetcher: GeneratedFunction,
+): MutationHook | undefined {
+  const { queriesPath } = queryDomainOf(operation)
+  const name = mutationHookName(fetcher)
+  const queries = starter.existingModule(queriesPath)
+  if (queries === undefined || !hasDeclaration(queries, name)) return undefined
+  const hook = queries.getFunction(name) ?? queries.getVariableDeclaration(name)?.getInitializer()
+  if (!Node.isFunctionLikeDeclaration(hook)) {
+    throw new SchematicError(`${queriesPath}의 ${name}가 함수가 아니어서 폼이 훅에 넘길 인자를 알 수 없습니다.`)
+  }
+  const parameters = hook.getParameters().map((parameter, index): HookParameter => {
+    const nameNode = parameter.getNameNode()
+    if (!Node.isIdentifier(nameNode) || parameter.isRestParameter()) {
+      throw new SchematicError(
+        `form Schematic은 이름이 있는 인자만 폼의 props로 받아 뮤테이션 훅에 넘깁니다. ${name}의 인자 ${parameter.getText()}는 폼이 넘길 수 없습니다.`,
+      )
+    }
+    // 인자의 타입을 그대로 적고 쿼리 모듈이 가져오는 곳에서 가져온다. 타입을 적지 않았거나 쿼리 모듈 안에서 선언한 타입이면
+    // 가져올 수 없으므로 훅의 인자 타입(Parameters)으로 적는다.
+    const typeNode = parameter.getTypeNode()
+    const copied = typeNode !== undefined && !usesModuleLocalType(queries, typeNode)
+    return {
+      name: nameNode.getText(),
+      type: copied ? typeNode.getText() : `Parameters<typeof ${name}>[${index}]`,
+      optional: parameter.isOptional(),
+      typeImports: copied ? starter.typeImportsOf(queries, [typeNode]) : [],
+    }
+  })
+  return { name, moduleSpecifier: starter.importPath(queriesPath), parameters }
+}
+
+/** 타입이 모듈 안에서 선언한 타입이나 값(typeof)을 써서, 다른 모듈에서 그대로 적을 수 없는가 */
+function usesModuleLocalType(file: SourceFile, typeNode: TypeNode): boolean {
+  return [typeNode, ...typeNode.getDescendants()].some((node) => {
+    if (Node.isTypeQuery(node)) return true
+    if (!Node.isTypeReference(node)) return false
+    const [name = ''] = node.getTypeName().getText().split('.')
+    return [file.getTypeAlias(name), file.getInterface(name), file.getEnum(name), file.getClass(name)].some(
+      (declaration) => declaration !== undefined,
+    )
+  })
 }
 
 /** operation의 JSON 요청 본문 스키마. 없으면 폼을 만들 수 없다. */
@@ -524,11 +623,16 @@ function expectedBodyOf(fields: readonly FormField[], filled: readonly FormField
  * 폼이 뮤테이션에 넘기는 값. fetch 함수의 인자는 경로 파라미터, 요청 본문, 쿼리 파라미터 순서(orval)이므로 경로 파라미터 수로
  * 요청 본문 인자를 찾는다. 필수 경로 파라미터는 폼의 props로 받고, 선택 인자(쿼리 파라미터 등)는 넘기지 않는다.
  * mutate에는 mutation Schematic의 훅처럼 인자가 하나면 그 값을, 여럿이면 인자 이름을 키로 한 객체를 넘긴다.
+ *
+ * 뮤테이션 훅이 인자를 받으면(--optimistic으로 만든 훅은 응답 전에 고칠 쿼리의 인자를 받는다) 그 인자도 같은 이름과 타입의
+ * props로 받아 훅에 넘긴다. 경로 파라미터와 이름이 같은 인자는 같은 값(예: 수정할 상품과 그 상품의 상세 쿼리)으로 보고 그 props를
+ * 함께 넘기고, 기본값이 있는 인자는 생략할 수 있는 props로 받는다. hookArguments는 훅에 넘기는 props의 이름이다.
  */
 function formArguments(
   operation: Operation,
   fetcher: GeneratedFunction,
-): { props: FormProp[]; variables: string; bodyType: string } {
+  hook: MutationHook | undefined,
+): { props: FormProp[]; hookArguments: string[]; variables: string; bodyType: string } {
   const bodyIndex = operation.parameters.filter((parameter) => parameter.in === 'path').length
   const body = fetcher.parameters[bodyIndex]
   if (body === undefined) {
@@ -537,22 +641,45 @@ function formArguments(
     )
   }
   const passed = fetcher.parameters.filter((parameter) => parameter === body || !parameter.optional)
-  const props = passed
+  const hookName = hook?.name ?? mutationHookName(fetcher)
+  const hookParameters = hook?.parameters ?? []
+  const pathProps = passed
     .filter((parameter) => parameter !== body)
-    .map(({ name, type }) => {
+    .map(({ name, type }): FormProp => {
       const sample = PROP_SAMPLES.get(type)
       if (sample === undefined) {
         throw new SchematicError(
           `form Schematic은 숫자, 문자열, 불리언 경로 파라미터만 폼의 props로 받습니다. ${fetcher.name}의 필수 인자 ${name}(${type})는 폼이 넘길 수 없습니다.`,
         )
       }
-      return { name, type, sample }
+      const toHook = hookParameters.some((parameter) => parameter.name === name)
+      const description = `요청 경로의 ${name}${toHook ? `. 응답 전에 고칠 쿼리의 인자로 ${hookName}에도 넘긴다` : ''}`
+      return { name, type, description, optional: false, hookOnly: false, sample }
     })
+  const hookProps = hookParameters.flatMap((parameter): FormProp[] => {
+    const { name, type, optional } = parameter
+    const pathProp = pathProps.find((prop) => prop.name === name)
+    if (pathProp !== undefined) {
+      if (pathProp.type === type) return []
+      throw new SchematicError(
+        `폼의 props ${name}(${pathProp.type}, 요청 경로의 ${name})와 ${hookName}의 인자 ${name}(${type})는 이름이 같지만 타입이 달라 같은 props로 넘길 수 없습니다. 같은 값이면 훅의 인자 타입을 ${pathProp.type}로 맞추고, 다른 값이면 훅의 인자 이름을 바꾸세요.`,
+      )
+    }
+    const sample = PROP_SAMPLES.get(type)
+    if (!optional && sample === undefined) {
+      throw new SchematicError(
+        `form Schematic은 뮤테이션 훅의 필수 인자 가운데 숫자, 문자열, 불리언만 폼의 props로 받습니다(생성한 테스트와 스토리가 넘길 값을 정한다). ${hookName}의 필수 인자 ${name}(${type})는 폼이 넘길 수 없습니다. 훅의 인자에 기본값을 두면 생략할 수 있는 props로 받습니다.`,
+      )
+    }
+    const description = `${hookName}에 넘기는 ${name}. 응답 전에 고칠 쿼리의 인자이므로 화면이 보고 있는 쿼리와 같은 값을 넘긴다${optional ? '. 생략하면 훅의 기본값을 쓴다' : ''}`
+    return [{ name, type, description, optional, hookOnly: true, sample: optional ? undefined : sample }]
+  })
+  const props = [...pathProps, ...hookProps]
   const variables =
     fetcher.parameters.length === 1
       ? 'values'
       : `{ ${passed.map((parameter) => (parameter === body ? `${parameter.name}: values` : parameter.name)).join(', ')} }`
-  return { props, variables, bodyType: body.type }
+  return { props, hookArguments: hookParameters.map(({ name }) => name), variables, bodyType: body.type }
 }
 
 /** 폼 컴포넌트 */
@@ -571,6 +698,7 @@ function componentSource(form: FormModel): string {
     ...(usesController ? [`import { Controller } from 'react-hook-form'`] : []),
     `import { ${form.hook.name} } from '${form.hook.moduleSpecifier}'`,
     `import { ${form.schema.name} } from '${form.schema.moduleSpecifier}'`,
+    ...typeImportDeclarations(form.propTypeImports),
     `import { useSchemaForm } from '${SCHEMA_FORM_IMPORT}'`,
     `import { Button } from '@/shared/ui/button'`,
     ...(uses('checkbox') ? [`import { Checkbox } from '@/shared/ui/checkbox'`] : []),
@@ -599,7 +727,7 @@ const ${optionsName(field)} = ${JSON.stringify(field.control.options.map((value)
       ? []
       : [
           `export interface ${propsName} {
-${form.props.map(({ name, type }) => `  /** 요청 경로의 ${name} */\n  ${name}: ${type}`).join('\n')}
+${form.props.map(({ name, type, description, optional }) => `  /** ${description} */\n  ${name}${optional ? '?' : ''}: ${type}`).join('\n')}
 }`,
         ]
   const parameters =
@@ -634,7 +762,7 @@ export function ${form.componentName}(${parameters}) {
   const {
     ${formMethods.join(',\n    ')},
   } = useSchemaForm(${schemaFormArguments})
-  const mutation = ${form.hook.name}()
+  const mutation = ${form.hook.name}(${form.hookArguments.join(', ')})
   const toast = useToast()
 
   const onSubmit = handleSubmit((values) => {
@@ -722,8 +850,9 @@ function fieldSource(field: FormField): string {
 /** Storybook 스토리. 폼의 모양과, 검증에 실패했을 때의 오류를 보여 주고 둘 다 접근성(axe)을 검사받는다. */
 function storySource(form: FormModel): string {
   const check = form.validationCheck
+  const passed = passedProps(form)
   const args =
-    form.props.length === 0 ? '' : `\n  args: { ${form.props.map(({ name, sample }) => `${name}: ${sample}`).join(', ')} },`
+    passed.length === 0 ? '' : `\n  args: { ${passed.map(({ name, sample }) => `${name}: ${sample}`).join(', ')} },`
   const submit = `await userEvent.click(canvas.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
   const blankMessage = check?.kind === 'blank' ? blankMessageOf(check.fields[0]) : undefined
   const validationStory = (() => {
@@ -798,7 +927,7 @@ function testSource(form: FormModel): string {
   const check = form.validationCheck
   const filled = form.fields.filter((field) => field.sample !== undefined)
   const requiredInputs = form.fields.filter((field) => field.requiredInput)
-  const element = `<${form.componentName}${form.props.map(({ name, sample }) => ` ${name}={${sample}}`).join('')} />`
+  const element = `<${form.componentName}${passedProps(form).map(({ name, sample }) => ` ${name}={${sample}}`).join('')} />`
   const response = form.responseMock === undefined ? '' : `\n      return ${form.responseMock}()`
   const mockImports = [form.mockHandler.name, ...(form.responseMock === undefined ? [] : [form.responseMock])]
   const submit = `await user.click(screen.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
@@ -915,6 +1044,22 @@ function receivedBodies(): unknown[] {
 }
 
 ${submitTest('입력한 값을 요청 본문으로 보내고 성공을 알린다', filled)}${blankTest}${validationTest}`
+}
+
+/** 테스트와 스토리가 폼에 넘기는 props와 그 값. 생략할 수 있는 props는 넘기지 않는다. */
+function passedProps(form: FormModel): { name: string; sample: string }[] {
+  return form.props.flatMap(({ name, sample }) => (sample === undefined ? [] : [{ name, sample }]))
+}
+
+/** 타입 이름의 import 문. 같은 곳에서 가져오는 이름은 한 문장으로 묶는다. */
+function typeImportDeclarations(typeImports: readonly TypeImport[]): string[] {
+  const names = new Map<string, Set<string>>()
+  for (const { name, moduleSpecifier } of typeImports) {
+    names.set(moduleSpecifier, (names.get(moduleSpecifier) ?? new Set()).add(name))
+  }
+  return [...names].map(
+    ([moduleSpecifier, imported]) => `import type { ${[...imported].join(', ')} } from '${moduleSpecifier}'`,
+  )
 }
 
 /** 테스트가 필드에 sample을 입력하는 문장 */

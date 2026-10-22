@@ -95,14 +95,18 @@ test('new는 Rendering Mode를 지정하지 않으면 server Starter를 만든�
 
 describe('터미널에서 실행한 new', () => {
   const RENDERING_MODE_PROMPT = 'Rendering Mode를 고르세요'
+  const ARCHETYPE_PROMPT = 'Archetype(완성된 앱 유형)을 고르세요'
   const RECIPE_PROMPT = '넣을 Recipe를 고르세요'
 
-  test('플래그 없이 실행하면 Rendering Mode와 Recipe를 차례로 묻고 고른 대로 만든다', async () => {
+  test('플래그 없이 실행하면 Rendering Mode, Archetype, Recipe를 차례로 묻고 고른 대로 만든다', async () => {
     const terminal = runInTerminal(inject('dcgenBin'), ['new', 'my-app', '--skip-install'], workdir)
 
     await terminal.waitFor(RENDERING_MODE_PROMPT)
     // 기본값은 server이고, 그 아래가 static-export다.
     terminal.press(KEYS.down)
+    terminal.press(KEYS.enter)
+    // Archetype은 고르지 않고 넘어간다. Archetype을 고르는 동작은 archetypes.test.ts가 본다.
+    await terminal.waitFor(ARCHETYPE_PROMPT)
     terminal.press(KEYS.enter)
     await terminal.waitFor(RECIPE_PROMPT)
     await terminal.waitFor('dark-mode')
@@ -115,6 +119,7 @@ describe('터미널에서 실행한 new', () => {
 
     expect(await terminal.exited, terminal.output()).toBe(0)
     expect(terminal.output()).toContain('Rendering Mode: static-export')
+    expect(terminal.output()).toContain('Archetype: 없음')
     expect(terminal.output()).toContain('Recipe: dark-mode')
     expect(readFileSync(join(workdir, 'my-app', 'next.config.ts'), 'utf8')).toContain("output: 'export'")
     expect(existsSync(join(workdir, 'my-app', 'src/shared/ui/tokens-dark.css'))).toBe(true)

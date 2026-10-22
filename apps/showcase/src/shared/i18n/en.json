@@ -1,4 +1,7 @@
 {
+  "LandingLink": {
+    "label": "Landing"
+  },
   "LocaleSwitcher": {
     "label": "Language"
   },
