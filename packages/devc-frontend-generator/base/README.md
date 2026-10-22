@@ -103,6 +103,21 @@ Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Stor
 
 변형은 [`cva`](https://cva.style)로 정의합니다(예: `button.tsx`의 `buttonVariants`). 컴포넌트의 `className`은 바깥 여백이나 너비 같은 배치에만 씁니다. 같은 속성을 다루는 클래스가 겹치면 어느 쪽이 적용될지 보장되지 않으므로, 모양을 바꾸려면 `className`으로 덮어쓰지 말고 변형을 더합니다.
 
+## 오류·404 화면
+
+라우트에 따로 두지 않은 오류와 404 화면은 `src/app`의 앱 수준 화면이 받습니다. 라우트에 `error.tsx`, `not-found.tsx`가 있으면(예: `npm run g -- page`가 만든 오류 상태) 그 라우트 아래에서는 가까운 쪽이 먼저 받습니다. 문구는 앱에 맞게 고칩니다.
+
+| 파일                       | 받는 것                                                                                                                                                  | 보이는 곳                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/app/error.tsx`        | 페이지를 렌더링하다 난 오류(서버에서 데이터를 가져오지 못했을 때 등). 서버의 렌더링 오류는 상태 코드 500. "다시 시도"는 그 화면을 서버에서 다시 그립니다 | 루트 레이아웃(머리글) 안의 페이지 자리                                                             |
+| `src/app/global-error.tsx` | 루트 레이아웃(`src/app/layout.tsx`, `app-shell.tsx`의 Provider와 머리글)에서 난 오류                                                                     | 루트 레이아웃 대신. `<html>`, 스타일, 문서의 언어와 제목을 직접 두고 `error.tsx`의 화면을 그립니다 |
+| `src/app/not-found.tsx`    | 어느 라우트에도 맞지 않는 주소와, 가까운 라우트에 `not-found.tsx`가 없는 곳에서 부른 `notFound()`. 상태 코드 404                                         | 페이지 자리                                                                                        |
+
+- `global-error.tsx`가 `error.tsx`의 화면을 그리므로 `error.tsx`는 루트 레이아웃의 Provider(TanStack Query, 알림 등)에 기대지 않습니다. 루트 레이아웃의 `<html lang>`을 바꾸면 `global-error.tsx`의 `lang`도 함께 바꿉니다.
+- 로딩 상태는 라우트의 `loading.tsx`(`npm run g -- page`가 만듭니다)와 컴포넌트의 `<Suspense>`가 맡고, 앱 수준의 `src/app/loading.tsx`는 두지 않습니다. 응답의 상태 코드는 응답을 보내기 시작할 때 정해지는데, 앱 수준 로딩 상태가 있으면 요청마다 렌더링하는 모든 페이지가 그것을 먼저 보내므로 그 뒤에 난 렌더링 오류와 `notFound()`가 상태 코드 200으로 나가기 때문입니다. 요청마다 렌더링하는 라우트에서 그 라우트의 `loading.tsx`나 `<Suspense>` 안에서 난 오류와 `notFound()`도 같은 까닭으로 200으로 나갑니다(404 화면에는 검색 엔진용 `noindex`가 붙습니다).
+- 오류 화면이 받은 오류는 Next.js가 브라우저 콘솔에만 남깁니다. 오류를 모으는 서비스로 보내려면 `error.tsx`에서 보냅니다(예: `sentry` Recipe).
+- 테스트: 화면마다 스토리(`error.stories.tsx`, `not-found.stories.tsx`)와 `e2e/not-found.spec.ts`(없는 주소의 404 화면과 상태 코드, 접근성)가 있습니다.
+
 ## 커밋 훅
 
 git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니다. `dcgen new`는 의존성을 설치하기 전에 Starter에 git 저장소를 만들므로(`git init`) 따로 할 일이 없습니다. 첫 커밋은 만들지 않았으니 직접 만드세요. 저장소를 `npm install` 뒤에 만들었다면(`dcgen new --skip-git` 등) `npx lefthook install`을 한 번 실행하세요.

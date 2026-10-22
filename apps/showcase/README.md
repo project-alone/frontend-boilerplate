@@ -112,6 +112,21 @@ Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Stor
 
 변형은 [`cva`](https://cva.style)로 정의합니다(예: `button.tsx`의 `buttonVariants`). 컴포넌트의 `className`은 바깥 여백이나 너비 같은 배치에만 씁니다. 같은 속성을 다루는 클래스가 겹치면 어느 쪽이 적용될지 보장되지 않으므로, 모양을 바꾸려면 `className`으로 덮어쓰지 말고 변형을 더합니다.
 
+## 오류·404 화면
+
+라우트에 따로 두지 않은 오류와 404 화면은 `src/app`의 앱 수준 화면이 받습니다. 라우트에 `error.tsx`, `not-found.tsx`가 있으면(예: `npm run g -- page`가 만든 오류 상태) 그 라우트 아래에서는 가까운 쪽이 먼저 받습니다. 문구는 앱에 맞게 고칩니다.
+
+| 파일                       | 받는 것                                                                                                                                                  | 보이는 곳                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/app/error.tsx`        | 페이지를 렌더링하다 난 오류(서버에서 데이터를 가져오지 못했을 때 등). 서버의 렌더링 오류는 상태 코드 500. "다시 시도"는 그 화면을 서버에서 다시 그립니다 | 루트 레이아웃(머리글) 안의 페이지 자리                                                             |
+| `src/app/global-error.tsx` | 루트 레이아웃(`src/app/layout.tsx`, `app-shell.tsx`의 Provider와 머리글)에서 난 오류                                                                     | 루트 레이아웃 대신. `<html>`, 스타일, 문서의 언어와 제목을 직접 두고 `error.tsx`의 화면을 그립니다 |
+| `src/app/not-found.tsx`    | 어느 라우트에도 맞지 않는 주소와, 가까운 라우트에 `not-found.tsx`가 없는 곳에서 부른 `notFound()`. 상태 코드 404                                         | 페이지 자리                                                                                        |
+
+- `global-error.tsx`가 `error.tsx`의 화면을 그리므로 `error.tsx`는 루트 레이아웃의 Provider(TanStack Query, 알림 등)에 기대지 않습니다. 루트 레이아웃의 `<html lang>`을 바꾸면 `global-error.tsx`의 `lang`도 함께 바꿉니다.
+- 로딩 상태는 라우트의 `loading.tsx`(`npm run g -- page`가 만듭니다)와 컴포넌트의 `<Suspense>`가 맡고, 앱 수준의 `src/app/loading.tsx`는 두지 않습니다. 응답의 상태 코드는 응답을 보내기 시작할 때 정해지는데, 앱 수준 로딩 상태가 있으면 요청마다 렌더링하는 모든 페이지가 그것을 먼저 보내므로 그 뒤에 난 렌더링 오류와 `notFound()`가 상태 코드 200으로 나가기 때문입니다. 요청마다 렌더링하는 라우트에서 그 라우트의 `loading.tsx`나 `<Suspense>` 안에서 난 오류와 `notFound()`도 같은 까닭으로 200으로 나갑니다(404 화면에는 검색 엔진용 `noindex`가 붙습니다).
+- 오류 화면이 받은 오류는 Next.js가 브라우저 콘솔에만 남깁니다. 오류를 모으는 서비스로 보내려면 `error.tsx`에서 보냅니다(예: `sentry` Recipe).
+- 테스트: 화면마다 스토리(`error.stories.tsx`, `not-found.stories.tsx`)와 `e2e/not-found.spec.ts`(없는 주소의 404 화면과 상태 코드, 접근성)가 있습니다.
+
 ## 커밋 훅
 
 git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니다. `dcgen new`는 의존성을 설치하기 전에 Starter에 git 저장소를 만들므로(`git init`) 따로 할 일이 없습니다. 첫 커밋은 만들지 않았으니 직접 만드세요. 저장소를 `npm install` 뒤에 만들었다면(`dcgen new --skip-git` 등) `npx lefthook install`을 한 번 실행하세요.
@@ -582,7 +597,7 @@ docker:
 
 `i18n` Recipe로 넣었습니다. [next-intl](https://next-intl.dev)로 한국어(기본 locale `ko`)와 영어(`en`)를 지원합니다.
 
-- 번역한 페이지는 `src/app/[locale]/` 아래에 둡니다. 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), 페이지는 locale마다 빌드할 때 렌더링합니다(`src/app/[locale]/layout.tsx`의 `generateStaticParams`). 지원하지 않는 locale의 주소(`/fr`)는 404입니다. 예로 홈(`/ko`, `/en`, 화면은 `src/features/home`)과 다국어 예시(`/ko/i18n`, `/en/i18n`: 날짜·통화 형식, 복수형, 클라이언트 컴포넌트의 번역)가 있습니다. 예시는 지워도 됩니다(`src/app/[locale]/i18n/`, `src/features/i18n-example/`, 카탈로그의 `I18nExample`과 `CartCounter`, `e2e/i18n.spec.ts`의 해당 테스트).
+- 번역한 페이지는 `src/app/[locale]/` 아래에 둡니다. 주소 앞에 늘 locale이 붙고(`/ko`, `/en/i18n`), 페이지는 locale마다 빌드할 때 렌더링합니다(`src/app/[locale]/layout.tsx`의 `generateStaticParams`). 지원하지 않는 locale의 주소(`/fr`)와 `[locale]`에 맞는 한 단계짜리 없는 주소(`/no-such-page`)는 렌더링하지 않고 앱의 404 화면(`src/app/not-found.tsx`)을 상태 코드 404로 보냅니다(같은 파일의 `dynamicParams = false`). 예로 홈(`/ko`, `/en`, 화면은 `src/features/home`)과 다국어 예시(`/ko/i18n`, `/en/i18n`: 날짜·통화 형식, 복수형, 클라이언트 컴포넌트의 번역)가 있습니다. 예시는 지워도 됩니다(`src/app/[locale]/i18n/`, `src/features/i18n-example/`, 카탈로그의 `I18nExample`과 `CartCounter`, `e2e/i18n.spec.ts`의 해당 테스트).
 - `[locale]` 밖의 페이지(`/products`, 다른 Recipe가 더한 페이지)는 번역하지 않은 페이지로, 주소와 화면이 그대로이고 locale 전환 UI에는 기본 locale로 보입니다. 번역하려면 페이지를 `src/app/[locale]/` 아래로 옮기고 문장을 메시지 카탈로그로 옮깁니다.
 - 메시지 카탈로그는 `src/shared/i18n/ko.json`(키의 기준)과 `en.json`이고, 메시지는 ICU 형식(`{count, plural, ...}`, `{date, date, full}`)으로 씁니다. 메시지 키는 `ko.json`의 타입으로 검사하므로(`src/shared/i18n/messages.ts`) 없는 키를 쓰면 `npm run typecheck`가 실패합니다. `en.json`에 키가 빠지면 타입 오류가 나고, 남는 키는 `npm test`(`messages.test.tsx`)가 잡습니다.
 - 서버 컴포넌트는 params의 locale을 넘겨 번역합니다: `const locale = await requireLocale(props)`(`src/shared/i18n/require-locale.ts`, 지원하지 않는 locale이면 404) 다음에 `getTranslations({ locale, namespace })`, `getFormatter({ locale })`. 루트 레이아웃(`src/app/layout.tsx`)이 `[locale]` 밖에 있어 next-intl이 요청의 locale을 스스로 알 수 없기 때문입니다. locale 없이 부르면 기본 locale로 조용히 그리지 않고 오류로 알립니다(`src/shared/i18n/request.ts`). params만 읽으므로 페이지는 빌드할 때 렌더링할 수 있습니다. 모든 페이지를 `[locale]` 아래로 옮겨 `src/app/[locale]/layout.tsx`가 루트 레이아웃이 되면 next-intl 문서의 `next/root-params` 방식으로 바꿀 수 있습니다.
@@ -741,16 +756,16 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 | `src/shared/sentry/sentry-options.ts`                | 초기화 조건(`NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 때)과 두 SDK가 함께 쓰는 설정                                                       |
 | `src/shared/sentry/sentry-next-config.ts`            | `next.config.ts`의 설정을 감싸는 `withSentryConfig`(소스맵 업로드 등 빌드 설정)와 목 빌드 표시(`SENTRY_MOCK_BUILD`). 다른 래퍼보다 바깥에 씌워져 있습니다 |
 
-세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일").
+세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일"). 앱 수준의 오류 화면(`src/app/error.tsx`)도 받은 오류를 Sentry로 보냅니다(아래 "오류 경계").
 
 - 켜기: 배포 환경에 DSN을 넣습니다(`.env.example`). 서버의 `SENTRY_DSN`은 서버를 띄울 때 읽고, 브라우저의 `NEXT_PUBLIC_SENTRY_DSN`은 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다. 보통 두 값은 같은 DSN입니다. `static-export`에는 서버가 없어 `NEXT_PUBLIC_SENTRY_DSN`만 씁니다. 컨테이너 이미지(`docker` Recipe)는 `docker build --build-arg NEXT_PUBLIC_SENTRY_DSN=<DSN>`으로 만들고 `docker run -e SENTRY_DSN=<DSN>`으로 띄웁니다. DSN은 브라우저에 드러나도 되는 값이지만 아래의 인증 토큰은 비밀 값입니다.
 - 개발과 테스트: SDK는 `NODE_ENV`가 `production`일 때만 초기화하므로 개발 서버(`npm run dev`)와 단위 테스트는 DSN을 넣어도 보내지 않습니다. 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`. E2E와 GitLab CI의 `build` 잡)도 배포하지 않는 빌드라 빌드하는 환경에 DSN이 있어도 초기화하지 않습니다. `sentry-next-config.ts`가 빌드할 때 목 빌드인지를 코드에 박아 두기 때문입니다(`SENTRY_MOCK_BUILD`). 실제로 보내지는지 확인하려면 목을 끈 배포용 빌드를 DSN과 함께 만들고 `npm start`로 띄워 오류를 냅니다.
 - 소스맵: 빌드하는 환경에 Sentry 인증 토큰(`SENTRY_AUTH_TOKEN`)과 `SENTRY_ORG`, `SENTRY_PROJECT`가 있을 때만 브라우저 소스맵을 만들어 Sentry에 올리고, 올린 뒤에는 빌드 결과에서 지웁니다. 토큰이 없으면 소스맵을 만들지도 올리지도 않으므로 개발과 CI의 빌드는 토큰 없이 통과하고 Sentry에 접속하지 않습니다. 토큰은 GitLab CI/CD 변수(masked)로 배포용 빌드를 만드는 잡에만 넣습니다. 빌드 도구가 Sentry에 사용 통계를 보내는 기능(`telemetry`)은 꺼 두었습니다.
 - 개인정보: `sendDefaultPii: false`(Sentry의 기본값)라 IP 주소, 쿠키, 요청 헤더 같은 정보는 이벤트에 담지 않습니다. 성능 추적(`tracesSampleRate`)과 Session Replay는 켜지 않았습니다. 켜려면 `sentry-options.ts`의 `SENTRY_OPTIONS`에 더합니다(Replay의 `Sentry.replayIntegration()`은 브라우저 쪽 `sentry-instrumentation-client.ts`에만). 페이지 이동은 `onRouterTransitionStart`가 이미 SDK에 알리므로 성능 추적을 켜면 함께 남습니다.
 - 광고 차단기: 브라우저가 Sentry에 바로 보내는 요청은 광고 차단기에 막힐 수 있습니다. `server` Starter라면 `sentry-next-config.ts`의 `withSentryConfig` 옵션에 `tunnelRoute`를 더해 Next.js 서버를 거쳐 보낼 수 있습니다(기본은 꺼 두었습니다). proxy(`src/proxy.ts`)가 있으면 그 경로가 proxy 처리기에 막히지 않도록 proxy의 matcher가 빼는 `/api` 아래 경로(예: `/api/monitoring`)를 씁니다. `static-export`에는 서버가 없어 쓸 수 없습니다.
-- 오류 경계: 오류 경계가 잡지 않은 오류는 SDK가 그대로 받습니다. 라우트에 `error.tsx`(예: `npm run g -- page`가 만든 오류 상태)나 `global-error.tsx`가 있으면, Next.js는 그 경계가 잡은 브라우저의 렌더링 오류를 콘솔에만 남깁니다. 서버 컴포넌트의 오류는 서버의 `onRequestError`가 보내지만, 브라우저에서 렌더링하다 난 오류도 보내려면 그 경계에서 `useEffect(() => { Sentry.captureException(error) }, [error])`를 부릅니다.
+- 오류 경계: 오류 경계가 잡지 않은 오류는 SDK가 그대로 받지만, Next.js는 오류 경계(`error.tsx`, `global-error.tsx`)가 잡은 브라우저의 렌더링 오류를 콘솔에만 남깁니다. 그래서 앱 수준의 오류 화면(`src/app/error.tsx`. 루트 레이아웃의 오류를 받는 `global-error.tsx`도 이 화면을 그립니다)이 받은 오류를 `Sentry.captureException`으로 보냅니다. 서버 컴포넌트에서 난 오류(`digest`가 있음)는 서버의 `onRequestError`가 이미 보냈으므로 다시 보내지 않습니다. 라우트에 따로 둔 `error.tsx`(예: `npm run g -- page`가 만든 오류 상태)가 잡은 오류도 보내려면 그 경계에서 `useEffect(() => { Sentry.captureException(error) }, [error])`를 부릅니다.
 - 테스트: `src/shared/sentry/sentry.test.ts`(개발·테스트 환경, 목 빌드이거나 DSN이 없으면 브라우저와 서버의 조각이 SDK를 초기화하지 않음), `sentry-instrumentation.test.ts`(DSN이 있으면 서버가 요청을 처리하다 난 오류를 그 DSN으로 보냄. 요청은 MSW가 받아 밖으로 나가지 않음), `e2e/sentry.spec.ts`(DSN 없이 빌드한 앱은 브라우저에서 오류가 나도 앱 밖으로 요청을 보내지 않음).
-- 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을 지웁니다.
+- 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을, `src/app/error.tsx`에서 `Sentry.captureException`을 부르는 `useEffect`를 지웁니다.
 
 ## 검색 노출(SEO)
 

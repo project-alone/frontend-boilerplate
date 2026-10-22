@@ -1,9 +1,9 @@
 {
   "scripts": {
-    "start": "sirv out"
+    "start": "node scripts/serve-out.ts"
   },
   "devDependencies": {
-    "sirv-cli": "3.0.1"
+    "sirv": "3.0.2"
   },
   "msw": {
     "workerDirectory": [
