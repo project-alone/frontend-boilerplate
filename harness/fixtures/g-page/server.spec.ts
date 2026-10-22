@@ -102,12 +102,15 @@ test('동적 세그먼트의 페이지는 경로의 상품을 보여 주고, 없
     await expect(page.getByRole('definition').filter({ hasText: '기본 티셔츠' })).toBeVisible()
   }
 
+  // 라우트의 오류 상태(Schematic이 만든 error.tsx, 제목은 라우트의 제목)가 앱 수준의 오류 화면(src/app/error.tsx)보다 먼저 받는다.
   await page.goto('/products/999')
+  await expect(page.getByRole('heading', { level: 1, name: '상품 상세' })).toBeVisible()
   await expect(page.getByRole('alert').filter({ hasText: '페이지를 불러오지 못했습니다.' })).toBeVisible()
   await expect(page.getByRole('button', { name: '다시 시도' })).toBeVisible()
 
+  // 라우트에 not-found.tsx가 없으므로 앱 수준의 404 화면(src/app/not-found.tsx)이 받는다.
   await page.goto('/products/abc')
-  await expect(page.getByRole('heading', { name: '404' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '찾는 화면이 없습니다' })).toBeVisible()
 })
 
 for (const path of [

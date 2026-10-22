@@ -39,7 +39,7 @@ test('API를 쓰는 샘플 페이지는 데이터 없이 미리 렌더링되고,
   expect(scripts.filter((script) => readFileSync(script, 'utf8').includes('mockServiceWorker.js'))).toEqual([])
 })
 
-test('Next.js 서버 없이 out/만 정적 파일 서버로 띄워도 페이지를 응답한다', async () => {
+test('Next.js 서버 없이 out/만 정적 파일 서버로 띄워도 페이지를 응답하고, 없는 주소에는 앱의 404 화면을 상태 코드 404로 보낸다', async () => {
   // out/ 밖의 빌드 결과(.next/)를 지워도 동작해야 빌드 결과가 정적 파일로만 이루어진 것이다.
   rmSync(join(starter.dir, '.next'), { recursive: true, force: true })
   const port = await freePort()
@@ -53,6 +53,11 @@ test('Next.js 서버 없이 out/만 정적 파일 서버로 띄워도 페이지�
     const products = await fetch(`http://localhost:${String(port)}/products`)
     expect(products.status, server.output()).toBe(200)
     expect(await products.text()).toContain('<h1>상품</h1>')
+
+    // 빌드가 앱 수준의 404 화면(src/app/not-found.tsx)으로 만든 out/404.html이다.
+    const missing = await fetch(`http://localhost:${String(port)}/no-such-page`)
+    expect(missing.status, server.output()).toBe(404)
+    expect(await missing.text()).toContain('찾는 화면이 없습니다')
   } finally {
     await server.stop()
   }

@@ -3,7 +3,7 @@
 이 Starter의 Rendering Mode는 `static-export`입니다. Next.js 서버 없이 정적 파일만으로 배포하며(`next.config.ts`의 `output: 'export'`), 특정 배포 방식에 묶이지 않도록 Vercel 같은 플랫폼 전용 설정은 두지 않습니다.
 
 - `npm run build`는 모든 페이지를 빌드할 때 렌더링해 `out/`에 HTML·CSS·JS 같은 정적 파일로만 내보냅니다. 배포할 것은 `out/` 하나이고, 정적 파일을 서빙하는 어떤 서버나 호스팅에 올려도 됩니다. 브라우저가 부를 백엔드 주소(`NEXT_PUBLIC_API_BASE_URL`)는 빌드할 때 코드에 박히므로 빌드하는 환경에 넣습니다(아래 "API 계층").
-- `npm run start`는 `out/`을 정적 파일 서버(sirv)로 띄웁니다. 기본 포트는 8080이고, `npm run start -- --port 3000`처럼 바꿉니다.
+- `npm run start`는 `out/`을 정적 파일 서버(`scripts/serve-out.ts`, sirv)로 띄웁니다. 기본 포트는 8080이고, `npm run start -- --port 3000`처럼 바꿉니다. 없는 주소에는 빌드가 앱 수준의 404 화면(`src/app/not-found.tsx`)으로 만든 `out/404.html`을 상태 코드 404로 보냅니다. 배포할 호스팅도 없는 주소에 `404.html`을 상태 코드 404로 보내게 설정합니다(nginx의 `error_page 404 /404.html;` 등. 정적 호스팅 서비스는 대개 저절로 그렇게 합니다).
 - `npm run test:e2e`는 브라우저의 MSW를 켜고 목으로 다시 빌드한 `out/`을 정적 파일 서버로 띄워 검사합니다(`playwright.config.ts`). 그래서 `npm run build`를 먼저 실행하지 않아도 되고, E2E가 남긴 `out/`은 배포하지 말고 배포용 빌드로 다시 만듭니다.
 - 서버 컴포넌트는 빌드할 때 한 번만 실행됩니다. 동적 라우트(`[id]` 등)는 `generateStaticParams`로 만들 경로를 모두 정해 두어야 합니다.
 - 요청을 받는 서버가 있어야 하는 기능은 쓸 수 없고, 쓰면 `npm run dev`나 `npm run build`에서 오류가 납니다. 예: Request를 읽는 Route Handler, `cookies()`, Proxy(`proxy.ts`), `next.config.ts`의 rewrites·redirects·headers, ISR, 서버 액션, 기본 로더를 쓰는 이미지 최적화. 같은 이유로 BFF 프록시(`/api/proxy/*`)도 없습니다.

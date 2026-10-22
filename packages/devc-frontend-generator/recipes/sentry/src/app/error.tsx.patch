@@ -1,0 +1,20 @@
+--- a/src/app/error.tsx
++++ b/src/app/error.tsx
+@@ -2,2 +2,4 @@
+ 
++import * as Sentry from '@sentry/nextjs'
++import { useEffect } from 'react'
+ import { Button } from '@/shared/ui/button'
+@@ -14,3 +16,11 @@
+ // 루트 레이아웃에서 난 오류를 받는 global-error.tsx도 이 화면을 그리므로, 루트 레이아웃의 Provider(TanStack Query, 알림 등)에 기대지 않는다.
+-export default function AppError({ retry }: AppErrorProps) {
++export default function AppError({ error, retry }: AppErrorProps) {
++  // sentry Recipe: 오류 경계가 잡은 오류는 Next.js가 콘솔에만 남기므로 Sentry로 직접 보낸다(global-error.tsx도 이 화면을 그린다).
++  // 서버 컴포넌트에서 난 오류(digest가 있음)는 서버의 onRequestError가 이미 보냈다. SDK를 초기화하지 않았으면(DSN이 없거나 개발
++  // 서버·목 빌드) 아무것도 보내지 않는다.
++  useEffect(() => {
++    if (error instanceof Error && 'digest' in error) return
++    Sentry.captureException(error)
++  }, [error])
++
+   return (
