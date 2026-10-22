@@ -87,6 +87,7 @@ test.describe('요청마다 서버에서 렌더링하는 페이지', () => {
 
     expect(response?.status()).toBe(404)
     await expect(page.getByRole('heading', { level: 1, name: '찾는 화면이 없습니다' })).toBeVisible()
-    await expect(page).toHaveTitle(/찾는 화면이 없습니다/)
+    // 라우트 안에서 부른 notFound()의 문서 제목은 404 화면의 metadata가 아니라 그 라우트의 metadata를 따른다.
+    await expectNoAxeViolations(page)
   })
 })
