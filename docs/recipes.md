@@ -273,6 +273,7 @@ components:
 - 같은 경로, 같은 컴포넌트 이름, 같은 tag, 같은 operationId가 Base나 다른 Recipe에 이미 있으면 무엇을 만들기 전에 겹친 것을 모두 알리며 실패한다. Base의 operation을 고칠 수는 없으므로 새 경로를 더한다. Base의 tag(예: `products`)에 operation을 더하는 것은 된다.
 - 병합한 명세는 Starter의 `openapi.yaml`이 되고, Generator가 이 명세로 재생성 계층(`src/shared/api/generated`)을 다시 만든다(`npm run api:gen`과 같은 결과. Generator는 Base와 같은 버전의 orval을 담고 있다. [의존성 버전 올리기](release.md#의존성-버전-올리기)). `npm run g -- query`·`mutation`도 이 `openapi.yaml`을 읽는다.
 - MSW 목이 늘 같은 값을 돌려주도록 응답에 `example`을 적는다.
+- 응답 스키마의 선택 속성(`required`에 없는 속성)은 실제 명세처럼 그대로 둔다. 생성된 타입과 Zod 스키마는 선택 속성을 빠질 수 있는 키로 다루고(`exactOptionalPropertyTypes`), `example`이 없는 응답의 목은 선택 속성을 응답마다 넣거나 키째 뺀다(Base의 `orval.config.ts`). typecheck를 통과하려고 속성을 모두 `required`로 바꾸지 않는다.
 
 ### 환경 변수
 

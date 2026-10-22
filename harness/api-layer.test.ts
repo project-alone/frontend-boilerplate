@@ -4,12 +4,29 @@ import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { type BackgroundProcess, freePort, start, waitForServer } from './run.ts'
+import { addOperations } from './schematic.ts'
 import { MSW_PROBE_ROUTE, readTree, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
 
 // Starter 하나를 만들어 설치해 두고, 테스트마다 다시 설치하지 않도록 이 파일의 모든 테스트가 함께 쓴다.
 const starter = useStarter({ prefix: 'dcgen-api-layer-', install: true })
 
 const GENERATED_DIR = 'src/shared/api/generated'
+
+/** body를 실행한 뒤 Starter의 paths(Starter 최상위 기준)를 실행하기 전으로 되돌린다. 같은 Starter를 쓰는 다음 테스트에 남기지 않는다. */
+function restoringAfter(paths: readonly string[], body: () => void): void {
+  const backup = join(starter.workdir, 'backup')
+  for (const path of paths) cpSync(join(starter.dir, path), join(backup, path), { recursive: true })
+
+  try {
+    body()
+  } finally {
+    for (const path of paths) {
+      rmSync(join(starter.dir, path), { recursive: true, force: true })
+      cpSync(join(backup, path), join(starter.dir, path), { recursive: true })
+    }
+    rmSync(backup, { recursive: true, force: true })
+  }
+}
 
 // 실제 프로젝트가 샘플 명세 대신 쓸 명세. tag가 다르고, example이 있는 응답과 없는 응답이 섞여 있다.
 const ORDERS_SPEC = `openapi: 3.1.0
@@ -90,6 +107,129 @@ test('example이 없으면 MSW 핸들러가 스키마에 맞는 값을 만들어
 })
 `
 
+// 실제 고객사 명세처럼 응답 스키마에 선택 속성(required에 없는 속성)이 있는 명세 조각(#75). Base의 샘플 명세에 더한다.
+// 문자열, 배열, enum, 중첩 객체(그 안의 선택 속성), null을 받는 선택 속성과, 선택 속성만 있는 인라인 응답이 섞여 있다.
+// listReviews와 getReviewStats는 example이 없어 faker가 목을 만들고, getReview의 example은 선택 속성을 적지 않았다.
+const REVIEW_OPERATIONS = `
+tags:
+  - name: reviews
+    description: 리뷰
+paths:
+  /reviews:
+    get:
+      operationId: listReviews
+      tags: [reviews]
+      responses:
+        '200':
+          description: 리뷰 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+  /reviews/{reviewId}:
+    get:
+      operationId: getReview
+      tags: [reviews]
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 리뷰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+              example:
+                id: 7
+                rating: 5
+  /review-stats:
+    get:
+      operationId: getReviewStats
+      tags: [reviews]
+      responses:
+        '200':
+          description: 리뷰 통계
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  average:
+                    type: number
+components:
+  schemas:
+    Review:
+      type: object
+      required: [id, rating]
+      properties:
+        id:
+          type: integer
+        rating:
+          type: integer
+        comment:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, published]
+        author:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+            nickname:
+              type: [string, 'null']
+`
+
+// 선택 속성이 있는 응답을 생성된 fetch 함수(Zod 검증)와 목 함수로 확인하는 Starter 테스트. 목 함수가 돌려준 값은 JSON을 거치지 않으므로,
+// 선택 속성에 undefined가 들어 있으면 .exactOptional()로 만든 Zod 스키마가 거부한다.
+const REVIEWS_TEST = `import { expect, test } from 'vitest'
+import { getReview, getReviewStats, listReviews } from '@/shared/api/generated'
+import { GetReviewStats200, Review } from '@/shared/api/generated/model'
+import { getGetReviewStatsResponseMock, getListReviewsResponseMock } from '@/shared/api/generated/reviews/reviews.msw'
+
+test('MSW 핸들러가 돌려준 선택 속성이 있는 응답이 fetch 함수의 Zod 검증을 통과한다', async () => {
+  expect(await getReview(7)).toEqual({ id: 7, rating: 5 })
+  expect((await listReviews()).length).toBeGreaterThan(0)
+  expect(await getReviewStats()).toBeTypeOf('object')
+})
+
+test('목은 선택 속성을 값과 함께 넣거나 키째 빼고 undefined를 넣지 않는다', () => {
+  const reviews = Array.from({ length: 50 }, () => getListReviewsResponseMock()).flat()
+  const authors = reviews.flatMap((review) => (review.author === undefined ? [] : [review.author]))
+  const stats = Array.from({ length: 50 }, () => getGetReviewStatsResponseMock())
+
+  for (const review of reviews) expect(Review.parse(review)).toEqual(review)
+  for (const stat of stats) expect(GetReviewStats200.parse(stat)).toEqual(stat)
+  const samples: [readonly object[], string][] = [
+    [reviews, 'comment'],
+    [reviews, 'tags'],
+    [reviews, 'status'],
+    [reviews, 'author'],
+    [authors, 'email'],
+    [stats, 'average'],
+  ]
+  for (const [objects, key] of samples) {
+    expect(objects.some((object) => key in object), key).toBe(true)
+    expect(objects.some((object) => !(key in object)), key).toBe(true)
+  }
+})
+`
+
 describe('api:gen', () => {
   test('Starter에 담긴 재생성 결과는 샘플 명세로 api:gen을 다시 실행해도 바뀌지 않는다', () => {
     const before = readTree(join(starter.dir, GENERATED_DIR))
@@ -101,12 +241,7 @@ describe('api:gen', () => {
   })
 
   test('명세를 바꾸면 api:gen이 타입, fetch 함수, Zod 스키마, MSW 핸들러를 다시 만들고 TanStack Query 훅은 만들지 않는다', () => {
-    const backup = join(starter.workdir, 'backup')
-    cpSync(join(starter.dir, 'src'), join(backup, 'src'), { recursive: true })
-    cpSync(join(starter.dir, 'e2e'), join(backup, 'e2e'), { recursive: true })
-    cpSync(join(starter.dir, 'openapi.yaml'), join(backup, 'openapi.yaml'))
-
-    try {
+    restoringAfter(['src', 'e2e', 'openapi.yaml'], () => {
       writeFileSync(join(starter.dir, 'openapi.yaml'), ORDERS_SPEC)
       for (const path of SAMPLE_CODE) rmSync(join(starter.dir, path), { recursive: true })
       starter.expectNpmSuccess(['run', 'api:gen'])
@@ -116,13 +251,19 @@ describe('api:gen', () => {
       starter.expectNpmSuccess(['test', '--', 'src/shared/api/orders.test.ts'])
       const generated = Object.values(readTree(join(starter.dir, GENERATED_DIR))).join('\n')
       expect(generated).not.toContain('@tanstack/react-query')
-    } finally {
-      for (const path of ['src', 'e2e', 'openapi.yaml']) {
-        rmSync(join(starter.dir, path), { recursive: true, force: true })
-        cpSync(join(backup, path), join(starter.dir, path), { recursive: true })
-      }
-      rmSync(backup, { recursive: true, force: true })
-    }
+    })
+  })
+
+  test('응답 스키마에 선택 속성이 있는 명세 조각으로 다시 만든 MSW 목도 Starter의 typecheck·lint·테스트를 통과하고, 선택 속성은 값과 함께 넣거나 키째 뺀다', () => {
+    restoringAfter(['src', 'openapi.yaml'], () => {
+      addOperations(starter, REVIEW_OPERATIONS)
+      writeFileSync(join(starter.dir, 'src/shared/api/reviews.test.ts'), REVIEWS_TEST)
+
+      // 가장 엄격한 설정(exactOptionalPropertyTypes)에서 목이 선택 속성에 undefined를 넣으면 TS2322·TS2375로 실패한다(#75).
+      starter.expectNpmSuccess(['run', 'typecheck'])
+      starter.expectNpmSuccess(['run', 'lint'])
+      starter.expectNpmSuccess(['test', '--', 'src/shared/api/reviews.test.ts'])
+    })
   })
 
   test('재생성 결과는 lint와 format:check 대상에서 빠진다', () => {
