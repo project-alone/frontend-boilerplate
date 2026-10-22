@@ -6,7 +6,7 @@ import { getMe } from '@/shared/api/generated'
 import { signInAsMockUser } from './mock-session'
 
 // 요청은 Vitest의 MSW(@/shared/mocks/node)가 받고, auth의 목 백엔드(auth-mock-handlers.ts)가 발급한 accessToken으로 사용자를 답한다.
-// 브라우저 코드(jsdom)의 요청은 BFF 프록시 없이 목 백엔드로 바로 간다(vitest.setup.ts).
+// 브라우저 코드(jsdom)의 요청은 BFF 프록시 없이 목 백엔드로 바로 간다(src/shared/api/base-url.ts).
 
 test('목 사용자로 로그인하면 브라우저 코드의 요청에 그 사용자의 accessToken이 붙어, 목 백엔드가 그 사용자로 답한다', async () => {
   onTestFinished(signInAsMockUser('admin@example.com'))

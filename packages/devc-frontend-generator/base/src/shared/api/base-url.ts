@@ -1,4 +1,4 @@
-// API 요청을 보낼 곳(ADR-0006). 서버와 브라우저가 서로 다른 주소를 쓴다.
+// API 요청을 보낼 곳(ADR-0006). 서버는 백엔드를, 브라우저는 BFF 프록시를 부른다.
 
 /** 브라우저의 API 요청을 백엔드로 전달하는 BFF 프록시의 경로(src/app/api/proxy/[...path]/route.ts) */
 export const BFF_PROXY_PATH = '/api/proxy'
@@ -31,12 +31,13 @@ export function backendBaseUrl(): string {
 }
 
 /**
- * 브라우저가 API를 부를 때 쓰는 주소. 기본은 BFF 프록시다.
- * NEXT_PUBLIC_API_BASE_URL을 넣으면 브라우저가 그 주소(백엔드)를 직접 부른다. static-export처럼 서버가 없는
- * Rendering Mode에서 쓰는 설정이다. NEXT_PUBLIC_ 값은 빌드할 때 코드에 박히므로 바꾸면 다시 빌드해야 한다.
+ * 브라우저가 API를 부를 때 쓰는 주소. 브라우저의 요청은 늘 BFF 프록시를 거쳐 서버에서 백엔드로 나간다. 브라우저가 백엔드를
+ * 직접 부르면 BFF가 붙이는 것(auth Recipe의 토큰 등)이 빠지므로 주소를 바꾸는 설정을 두지 않는다.
+ * Vitest(VITEST=true)에서만 목 백엔드(MSW)를 부른다. 테스트에는 BFF 프록시를 받을 Next.js 서버가 없다. VITEST는 NEXT_PUBLIC_
+ * 값이 아니라 브라우저 번들에 박히지 않으므로, 빌드한 앱의 브라우저에서는 늘 BFF 프록시다.
  */
 export function browserBaseUrl(): string {
-  return withoutTrailingSlash(nonEmpty(process.env.NEXT_PUBLIC_API_BASE_URL) ?? BFF_PROXY_PATH)
+  return process.env.VITEST === 'true' ? MOCK_API_BASE_URL : BFF_PROXY_PATH
 }
 
 // .env 파일에 `NAME=`처럼 값 없이 적은 변수는 빈 문자열이 되므로 없는 것으로 본다.

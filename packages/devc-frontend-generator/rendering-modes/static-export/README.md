@@ -78,7 +78,7 @@ MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세�
 
 목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. 브라우저의 MSW를 켜고 `NEXT_PUBLIC_API_BASE_URL`을 넣지 않으면 브라우저가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`orval.config.ts`). 서비스 워커는 페이지를 열거나 새로 고치는 요청까지 핸들러에 보이지만, 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`가 그런 요청을 목 응답 없이 그대로 보내므로 페이지 대신 목 응답이 열리지 않습니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다.
 
-- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
+- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. `vitest.setup.ts`가 `NEXT_PUBLIC_API_BASE_URL`에 목 백엔드 주소를 넣어 브라우저 코드(jsdom)의 요청도 MSW가 받습니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
 - 개발 서버: `.env.development`의 `API_MOCKING=enabled`(서버 컴포넌트의 요청)와 `NEXT_PUBLIC_API_MOCKING=enabled`(브라우저의 요청)로 켭니다.
 - E2E: `playwright.config.ts`가 `API_MOCKING=enabled`(빌드할 때 서버 컴포넌트의 요청)와 `NEXT_PUBLIC_API_MOCKING=enabled`(브라우저의 요청)로 다시 빌드한 정적 파일을 띄웁니다.
 - 목 빌드: `API_MOCKING=enabled`로 빌드하면 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다(GitLab CI의 `build` 잡). 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").

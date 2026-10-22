@@ -1,16 +1,13 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { expect, test } from 'vitest'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { getBeta } from '@/shared/api/generated'
 
-// 이 파일은 브라우저(jsdom)에서 실행된다. 요청은 MSW가 Starter의 핸들러 목록(src/shared/mocks/handlers.ts)으로 받는다.
+// 이 파일은 브라우저(jsdom)에서 실행된다. Vitest에서는 두 Rendering Mode 모두 브라우저가 목 백엔드(MOCK_API_BASE_URL)를
+// 부르고(server는 src/shared/api/base-url.ts, static-export는 vitest.setup.ts), 요청은 MSW가 Starter의 핸들러 목록
+// (src/shared/mocks/handlers.ts)으로 받는다.
 // 확장 지점 mockHandlers: b(order 100) → a(order 200)의 핸들러가 명세에서 생성된 핸들러보다 앞에 놓인다.
-afterEach(() => {
-  vi.unstubAllEnvs()
-})
 
 test('Recipe가 직접 만든 핸들러는 생성된 핸들러보다 앞에 놓여 같은 요청을 덮어쓰고, 나머지 요청은 생성된 핸들러가 받는다', async () => {
-  vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', MOCK_API_BASE_URL)
-
   expect(await getBeta(42)).toEqual({ id: 42, label: 'a가 덮어쓴 베타' })
   expect(await getBeta(7)).toEqual({ id: 7, label: '베타' })
 })

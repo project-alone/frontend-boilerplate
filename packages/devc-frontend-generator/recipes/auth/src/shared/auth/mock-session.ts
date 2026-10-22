@@ -10,9 +10,10 @@ import { MOCK_PASSWORD } from './auth-mock-handlers'
  *   onTestFinished(signInAsMockUser('user@example.com'))     // 테스트 하나에서만
  *
  * 앱에서는 브라우저의 요청을 BFF 프록시가 받아 세션 쿠키의 accessToken을 붙여 백엔드로 보낸다(auth-backend-fetch.ts). 테스트에는
- * BFF 프록시가 없어 브라우저 코드가 목 백엔드를 바로 부르므로(vitest.setup.ts) 그 일을 fetch에서 대신한다. 목 백엔드로 가는
- * 요청마다 목 백엔드에 로그인해 새로 받은 accessToken을 붙이므로 테스트가 길어져도 토큰이 만료되지 않고, 인증이 필요한 목
- * 핸들러는 실제 백엔드처럼 그 사용자의 역할을 보고 답한다. 부르지 않은 테스트의 요청에는 accessToken이 없다(로그인하지 않음).
+ * BFF 프록시가 없어 브라우저 코드가 목 백엔드를 바로 부르므로(src/shared/api/base-url.ts) 그 일을 fetch에서 대신한다.
+ * 목 백엔드로 가는 요청마다 목 백엔드에 로그인해 새로 받은 accessToken을 붙이므로 테스트가 길어져도 토큰이 만료되지 않고,
+ * 인증이 필요한 목 핸들러는 실제 백엔드처럼 그 사용자의 역할을 보고 답한다. 부르지 않은 테스트의 요청에는 accessToken이 없다
+ * (로그인하지 않음).
  */
 export function signInAsMockUser(email: string): () => void {
   const fetchWithoutSession = globalThis.fetch
@@ -38,7 +39,7 @@ export function signInAsMockUser(email: string): () => void {
     return fetchWithoutSession(input, { ...init, headers })
   }
 
-  // fetch는 함수로 선언되어 있어 대입할 수 없으므로 vitest.setup.ts의 process.env처럼 Object.assign으로 바꾼다.
+  // fetch는 함수로 선언되어 있어 대입할 수 없으므로 vitest.setup.ts의 dns.lookup처럼 Object.assign으로 바꾼다.
   Object.assign(globalThis, { fetch: fetchWithSession })
   return () => {
     Object.assign(globalThis, { fetch: fetchWithoutSession })

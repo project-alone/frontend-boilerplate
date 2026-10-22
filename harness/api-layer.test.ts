@@ -1,11 +1,18 @@
-import { cpSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { type BackgroundProcess, freePort, start, waitForServer } from './run.ts'
 import { addOperations } from './schematic.ts'
-import { MSW_PROBE_ROUTE, readTree, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
+import {
+  MSW_PROBE_ROUTE,
+  readTree,
+  runPlaywrightAgainst,
+  SAMPLE_PRODUCTS,
+  useStarter,
+  writeMswProbePage,
+} from './starter.ts'
 
 // Starter 하나를 만들어 설치해 두고, 테스트마다 다시 설치하지 않도록 이 파일의 모든 테스트가 함께 쓴다.
 const starter = useStarter({ prefix: 'dcgen-api-layer-', install: true })
@@ -562,6 +569,90 @@ describe('빌드한 Starter', () => {
       expect(app.output()).toContain(MISSING_API_BASE_URL_MESSAGE)
     } finally {
       await app.stop()
+    }
+  })
+})
+
+// #93: Rendering Mode server의 브라우저는 늘 BFF 프록시를 거쳐 서버에서 백엔드로 요청한다(ADR-0006). 백엔드를 직접 부르면 BFF가
+// 붙이는 것(auth Recipe의 토큰 등)이 빠지므로, 브라우저가 직접 부를 백엔드 주소(NEXT_PUBLIC_API_BASE_URL)는 서버가 없는
+// static-export만 쓴다.
+describe('브라우저가 API를 부르는 곳', () => {
+  const PROBE_ROUTE = '/harness-browser-api'
+  const PROBE_SPEC = 'e2e/harness-browser-api.spec.ts'
+
+  // 브라우저에서 생성된 fetch 함수(apiFetch)로 샘플 API를 불러 상품 이름을 목록으로 보여 주는 탐침 페이지
+  const PROBE_PAGE = `'use client'
+
+import { useEffect, useState } from 'react'
+import { listProducts } from '@/shared/api/generated'
+
+export default function HarnessBrowserApiPage() {
+  const [names, setNames] = useState<string[]>([])
+  useEffect(() => {
+    void listProducts().then((products) => setNames(products.map(({ name }) => name)))
+  }, [])
+  return (
+    <ul aria-label="상품">
+      {names.map((name) => (
+        <li key={name}>{name}</li>
+      ))}
+    </ul>
+  )
+}
+`
+
+  // 탐침 페이지를 열어 브라우저의 API 요청이 BFF 프록시로 가고, 프록시를 거쳐 MSW가 돌려준 샘플 명세의 응답을 그리는지 본다.
+  const PROBE_SPEC_SOURCE = `import { expect, test } from '@playwright/test'
+
+test('브라우저의 API 요청은 BFF 프록시로 간다', async ({ page, baseURL }) => {
+  const requested = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/products'))
+
+  await page.goto('${PROBE_ROUTE}')
+
+  expect((await requested).url()).toBe(new URL('/api/proxy/products', baseURL).href)
+  for (const name of ${JSON.stringify(SAMPLE_PRODUCT_NAMES)}) {
+    await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible()
+  }
+})
+`
+
+  test('server Starter의 예시 환경 변수와 타입 선언에는 브라우저가 직접 부를 백엔드 주소(NEXT_PUBLIC_API_BASE_URL)가 없다', () => {
+    const files = ['.env.example', ...readdirSync(starter.dir).filter((name) => /^process-env.*\.d\.ts$/.test(name))]
+
+    expect(files).toContain('process-env.d.ts')
+    for (const file of files) {
+      expect(readFileSync(join(starter.dir, file), 'utf8'), file).not.toContain('NEXT_PUBLIC_API_BASE_URL')
+    }
+  })
+
+  test('NEXT_PUBLIC_API_BASE_URL을 넣고 빌드해도 브라우저의 API 요청은 그 주소 대신 BFF 프록시를 거쳐 MSW의 응답을 받는다', async () => {
+    // 브라우저가 이 주소를 직접 부르면 가짜 백엔드가 요청을 기록한다.
+    const backend = await startFakeBackend()
+    starter.writeFile(`src/app${PROBE_ROUTE}/page.tsx`, PROBE_PAGE)
+    starter.writeFile(PROBE_SPEC, PROBE_SPEC_SOURCE)
+
+    try {
+      // E2E처럼 목 빌드(API_MOCKING=enabled)로 만든다. NEXT_PUBLIC_ 값은 빌드할 때 브라우저 번들에 박힌다.
+      starter.expectNpmSuccess(['run', 'build'], { API_MOCKING: 'enabled', NEXT_PUBLIC_API_BASE_URL: backend.url })
+      starter.expectNpmSuccess(['run', 'playwright:install'])
+
+      const port = await freePort()
+      const appUrl = `http://localhost:${String(port)}`
+      const app = start('npm', ['run', 'start', '--', '--port', String(port)], starter.dir, { API_MOCKING: 'enabled' })
+      try {
+        await waitForServer(appUrl, app)
+
+        const result = runPlaywrightAgainst(starter.dir, appUrl, [PROBE_SPEC])
+
+        expect(result.status, `${result.output}\n${app.output()}`).toBe(0)
+        expect(backend.requests).toEqual([])
+      } finally {
+        await app.stop()
+      }
+    } finally {
+      await backend.close()
+      rmSync(join(starter.dir, `src/app${PROBE_ROUTE}`), { recursive: true, force: true })
+      rmSync(join(starter.dir, PROBE_SPEC), { force: true })
     }
   })
 })

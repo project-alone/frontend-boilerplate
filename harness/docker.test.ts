@@ -78,6 +78,13 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     expect(stages.length).toBeGreaterThan(0)
   })
 
+  // #93: Rendering Mode server의 브라우저는 늘 BFF 프록시를 부른다. 브라우저가 직접 부를 백엔드 주소는 static-export만 쓴다.
+  test('Dockerfile은 브라우저가 BFF 프록시 대신 직접 부를 백엔드 주소(NEXT_PUBLIC_API_BASE_URL)를 빌드 인자로 받지 않는다', () => {
+    const dockerfile = readFileSync(join(starter.dir, 'Dockerfile'), 'utf8')
+
+    expect(dockerfile).not.toContain('NEXT_PUBLIC_API_BASE_URL')
+  })
+
   test('타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사를 통과한다', () => {
     for (const script of [
       ['run', 'typecheck'],
