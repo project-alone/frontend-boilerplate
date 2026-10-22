@@ -13,7 +13,8 @@ Recipe는 하나의 기능 패턴을 Base에 독립적으로 넣고 뺄 수 있�
 5. overlay의 OpenAPI 명세 조각을 Base 명세(`openapi.yaml`)에 병합하고, 병합한 명세로 재생성 API 계층을 다시 만든다(명세 조각이 있을 때만).
 6. Base, Rendering Mode, Recipe, Archetype이 확장 지점에 선언한 조각(`extensions.json`)을 모아 조립 파일(`src/app/app-shell.tsx` 등)을 쓴다.
 7. Starter의 `package.json`에 Starter 이름을 적고, Starter를 만든 Generator를 정확한 버전으로 `devDependencies`에 고정한다(`npm run g`가 이 Generator를 쓴다). overlay를 모두 덧입힌 뒤에 정하므로 Recipe가 바꿀 수 없다.
-8. `npm install`로 의존성을 설치한다(`--skip-install`이면 건너뛴다).
+8. Starter 디렉터리에 git 저장소를 만든다(`git init`, 첫 커밋은 만들지 않는다). 설치보다 먼저 만들어야 lefthook이 설치하면서 커밋 훅을 설치한다. 이미 git 저장소 안이거나 `--skip-git`이면 건너뛴다.
+9. `npm install`로 의존성을 설치한다(`--skip-install`이면 건너뛴다).
 
 고른 조합에 알 수 없는 Recipe나 Archetype이 있거나, 고른 Rendering Mode를 지원하지 않는 Archetype이나 Recipe(함께 넣을 Recipe 포함)가 있으면 아무것도 만들기 전에 이유와 함께 거부한다. 확장 지점의 선언이 잘못되었거나 명세 조각이 Base나 다른 Recipe의 명세와 겹쳐도 아무것도 만들기 전에 실패한다.
 
@@ -72,7 +73,7 @@ Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 u
 ```sh
 npm run build -w devc-frontend-generator
 node packages/devc-frontend-generator/dist/cli.js new /tmp/try --skip-install   # 필요하면 --rendering-mode, --recipe
-cd /tmp/try && git init -q && git add -A && git commit -qm base
+cd /tmp/try && git add -A && git commit -qm base   # dcgen new가 만든 git 저장소에 처음 상태를 커밋한다
 # /tmp/try/.storybook/preview.tsx를 고친 뒤
 git diff -- .storybook/preview.tsx > <레포>/packages/devc-frontend-generator/recipes/<이름>/.storybook/preview.tsx.patch
 ```

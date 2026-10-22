@@ -1,8 +1,22 @@
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { devNull, tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { afterAll, beforeAll, beforeEach, expect, inject } from 'vitest'
 import { run, type RunResult } from './run.ts'
+
+/**
+ * git을 실행하는 명령(`git`, git 저장소를 만드는 `dcgen new`)에 넣는 환경 변수. 사용자의 전역·시스템 git 설정(core.hooksPath,
+ * 커밋 서명, init.templateDir 등)이 결과를 바꾸지 않도록 격리하고, 커밋에 쓸 이름과 이메일은 그 명령에만 정한다. 전역 설정은
+ * 바꾸지 않는다.
+ */
+export const GIT_ENV: NodeJS.ProcessEnv = {
+  GIT_CONFIG_GLOBAL: devNull,
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_AUTHOR_NAME: 'harness',
+  GIT_AUTHOR_EMAIL: 'harness@example.com',
+  GIT_COMMITTER_NAME: 'harness',
+  GIT_COMMITTER_EMAIL: 'harness@example.com',
+}
 
 export type RenderingMode = 'server' | 'static-export'
 

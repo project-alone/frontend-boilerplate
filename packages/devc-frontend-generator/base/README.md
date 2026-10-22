@@ -105,7 +105,7 @@ Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Stor
 
 ## 커밋 훅
 
-git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니다. 저장소를 `npm install` 뒤에 만들었다면 `npx lefthook install`을 한 번 실행하세요.
+git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니다. `dcgen new`는 의존성을 설치하기 전에 Starter에 git 저장소를 만들므로(`git init`) 따로 할 일이 없습니다. 첫 커밋은 만들지 않았으니 직접 만드세요. 저장소를 `npm install` 뒤에 만들었다면(`dcgen new --skip-git` 등) `npx lefthook install`을 한 번 실행하세요.
 
 - pre-commit: 스테이징한 파일의 린트·포맷 검사와 전체 타입 검사
 - commit-msg: [Conventional Commits](https://www.conventionalcommits.org/) 형식 검사(commitlint)

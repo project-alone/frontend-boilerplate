@@ -1,9 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { devNull } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 import { run, type RunResult } from './run.ts'
-import { useStarter } from './starter.ts'
+import { GIT_ENV, useStarter } from './starter.ts'
 
 // 설치가 오래 걸리므로 Starter를 한 번만 만들고 설치해 이 파일의 테스트가 함께 쓴다.
 // 테스트가 넣은 파일은 테스트가 끝나면 지워서 다음 테스트에 영향을 주지 않는다.
@@ -335,16 +334,7 @@ export const metadata: Metadata = { title: '예시' }
 })
 
 describe('커밋 훅', () => {
-  // 사용자 전역 git 설정(core.hooksPath, 커밋 서명 등)이 결과를 바꾸지 않도록 격리한다.
-  const gitEnv = {
-    GIT_CONFIG_GLOBAL: devNull,
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'harness',
-    GIT_AUTHOR_EMAIL: 'harness@example.com',
-    GIT_COMMITTER_NAME: 'harness',
-    GIT_COMMITTER_EMAIL: 'harness@example.com',
-  }
-  const git = (...args: string[]) => run('git', args, starter.dir, gitEnv)
+  const git = (...args: string[]) => run('git', args, starter.dir, GIT_ENV)
 
   /** 파일을 넣고 모든 변경을 스테이징해 커밋한 뒤, 커밋되지 않은 변경은 스테이징에서 내린다. */
   function commit(message: string, files: Record<string, string>): RunResult {
@@ -357,18 +347,15 @@ describe('커밋 훅', () => {
   }
 
   beforeAll(() => {
-    expect(git('init', '--quiet').status).toBe(0)
-    const installed = run('npx', ['--no', 'lefthook', 'install'], starter.dir, gitEnv)
+    // Starter는 dcgen new가 만든 git 저장소이고, 설치(useStarter)하면서 lefthook이 훅을 설치한다. 다만 lefthook은 CI 환경
+    // 변수가 있으면 설치할 때 훅을 설치하지 않으므로, CI에서도 훅이 돌도록 직접 설치한다. 설치 흐름은 new.test.ts가 본다.
+    const installed = run('npx', ['--no', 'lefthook', 'install'], starter.dir, GIT_ENV)
     expect(installed.status, installed.output).toBe(0)
 
     // 생성된 Starter 전체가 훅을 통과해 첫 커밋이 되어야 한다.
     git('add', '--all')
     const initial = git('commit', '--quiet', '--message', 'chore: 프로젝트 시작')
     expect(initial.status, initial.output).toBe(0)
-  })
-
-  afterAll(() => {
-    rmSync(join(starter.dir, '.git'), { recursive: true, force: true })
   })
 
   test('규칙을 지킨 변경은 Conventional Commits 메시지로 커밋된다', () => {

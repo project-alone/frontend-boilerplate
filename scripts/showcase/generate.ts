@@ -50,6 +50,8 @@ export function generateShowcase(generatorDir: string): ShowcaseFiles {
         RENDERING_MODE,
         ...recipes.flatMap((recipe) => ['--recipe', recipe]),
         ...archetypes.flatMap((archetype) => ['--archetype', archetype]),
+        // Showcase는 만든 파일만 읽어 이 레포에 커밋한다. git 저장소(.git)는 Showcase의 파일이 아니다.
+        '--skip-git',
         '--skip-install',
       ],
       { cwd: workdir, encoding: 'utf8' },
