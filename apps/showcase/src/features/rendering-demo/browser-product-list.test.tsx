@@ -17,9 +17,9 @@ function renderWithQueryClient(ui: ReactNode) {
 }
 
 test('불러오는 중임을 알린 뒤, 브라우저가 BFF 프록시로 받은 샘플 명세의 상품 목록을 보여 준다', async () => {
-  // 테스트는 브라우저의 요청도 목 백엔드로 보내므로(vitest.setup.ts) 기본값인 BFF 프록시로 보내게 비운다. 테스트에는 프록시를
-  // 받을 Next.js 서버가 없으므로, 프록시처럼 목 백엔드(MSW)의 응답을 그대로 돌려준다.
-  vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', '')
+  // Vitest에서는 브라우저의 요청도 목 백엔드로 보내므로(src/shared/api/base-url.ts) 빌드한 앱의 브라우저처럼 BFF 프록시로
+  // 보내게 VITEST를 지운다. 테스트에는 프록시를 받을 Next.js 서버가 없으므로, 프록시처럼 목 백엔드(MSW)의 응답을 그대로 돌려준다.
+  vi.stubEnv('VITEST', undefined)
   onTestFinished(() => {
     vi.unstubAllEnvs()
   })

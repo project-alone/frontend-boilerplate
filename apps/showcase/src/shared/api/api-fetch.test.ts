@@ -6,6 +6,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 import { server } from '@/shared/mocks/node'
 import { ApiError, apiFetch } from './api-fetch'
+import { MOCK_API_BASE_URL } from './base-url'
 
 // 이 파일은 브라우저(jsdom)에서 실행된다. 서버에서의 동작은 api-fetch.server.test.ts가 확인한다.
 
@@ -26,8 +27,8 @@ function respondToAll(body: JsonBodyType, status = 200): string[] {
 }
 
 test('브라우저에서는 BFF 프록시(/api/proxy)를 거쳐 요청한다', async () => {
-  // 테스트는 브라우저의 요청도 목 백엔드로 보내므로(vitest.setup.ts) 기본값인 BFF 프록시를 보려고 비운다.
-  vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', '')
+  // Vitest에서는 브라우저의 요청도 목 백엔드로 보내므로(base-url.ts) 빌드한 앱의 브라우저처럼 VITEST를 지운다.
+  vi.stubEnv('VITEST', undefined)
   const urls = respondToAll([])
 
   await apiFetch('/products?q=셔츠')
@@ -35,13 +36,12 @@ test('브라우저에서는 BFF 프록시(/api/proxy)를 거쳐 요청한다', a
   expect(urls).toEqual([new URL('/api/proxy/products?q=셔츠', location.origin).href])
 })
 
-test('NEXT_PUBLIC_API_BASE_URL을 넣으면 브라우저가 백엔드를 직접 부른다(서버가 없는 static-export용)', async () => {
-  vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'https://backend.example.com/')
+test('Vitest에서는 브라우저의 요청을 BFF 프록시 대신 MSW가 받는 목 백엔드로 보낸다', async () => {
   const urls = respondToAll([])
 
   await apiFetch('/products')
 
-  expect(urls).toEqual(['https://backend.example.com/products'])
+  expect(urls).toEqual([`${MOCK_API_BASE_URL}/products`])
 })
 
 test('응답이 명세의 Zod 스키마와 다르면 실패한다', async () => {
