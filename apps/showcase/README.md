@@ -125,6 +125,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 - 스토리: `src/` 안의 `*.stories.tsx`. `npm run test:storybook`이 스토리마다 axe로 WCAG 2.2 AA를 검사하고, 위반이 하나라도 있으면 실패합니다. 스토리의 `play` 함수에 적은 상호작용 검사(키보드 조작 등)도 함께 돕니다.
 - E2E: `e2e/` 안의 `*.spec.ts`. Playwright가 빌드된 앱을 `npm run start`로 띄워 검사합니다. 목 빌드(`API_MOCKING=enabled npm run build`)의 결과로 돌립니다(위 "배포용 빌드와 목 빌드").
 - Linux CI에서 Chromium에 필요한 시스템 라이브러리가 없으면 `npx playwright install --with-deps chromium`으로 설치합니다.
+- Linux에서 `test:storybook`이나 `test:e2e`가 가끔 `Failed to fetch dynamically imported module`, `net::ERR_NETWORK_CHANGED`, `The iframe ... did not become ready`로 실패하면 그 사이에 같은 호스트에서 컨테이너가 뜨거나 내려가지 않았는지 봅니다(`docker compose up`, `docker build`, Testcontainers 등). Docker는 컨테이너마다 호스트에 네트워크 인터페이스를 만들고 지우는데, Linux의 Chromium은 인터페이스나 주소가 바뀌면 `localhost`로 보내던 요청까지 끊습니다. Chromium에는 이를 끄는 설정이 없으므로 컨테이너를 다 띄운 뒤에 브라우저 테스트를 돌리고, CI에서는 컨테이너를 만드는 잡과 브라우저 테스트를 한 호스트에서 동시에 돌리지 않습니다. 잡마다 컨테이너나 Pod가 따로 뜨는 GitLab CI의 Docker·Kubernetes executor에서는 다른 잡의 컨테이너가 영향을 주지 않습니다.
 
 ## API 계층
 
