@@ -1,4 +1,15 @@
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { devNull, tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { afterAll, beforeAll, beforeEach, expect, inject } from 'vitest'
@@ -117,7 +128,8 @@ export interface StarterOptions {
   create?: (workdir: string) => string
   /**
    * npm으로 설치까지 한다. `dcgen new --skip-install`로 만든 뒤 Generator를 하네스가 팩한 tarball로 바꾸고(linkPackedGenerator)
-   * 설치한다. `dcgen new`가 직접 설치하는 경로는 new.test.ts가 하네스의 레지스트리(registry.ts)로 검증한다.
+   * 설치한다. 의존성 구성이 같은 Starter를 이미 설치했으면 그 결과를 복사한다(installDependencies). `dcgen new`가 직접 설치하는
+   * 경로는 new.test.ts가 하네스의 레지스트리(registry.ts)로 검증한다.
    */
   install?: boolean
   /** Storybook 테스트와 E2E가 쓰는 Chromium을 받는다(이미 받아 두었으면 건너뛴다). install이 필요하다. */
@@ -170,7 +182,7 @@ export function useStarter(options: StarterOptions): Starter {
     created = { workdir, dir: options.create?.(workdir) ?? newStarter(workdir, args) }
     if (options.install === true) {
       linkPackedGenerator(starter.dir)
-      starter.expectNpmSuccess(['install', '--no-audit', '--no-fund'])
+      installDependencies(starter)
     }
     if (options.playwright === true) starter.expectNpmSuccess(['run', 'playwright:install'])
   })
@@ -180,6 +192,52 @@ export function useStarter(options: StarterOptions): Starter {
   })
 
   return starter
+}
+
+/**
+ * linkPackedGenerator를 거친 Starter의 의존성을 설치한다. 설치가 하네스 시간에서 가장 크므로, 하네스가 한 번 실행되는 동안 의존성
+ * 구성이 같은 Starter를 이미 설치했으면 그 결과(node_modules와 package-lock.json)를 복사해 `npm install`을 건너뛴다(#109).
+ * 의존성 구성마다 처음 한 번은 `npm install`을 실행한다. 의존성 구성은 package.json에, Starter에서 Generator tarball까지의 상대
+ * 경로를 더한 것이다. package-lock.json이 tarball을 Starter 기준 상대 경로로 적기 때문이다.
+ * 하드 링크가 아니라 복사하므로 한 Starter에서 node_modules를 고쳐도 다른 Starter에 번지지 않는다. 설치할 때 의존성이 node_modules
+ * 밖에 남기는 lefthook의 git 훅은 복사하지 않는데, lefthook은 CI에서는 훅을 설치하지 않고 훅이 필요한 quality-gates.test.ts는 직접
+ * 설치한다.
+ */
+function installDependencies(starter: Starter): void {
+  const store = inject('installStore')
+  const dependencies = createHash('sha256')
+    .update(readFileSync(join(starter.dir, 'package.json')))
+    .update(relative(starter.dir, inject('dcgenTarball')))
+    .digest('hex')
+  const saved = join(store, dependencies)
+  if (existsSync(saved)) {
+    copyInstall(saved, starter.dir)
+    return
+  }
+
+  starter.expectNpmSuccess(['install', '--no-audit', '--no-fund'])
+  // 같은 의존성 구성을 다른 워커의 테스트 파일이 동시에 설치했을 수 있다. 다 복사한 뒤 rename으로 한 번에 놓아 다른 워커가 반쯤
+  // 복사된 결과를 쓰지 않게 하고, 먼저 놓인 결과가 있으면 그것을 남긴다.
+  if (existsSync(saved)) return
+  const staging = mkdtempSync(join(store, 'staging-'))
+  copyInstall(starter.dir, staging)
+  try {
+    renameSync(staging, saved)
+  } catch {
+    rmSync(staging, { recursive: true, force: true })
+  }
+}
+
+/**
+ * from 디렉터리의 설치 결과(node_modules, package-lock.json)를 to 디렉터리에 복사한다. node_modules에는 파일이 수만 개 있는데,
+ * macOS에서는 fs.cpSync가 cp보다 몇 배 느려 cp를 쓴다. cp -R은 node_modules/.bin의 상대 경로 심볼릭 링크를 따라가지 않고 그대로
+ * 복사하므로 복사본이 원본을 가리키지 않는다. macOS(APFS)에서는 -c로 파일을 복제(clonefile)해 더 빨리 복사한다. 복제한 파일도
+ * 고치면 따로 저장되므로 서로 독립적이다.
+ */
+function copyInstall(from: string, to: string): void {
+  const flags = process.platform === 'darwin' ? ['-cR'] : ['-R']
+  const copied = run('cp', [...flags, join(from, 'node_modules'), join(from, 'package-lock.json'), to], from)
+  expect(copied.status, copied.output).toBe(0)
 }
 
 /**
