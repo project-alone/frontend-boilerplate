@@ -1,6 +1,6 @@
 {
   "name": "devc-frontend-generator",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "팀 프론트엔드 Starter를 만들고, Starter 안에서 Schematic으로 코드를 생성하는 CLI",
   "keywords": [
     "nextjs",
