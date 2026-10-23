@@ -63,11 +63,25 @@ jobs:
       # apt-get은 받은 .deb를 /var/cache/apt/archives에 남기고, 같은 버전의 .deb가 그곳에 있으면 미러에서 받지 않는다. 그 디렉터리는
       # root만 쓸 수 있어 캐시가 직접 풀고 묶지 못하므로 캐시 디렉터리와 오가며 복사한다. 미러에 더는 없는 옛 버전은 autoclean으로
       # 지워 캐시가 불어나지 않게 한다.
+      # 평소 이 단계는 15~40초 걸리지만, 미러가 응답을 멈추면 apt가 스스로 끊지 않아 잡 제한(6시간)까지 멈춘 일이 있었다(#116).
+      # 그래서 설치를 4분 제한으로 감싸 넘기면 다시 시도하고(끊긴 dpkg는 --configure -a로 마저 설정한다), 단계 전체도 15분으로 묶는다.
+      # 다시 시도할 때는 앞서 다 받은 .deb를 다시 받지 않는다.
       - name: Install Chromium system dependencies
+        timeout-minutes: 15
         run: |
           mkdir -p ~/.cache/apt-archives
           sudo cp -r ~/.cache/apt-archives/. /var/cache/apt/archives/
-          npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+          for attempt in 1 2 3; do
+            status=0
+            timeout --kill-after=30s 4m npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium || status=$?
+            [[ $status == 0 ]] && break
+            if [[ $attempt == 3 ]]; then
+              echo "::error::Chromium 시스템 라이브러리 설치가 세 번 모두 실패했습니다(마지막 종료 코드 $status, 124는 4분 제한 초과)."
+              exit "$status"
+            fi
+            echo "::warning::Chromium 시스템 라이브러리 설치가 실패해 다시 시도합니다(종료 코드 $status, 124는 4분 제한 초과)."
+            sudo dpkg --configure -a
+          done
           sudo apt-get autoclean
           rm -f ~/.cache/apt-archives/*.deb
           find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/.cache/apt-archives {} +
@@ -120,10 +134,21 @@ jobs:
           key: chromium-deps-${{ steps.runner-image.outputs.os }}-${{ steps.runner-image.outputs.version }}-playwright-${{ steps.playwright.outputs.version }}
           restore-keys: chromium-deps-${{ steps.runner-image.outputs.os }}-
       - name: Install Chromium system dependencies
+        timeout-minutes: 15
         run: |
           mkdir -p ~/.cache/apt-archives
           sudo cp -r ~/.cache/apt-archives/. /var/cache/apt/archives/
-          npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+          for attempt in 1 2 3; do
+            status=0
+            timeout --kill-after=30s 4m npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium || status=$?
+            [[ $status == 0 ]] && break
+            if [[ $attempt == 3 ]]; then
+              echo "::error::Chromium 시스템 라이브러리 설치가 세 번 모두 실패했습니다(마지막 종료 코드 $status, 124는 4분 제한 초과)."
+              exit "$status"
+            fi
+            echo "::warning::Chromium 시스템 라이브러리 설치가 실패해 다시 시도합니다(종료 코드 $status, 124는 4분 제한 초과)."
+            sudo dpkg --configure -a
+          done
           sudo apt-get autoclean
           rm -f ~/.cache/apt-archives/*.deb
           find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/.cache/apt-archives {} +
