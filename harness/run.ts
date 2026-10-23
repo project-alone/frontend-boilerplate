@@ -1,6 +1,9 @@
 import { spawn, spawnSync } from 'node:child_process'
+import { appendFileSync } from 'node:fs'
 import { createServer } from 'node:net'
+import { basename } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
+import { expect } from 'vitest'
 
 export interface RunResult {
   status: number | null
@@ -13,8 +16,24 @@ export function run(
   cwd: string,
   env: NodeJS.ProcessEnv = {},
 ): RunResult {
+  const startedAt = performance.now()
   const result = spawnSync(command, args, { cwd, env: { ...envWithoutVitest(), ...env }, encoding: 'utf8' })
+  recordTiming(command, args, performance.now() - startedAt, result.status)
   return { status: result.status, output: `${result.stdout}${result.stderr}` }
+}
+
+// 측정용 임시 코드(머지하지 않는다): 하네스가 실행한 명령마다 걸린 시간을 HARNESS_TIMINGS_FILE에 한 줄씩 남긴다.
+function recordTiming(command: string, args: readonly string[], ms: number, status: number | null): void {
+  const file = process.env['HARNESS_TIMINGS_FILE']
+  if (file === undefined) return
+  let testFile = ''
+  try {
+    testFile = basename(expect.getState().testPath ?? '')
+  } catch {
+    // 테스트 밖에서 부르면 Vitest 상태가 없다.
+  }
+  const line = { testFile, command: basename(command), args: args.slice(0, 4), ms: Math.round(ms), status }
+  appendFileSync(file, `${JSON.stringify(line)}\n`)
 }
 
 export interface BackgroundProcess {
