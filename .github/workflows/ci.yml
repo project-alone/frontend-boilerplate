@@ -46,8 +46,31 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # 시스템 라이브러리를 설치할 때 apt가 Ubuntu 미러에서 받는 .deb(글꼴 패키지 등 약 26MB)도 캐시한다. 미러가 느려지면 이것만
+      # 받는 데 6~10분 걸렸다(#107). 받을 패키지와 버전은 러너 이미지에 깔린 패키지와 Playwright 버전에 따라 달라지므로 둘을 키에
+      # 넣는다. 둘 중 하나가 바뀌면 같은 Ubuntu(ImageOS)의 앞선 캐시를 받아 바뀐 패키지만 미러에서 받고 새 키로 저장한다.
+      # ImageOS와 ImageVersion은 env 컨텍스트에 없는 러너의 환경 변수라 셸에서 읽는다.
+      - name: Read the runner image
+        id: runner-image
+        run: |
+          echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+          echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/apt-archives
+          key: chromium-deps-${{ steps.runner-image.outputs.os }}-${{ steps.runner-image.outputs.version }}-playwright-${{ steps.playwright.outputs.version }}
+          restore-keys: chromium-deps-${{ steps.runner-image.outputs.os }}-
+      # apt-get은 받은 .deb를 /var/cache/apt/archives에 남기고, 같은 버전의 .deb가 그곳에 있으면 미러에서 받지 않는다. 그 디렉터리는
+      # root만 쓸 수 있어 캐시가 직접 풀고 묶지 못하므로 캐시 디렉터리와 오가며 복사한다. 미러에 더는 없는 옛 버전은 autoclean으로
+      # 지워 캐시가 불어나지 않게 한다.
       - name: Install Chromium system dependencies
-        run: npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+        run: |
+          mkdir -p ~/.cache/apt-archives
+          sudo cp -r ~/.cache/apt-archives/. /var/cache/apt/archives/
+          npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+          sudo apt-get autoclean
+          rm -f ~/.cache/apt-archives/*.deb
+          find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/.cache/apt-archives {} +
       # docker Recipe의 이미지 검사(harness/docker.test.ts)는 아래 docker 잡이 따로 돌린다. 같은 러너에서 컨테이너를 띄우는 동안
       # 막 시작한 Storybook 테스트의 브라우저가 setup 모듈을 불러오지 못하는 일이 있었다(#88).
       - run: npm test -- --exclude harness/docker.test.ts --shard=${{ matrix.shard }}/${{ strategy.job-total }}
@@ -86,8 +109,24 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Read the runner image
+        id: runner-image
+        run: |
+          echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+          echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/apt-archives
+          key: chromium-deps-${{ steps.runner-image.outputs.os }}-${{ steps.runner-image.outputs.version }}-playwright-${{ steps.playwright.outputs.version }}
+          restore-keys: chromium-deps-${{ steps.runner-image.outputs.os }}-
       - name: Install Chromium system dependencies
-        run: npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+        run: |
+          mkdir -p ~/.cache/apt-archives
+          sudo cp -r ~/.cache/apt-archives/. /var/cache/apt/archives/
+          npx --yes playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+          sudo apt-get autoclean
+          rm -f ~/.cache/apt-archives/*.deb
+          find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/.cache/apt-archives {} +
       - run: npx vitest run harness/docker.test.ts
 
   showcase:
