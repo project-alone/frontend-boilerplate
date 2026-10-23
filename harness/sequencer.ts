@@ -12,7 +12,7 @@ export interface DurationRecord {
   seconds: Record<string, number>
 }
 
-// CI는 하네스 파일을 `--shard`로 다섯 묶음으로 나눠 러너 다섯 대에서 돌린다. Vitest의 BaseSequencer는 파일 경로의 해시
+// CI는 하네스 파일을 `--shard`로 여섯 묶음으로 나눠 러너 여섯 대에서 돌린다. Vitest의 BaseSequencer는 파일 경로의 해시
 // 순서로 파일 수만 같게 나누므로 묶음마다 걸리는 시간이 10분에서 17분까지 벌어졌다(#108). 이 sequencer는 커밋된 기록의
 // 파일별 시간으로 묶음을 고르게 나누고, 묶음 안에서도 오래 걸리는 파일부터 돌린다.
 export class DurationSequencer extends BaseSequencer {
