@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { TestProject } from 'vitest/node'
@@ -29,6 +29,11 @@ export default function setup(project: TestProject) {
   project.provide('dcgenBin', join(root, 'node_modules', '.bin', 'dcgen'))
   project.provide('dcgenTarball', tarball)
   project.provide('generatorDir', join(root, 'node_modules', 'devc-frontend-generator'))
+  // Starter의 설치 결과를 의존성 구성마다 모아 두는 곳(starter.ts의 installDependencies). Starter처럼 레포 밖에 두고, 하네스가
+  // 끝나면 root와 함께 지운다.
+  const installStore = join(root, 'installs')
+  mkdirSync(installStore)
+  project.provide('installStore', installStore)
 
   // 설치한 Generator를 복사해 시험용 Recipe를 recipes/<이름>/에, 시험용 Archetype을 archetypes/<이름>/에 더한다. 기여자가
   // Recipe와 Archetype을 더하는 방식 그대로다. 같은 node_modules 안에 두어 Generator의 의존성을 그대로 찾게 한다.
@@ -52,5 +57,7 @@ declare module 'vitest' {
     generatorDir: string
     /** 시험용 Recipe(harness/fixtures/recipes)와 Archetype(harness/fixtures/archetypes)을 더한 Generator의 dcgen */
     dcgenWithFixturesBin: string
+    /** 설치한 Starter의 node_modules와 package-lock.json을 의존성 구성마다 모아 두는 디렉터리(starter.ts의 installDependencies) */
+    installStore: string
   }
 }
