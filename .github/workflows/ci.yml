@@ -21,7 +21,7 @@ jobs:
       - run: npm run typecheck
 
   # 하네스 파일을 모두 더하면 러너 한 대에서 한 시간쯤 걸린다. 파일을 다섯 묶음으로 나눠 러너 다섯 대에서 동시에 돌린다(#103).
-  # 묶음은 Vitest가 파일 경로로 정하므로, 하네스 파일을 더하거나 빼도 이 잡을 고치지 않는다.
+  # 묶음은 Vitest가 파일별 소요 시간 기록(harness/durations.json)으로 나누므로, 하네스 파일을 더하거나 빼도 이 잡을 고치지 않는다.
   harness-shard:
     name: Harness (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
