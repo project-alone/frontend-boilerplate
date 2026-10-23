@@ -1,4 +1,5 @@
 import { configDefaults, defineConfig } from 'vitest/config'
+import { DurationSequencer } from './harness/sequencer.ts'
 
 const TEN_MINUTES = 10 * 60_000
 const timeouts = { testTimeout: TEN_MINUTES, hookTimeout: TEN_MINUTES }
@@ -13,6 +14,8 @@ export default defineConfig({
   test: {
     // Generator를 한 번만 팩해 두고, 그 값(provide)을 두 프로젝트가 함께 쓴다.
     globalSetup: ['harness/global-setup.ts'],
+    // CI의 `--shard` 묶음을 파일별 소요 시간 기록(harness/durations.json)으로 고르게 나눈다.
+    sequence: { sequencer: DurationSequencer },
     projects: [
       {
         test: {
