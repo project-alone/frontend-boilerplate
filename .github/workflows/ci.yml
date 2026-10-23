@@ -64,7 +64,7 @@ jobs:
       # root만 쓸 수 있어 캐시가 직접 풀고 묶지 못하므로 캐시 디렉터리와 오가며 복사한다. 미러에 더는 없는 옛 버전은 autoclean으로
       # 지워 캐시가 불어나지 않게 한다.
       # 평소 이 단계는 15~40초 걸리지만, 미러가 응답을 멈추면 apt가 스스로 끊지 않아 잡 제한(6시간)까지 멈춘 일이 있었다(#116).
-      # 그래서 설치를 4분 제한으로 감싸 넘기면 다시 시도하고(끊긴 dpkg는 --configure -a로 마저 설정한다), 단계 전체도 15분으로 묶는다.
+      # 그래서 설치를 4분 제한으로 감싸 넘기면 다시 시도하고, 단계 전체도 15분으로 묶는다.
       # 다시 시도할 때는 앞서 다 받은 .deb를 다시 받지 않는다.
       - name: Install Chromium system dependencies
         timeout-minutes: 15
@@ -80,6 +80,10 @@ jobs:
               exit "$status"
             fi
             echo "::warning::Chromium 시스템 라이브러리 설치가 실패해 다시 시도합니다(종료 코드 $status, 124는 4분 제한 초과)."
+            # timeout은 npx만 끝내고, install-deps가 sudo로 띄운 apt-get과 dpkg는 남아 잠금을 쥐고 있다. 러너는 이 잡만 쓰므로
+            # 남은 apt-get은 이름으로 끝내고, dpkg는 하던 설치를 마칠 때까지 기다린 뒤 끊긴 설정을 마저 한다.
+            sudo pkill -x apt-get || true
+            while pgrep -x 'apt-get|dpkg' >/dev/null; do sleep 1; done
             sudo dpkg --configure -a
           done
           sudo apt-get autoclean
@@ -147,6 +151,10 @@ jobs:
               exit "$status"
             fi
             echo "::warning::Chromium 시스템 라이브러리 설치가 실패해 다시 시도합니다(종료 코드 $status, 124는 4분 제한 초과)."
+            # timeout은 npx만 끝내고, install-deps가 sudo로 띄운 apt-get과 dpkg는 남아 잠금을 쥐고 있다. 러너는 이 잡만 쓰므로
+            # 남은 apt-get은 이름으로 끝내고, dpkg는 하던 설치를 마칠 때까지 기다린 뒤 끊긴 설정을 마저 한다.
+            sudo pkill -x apt-get || true
+            while pgrep -x 'apt-get|dpkg' >/dev/null; do sleep 1; done
             sudo dpkg --configure -a
           done
           sudo apt-get autoclean
