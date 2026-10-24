@@ -1,6 +1,6 @@
---- a/vitest.config.ts
-+++ b/vitest.config.ts
-@@ -32,7 +32,15 @@
+--- a/config/vitest.config.ts
++++ b/config/vitest.config.ts
+@@ -37,7 +37,15 @@
              enabled: true,
              headless: true,
              provider: playwright(),

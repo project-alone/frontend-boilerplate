@@ -93,6 +93,47 @@ test('new는 Rendering Mode를 지정하지 않으면 server Starter를 만든�
   expect(readTree(omitted)).toEqual(readTree(server))
 })
 
+// 도구가 Starter 최상위에서만 찾는 설정만 최상위에 두고, 나머지 설정은 config/에, 환경 변수 타입 선언은 types/에 모은다(#123).
+// Rendering Mode마다 그 Rendering Mode를 지원하는 Recipe와 Archetype을 모두 고른다(Recipe·Archetype이 더하는 파일까지 본다).
+test.each(['server', 'static-export'] as const)(
+  'new --rendering-mode %s로 Recipe·Archetype을 모두 고른 Starter의 최상위에는 Next.js·PostCSS·ESLint가 찾는 설정만 있다',
+  (renderingMode) => {
+    const generator = inject('generatorDir')
+    const supports = (declaration: { renderingModes?: readonly string[] }) =>
+      declaration.renderingModes?.includes(renderingMode) ?? true
+    const readDeclaration = (kind: string, name: string) =>
+      JSON.parse(readFileSync(join(generator, `${kind}s`, name, `${kind}.json`), 'utf8')) as {
+        renderingModes?: readonly string[]
+        recipes?: readonly string[]
+      }
+    const recipes = readdirSync(join(generator, 'recipes')).filter((name) => supports(readDeclaration('recipe', name)))
+    const archetypes = readdirSync(join(generator, 'archetypes')).filter((name) => {
+      const archetype = readDeclaration('archetype', name)
+      return supports(archetype) && (archetype.recipes ?? []).every((recipe) => recipes.includes(recipe))
+    })
+
+    const starter = newStarter(workdir, [
+      '--rendering-mode',
+      renderingMode,
+      ...recipes.flatMap((recipe) => ['--recipe', recipe]),
+      ...archetypes.flatMap((archetype) => ['--archetype', archetype]),
+      '--skip-install',
+    ])
+
+    const rootScripts = readdirSync(starter).filter((name) => /\.[cm]?[jt]sx?$/.test(name))
+    expect(rootScripts.sort()).toEqual(['eslint.config.ts', 'next.config.ts', 'postcss.config.mjs'])
+    expect(readdirSync(join(starter, 'config')).sort()).toEqual([
+      'next.config.plugins.ts',
+      'orval.config.ts',
+      'playwright.config.ts',
+      'vitest.config.ts',
+      'vitest.setup.ts',
+    ])
+    expect(readdirSync(join(starter, 'types'))).toContain('process-env.d.ts')
+    expect(readdirSync(join(starter, 'types')).every((name) => /^process-env(\.[\w-]+)?\.d\.ts$/.test(name))).toBe(true)
+  },
+)
+
 describe('new가 만드는 git 저장소', () => {
   const git = (cwd: string, args: readonly string[]) => run('git', args, cwd, GIT_ENV)
 

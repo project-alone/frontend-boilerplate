@@ -161,7 +161,7 @@ for (const { renderingMode, recipes, generatedPages, pages, disallow = [], noind
     })
 
     // E2E는 배포하지 않는 목 빌드(API_MOCKING=enabled)로 돈다. 사이트 주소 없이도 빌드된다.
-    // server는 여기서 만든 목 빌드를 띄우고, static-export는 E2E가 브라우저의 MSW까지 켜고 직접 다시 빌드한다(playwright.config.ts).
+    // server는 여기서 만든 목 빌드를 띄우고, static-export는 E2E가 브라우저의 MSW까지 켜고 직접 다시 빌드한다(config/playwright.config.ts).
     test('사이트 주소 없이 만든 목 빌드에서 E2E가 통과한다(메타데이터, 공유 이미지, sitemap.xml, robots.txt)', async () => {
       if (renderingMode === 'server') starter.expectNpmSuccess(['run', 'build'], { API_MOCKING: 'enabled' })
 

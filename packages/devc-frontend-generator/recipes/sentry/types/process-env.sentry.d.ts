@@ -1,4 +1,4 @@
-// sentry Recipe가 읽는 환경 변수. TypeScript가 process-env.d.ts의 선언과 합친다(README의 "오류 보고(Sentry)").
+// sentry Recipe가 읽는 환경 변수. TypeScript가 types/process-env.d.ts의 선언과 합친다(README의 "오류 보고(Sentry)").
 declare namespace NodeJS {
   interface ProcessEnv {
     /** 서버가 오류를 보낼 Sentry DSN. 서버를 띄울 때 읽는다. 없으면 서버의 SDK를 초기화하지 않는다(src/shared/sentry/sentry-instrumentation.ts). */

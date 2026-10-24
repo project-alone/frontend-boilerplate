@@ -17,7 +17,7 @@ const GENERATOR_DIR = resolve(import.meta.dirname, '../packages/devc-frontend-ge
 const TOOLS_RUN_ON_STARTER_FILES = [
   // 명세 조각을 병합한 openapi.yaml로 재생성 API 계층을 만든다(src/api-layer.ts). Starter의 npm run api:gen과 같다.
   'orval',
-  // 그때 Starter의 orval.config.ts를 읽어 실행한다(src/api-layer.ts). Base에서는 ESLint가 eslint.config.ts를 읽는 데 쓴다.
+  // 그때 Starter의 config/orval.config.ts를 읽어 실행한다(src/api-layer.ts). Base에서는 ESLint가 eslint.config.ts를 읽는 데 쓴다.
   'jiti',
   // 병합한 명세와 확장 지점의 조립 파일을 Starter의 설정으로 포맷한다(src/format.ts). Starter의 format:check를 통과해야 한다.
   'prettier',

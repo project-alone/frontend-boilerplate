@@ -1,6 +1,6 @@
 # Rendering Mode와 Recipe는 같은 overlay로 Base에 덧입히고, Base 파일은 패치로 고친다
 
-Starter는 Base를 복사한 뒤 Rendering Mode(`rendering-modes/<mode>/`)와 Recipe(`recipes/<name>/`)를 같은 형식의 overlay, 곧 파일 추가·교체, `package.json` 병합, README 절 병합, 지울 경로 목록(`remove.txt`), 기존 파일을 고치는 unified diff(`<경로>.patch`)로 덧입혀 만든다. Base 파일의 일부만 바꿀 때는 파일을 통째로 복사하지 않고 패치를 쓴다(static-export의 `.gitlab-ci.yml`, `playwright.config.ts`도 패치다). 복사한 사본은 Base가 그 파일을 고쳐도 따라가지 않아 조용히 어긋나고, 같은 파일을 바꾸는 overlay끼리 서로 덮어쓰기 때문이다.
+Starter는 Base를 복사한 뒤 Rendering Mode(`rendering-modes/<mode>/`)와 Recipe(`recipes/<name>/`)를 같은 형식의 overlay, 곧 파일 추가·교체, `package.json` 병합, README 절 병합, 지울 경로 목록(`remove.txt`), 기존 파일을 고치는 unified diff(`<경로>.patch`)로 덧입혀 만든다. Base 파일의 일부만 바꿀 때는 파일을 통째로 복사하지 않고 패치를 쓴다(static-export의 `.gitlab-ci.yml`, `config/playwright.config.ts`도 패치다). 복사한 사본은 Base가 그 파일을 고쳐도 따라가지 않아 조용히 어긋나고, 같은 파일을 바꾸는 overlay끼리 서로 덮어쓰기 때문이다.
 
 ## Considered Options
 

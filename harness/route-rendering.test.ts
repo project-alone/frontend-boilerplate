@@ -56,7 +56,7 @@ describe('Rendering Mode server에 route-rendering Recipe를 넣은 Starter', ()
     expect(buildRouteLine(output, '/rendering/streaming'), output).toContain('ƒ')
   })
 
-  // 위 빌드 결과를 next start로 띄워 검사한다(playwright.config.ts).
+  // 위 빌드 결과를 next start로 띄워 검사한다(config/playwright.config.ts).
   test('빌드한 앱에서 E2E가 통과한다(SSG는 미리 만든 HTML, ISR은 다시 렌더링, 스트리밍은 대체 UI 먼저, CSR은 브라우저가 요청)', async () => {
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
   })

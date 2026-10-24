@@ -1,4 +1,4 @@
-// seo Recipe가 읽는 환경 변수. Base의 process-env.d.ts와 합쳐진다.
+// seo Recipe가 읽는 환경 변수. Base의 types/process-env.d.ts와 합쳐진다.
 declare namespace NodeJS {
   interface ProcessEnv {
     /**

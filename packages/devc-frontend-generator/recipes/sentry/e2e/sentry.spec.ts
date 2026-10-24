@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 
-// E2E는 DSN 없이 빌드한 앱으로 돈다(playwright.config.ts). DSN이 없으면 Sentry SDK를 초기화하지 않으므로, 브라우저에서
+// E2E는 DSN 없이 빌드한 앱으로 돈다(config/playwright.config.ts). DSN이 없으면 Sentry SDK를 초기화하지 않으므로, 브라우저에서
 // 처리하지 못한 오류가 나도 앱 밖으로 요청을 보내지 않는다. MSW가 받는 샘플 백엔드 주소(MOCK_API_BASE_URL)는 앱의 요청이다.
 test('DSN 없이 빌드한 앱은 브라우저에서 처리하지 못한 오류가 나도 앱 밖으로 요청을 보내지 않는다', async ({ page }) => {
   const requests: string[] = []

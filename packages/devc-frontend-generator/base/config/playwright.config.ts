@@ -4,8 +4,11 @@ import { defineConfig, devices } from '@playwright/test'
 const PORT = process.env.E2E_PORT ?? '3100'
 const baseURL = `http://localhost:${PORT}`
 
+// 이 설정은 config/에 있으므로 npm 스크립트가 --config로 넘긴다. Playwright는 경로를 이 파일 기준으로 읽으므로, 테스트와
+// 결과물(trace 등)은 Starter 최상위의 e2e/, test-results/를 가리킨다.
 export default defineConfig({
-  testDir: 'e2e',
+  testDir: '../e2e',
+  outputDir: '../test-results',
   forbidOnly: Boolean(process.env.CI),
   use: {
     baseURL,
@@ -17,6 +20,7 @@ export default defineConfig({
   // 페이지(SSG·ISR)도 목 응답을 담도록, 목으로 빌드한 결과(`API_MOCKING=enabled npm run build`)를 띄운다(README의 "실행과 배포").
   webServer: {
     command: `npm run start -- --port ${PORT}`,
+    cwd: '..',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     env: { API_MOCKING: 'enabled' },

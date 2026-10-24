@@ -2,7 +2,7 @@ import { withSentryConfig } from '@sentry/nextjs/config'
 import type { NextConfig } from 'next'
 
 /**
- * next.config.ts의 설정을 Sentry의 빌드 설정으로 감싼다(next.config.plugins.ts가 가장 바깥에 씌운다). Next.js가 설정을 읽을 때
+ * next.config.ts의 설정을 Sentry의 빌드 설정으로 감싼다(config/next.config.plugins.ts가 가장 바깥에 씌운다). Next.js가 설정을 읽을 때
  * Node.js에서 실행된다.
  *
  * 소스맵은 빌드하는 환경에 Sentry 인증 토큰(SENTRY_AUTH_TOKEN)이 있을 때만 만들어 Sentry에 올리고, 올린 뒤에는 빌드 결과에서

@@ -4,7 +4,7 @@
 
 - `npm run build`는 모든 페이지를 빌드할 때 렌더링해 `out/`에 HTML·CSS·JS 같은 정적 파일로만 내보냅니다. 배포할 것은 `out/` 하나이고, 정적 파일을 서빙하는 어떤 서버나 호스팅에 올려도 됩니다. 브라우저가 부를 백엔드 주소(`NEXT_PUBLIC_API_BASE_URL`)는 빌드할 때 코드에 박히므로 빌드하는 환경에 넣습니다(아래 "API 계층").
 - `npm run start`는 `out/`을 정적 파일 서버(`scripts/serve-out.ts`, sirv)로 띄웁니다. 기본 포트는 8080이고, `npm run start -- --port 3000`처럼 바꿉니다. 없는 주소에는 빌드가 앱 수준의 404 화면(`src/app/not-found.tsx`)으로 만든 `out/404.html`을 상태 코드 404로 보냅니다. 배포할 호스팅도 없는 주소에 `404.html`을 상태 코드 404로 보내게 설정합니다(nginx의 `error_page 404 /404.html;` 등. 정적 호스팅 서비스는 대개 저절로 그렇게 합니다).
-- `npm run test:e2e`는 브라우저의 MSW를 켜고 목으로 다시 빌드한 `out/`을 정적 파일 서버로 띄워 검사합니다(`playwright.config.ts`). 그래서 `npm run build`를 먼저 실행하지 않아도 되고, E2E가 남긴 `out/`은 배포하지 말고 배포용 빌드로 다시 만듭니다.
+- `npm run test:e2e`는 브라우저의 MSW를 켜고 목으로 다시 빌드한 `out/`을 정적 파일 서버로 띄워 검사합니다(`config/playwright.config.ts`). 그래서 `npm run build`를 먼저 실행하지 않아도 되고, E2E가 남긴 `out/`은 배포하지 말고 배포용 빌드로 다시 만듭니다.
 - 서버 컴포넌트는 빌드할 때 한 번만 실행됩니다. 동적 라우트(`[id]` 등)는 `generateStaticParams`로 만들 경로를 모두 정해 두어야 합니다.
 - 요청을 받는 서버가 있어야 하는 기능은 쓸 수 없고, 쓰면 `npm run dev`나 `npm run build`에서 오류가 납니다. 예: Request를 읽는 Route Handler, `cookies()`, Proxy(`proxy.ts`), `next.config.ts`의 rewrites·redirects·headers, ISR, 서버 액션, 기본 로더를 쓰는 이미지 최적화. 같은 이유로 BFF 프록시(`/api/proxy/*`)도 없습니다.
 
@@ -44,7 +44,7 @@ API_MOCKING=enabled npm run build  # 목 빌드: 빌드할 때의 요청에 MSW�
 | `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                 | 프로젝트                                       |
 | `src/app`                    | 라우트                                                                       | 프로젝트                                       |
 
-- `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
+- `npm run api:gen`은 `config/orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
 - Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'listProducts', params]`처럼 계층으로 만듭니다. `src/queries`의 코드는 `npm run g -- query <operationId>`로 만들 수 있습니다(아래 "코드 생성(Schematic)").
 - 샘플: `/products` 페이지(`src/app/products/page.tsx`)는 빌드할 때 페이지 뼈대만 만들고, `src/features/product-list`가 브라우저에서 `listProductsQueryOptions()`로 상품 목록을 가져옵니다(`e2e/products.spec.ts`).
@@ -76,11 +76,11 @@ API_MOCKING=enabled npm run build  # 목 빌드: 빌드할 때의 요청에 MSW�
 
 MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
 
-목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. 브라우저의 MSW를 켜고 `NEXT_PUBLIC_API_BASE_URL`을 넣지 않으면 브라우저가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`orval.config.ts`). 서비스 워커는 페이지를 열거나 새로 고치는 요청까지 핸들러에 보이지만, 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`가 그런 요청을 목 응답 없이 그대로 보내므로 페이지 대신 목 응답이 열리지 않습니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다.
+목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. 브라우저의 MSW를 켜고 `NEXT_PUBLIC_API_BASE_URL`을 넣지 않으면 브라우저가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`config/orval.config.ts`). 서비스 워커는 페이지를 열거나 새로 고치는 요청까지 핸들러에 보이지만, 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`가 그런 요청을 목 응답 없이 그대로 보내므로 페이지 대신 목 응답이 열리지 않습니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다.
 
-- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. `vitest.setup.ts`가 `NEXT_PUBLIC_API_BASE_URL`에 목 백엔드 주소를 넣어 브라우저 코드(jsdom)의 요청도 MSW가 받습니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
+- Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. `config/vitest.setup.ts`가 `NEXT_PUBLIC_API_BASE_URL`에 목 백엔드 주소를 넣어 브라우저 코드(jsdom)의 요청도 MSW가 받습니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
 - 개발 서버: `.env.development`의 `API_MOCKING=enabled`(서버 컴포넌트의 요청)와 `NEXT_PUBLIC_API_MOCKING=enabled`(브라우저의 요청)로 켭니다.
-- E2E: `playwright.config.ts`가 `API_MOCKING=enabled`(빌드할 때 서버 컴포넌트의 요청)와 `NEXT_PUBLIC_API_MOCKING=enabled`(브라우저의 요청)로 다시 빌드한 정적 파일을 띄웁니다.
+- E2E: `config/playwright.config.ts`가 `API_MOCKING=enabled`(빌드할 때 서버 컴포넌트의 요청)와 `NEXT_PUBLIC_API_MOCKING=enabled`(브라우저의 요청)로 다시 빌드한 정적 파일을 띄웁니다.
 - 목 빌드: `API_MOCKING=enabled`로 빌드하면 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다(GitLab CI의 `build` 잡). 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").
 - 배포용 빌드: `.env.production`의 `NEXT_PUBLIC_API_MOCKING=disabled` 때문에 MSW 코드가 빌드 결과에 들어가지 않습니다. `API_MOCKING=disabled`이므로 빌드할 때 서버 컴포넌트가 보내는 요청도 MSW가 받지 않습니다.
 
