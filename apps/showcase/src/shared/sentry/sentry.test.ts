@@ -11,7 +11,7 @@ import { sentryClientInstrumentation } from './sentry-instrumentation-client'
 // 보내는지는 sentry-instrumentation.test.ts가 서버 SDK로 보고, DSN으로 빌드한 앱이 브라우저와 서버의 오류를 실제로 보내는지는
 // Generator 레포의 하네스(harness/sentry.test.ts)가 가짜 수집 서버로 본다.
 
-// 이 테스트에서만 쓰는 가짜 DSN. 이 주소로 요청이 나가면 MSW가 테스트를 실패시킨다(vitest.setup.ts).
+// 이 테스트에서만 쓰는 가짜 DSN. 이 주소로 요청이 나가면 MSW가 테스트를 실패시킨다(config/vitest.setup.ts).
 const FAKE_DSN = 'http://public@sentry.test/1'
 
 afterEach(() => {

@@ -11,12 +11,12 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run --project unit",
-    "test:storybook": "vitest run --project storybook",
-    "test:e2e": "playwright test",
+    "test": "vitest run --config config/vitest.config.ts --project unit",
+    "test:storybook": "vitest run --config config/vitest.config.ts --project storybook",
+    "test:e2e": "playwright test --config config/playwright.config.ts",
     "storybook": "storybook dev -p 6006",
     "playwright:install": "playwright install chromium",
-    "api:gen": "orval",
+    "api:gen": "orval --config config/orval.config.ts",
     "g": "dcgen g"
   },
   "dependencies": {
