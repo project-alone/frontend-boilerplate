@@ -11,7 +11,7 @@ export const THEME_CHOICES = ['system', 'light', 'dark'] as const
 /** 사용자가 고른 테마. system이면 운영체제 설정(prefers-color-scheme)을 따른다. */
 export type ThemeChoice = (typeof THEME_CHOICES)[number]
 
-/** 테마 전환 UI와 Storybook 툴바에 보이는 이름 */
+/** 테마 전환 UI에 보이는 이름 */
 export const THEME_LABELS: Record<ThemeChoice, string> = {
   system: '시스템 설정',
   light: '라이트',

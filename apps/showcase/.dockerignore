@@ -23,8 +23,6 @@ next-env.d.ts
 coverage/
 test-results/
 playwright-report/
-storybook-static/
-*storybook.log
 .DS_Store
 
 # 이미지 설정 자체. 바꿔도 소스를 복사하는 단계의 캐시가 깨지지 않게 한다.

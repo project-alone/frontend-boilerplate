@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { signInAsMockUser } from '@/shared/auth/mock-session'
 import { server } from '@/shared/mocks/node'
 import { UserStatsOverview } from './user-stats-overview'
@@ -42,6 +43,8 @@ test('전체·활성·초대됨·관리자 수를 보여 주고, 상태별 사�
       .map((row) => row.textContent),
   ).toEqual(['상태사용자 수', '활성8명', '초대됨2명', '정지2명'])
   expect(screen.getByText('활성 8명, 초대됨 2명, 정지 2명')).toBeInTheDocument()
+  // 막대의 명도 대비는 E2E가 실제 브라우저에서 잰다.
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('통계를 받지 못하면 알린다', async () => {

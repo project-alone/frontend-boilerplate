@@ -14,7 +14,7 @@ import type { LandingPageContent } from '@/shared/api/generated/model'
 // next build. ADR-0011)와 Vitest가 쓴다. 실제 백엔드(CMS)로 바꾸면 쓰이지 않는다. 문구를 바꿔 보려면 아래 값을 고친 뒤 다시
 // 빌드한다(개발 서버는 요청마다 다시 그린다).
 
-/** 목 백엔드가 locale마다 돌려주는 랜딩 페이지 콘텐츠. 스토리와 테스트도 이 값을 쓴다. */
+/** 목 백엔드가 locale마다 돌려주는 랜딩 페이지 콘텐츠. 테스트도 이 값을 쓴다. */
 export const MOCK_LANDING_PAGES = {
   ko: {
     title: 'Starter로 시작하는 프론트엔드 프로젝트',

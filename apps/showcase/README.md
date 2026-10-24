@@ -14,18 +14,16 @@
 ```sh
 nvm use                     # .nvmrc의 Node 버전으로 전환
 npm install
-npm run playwright:install  # Storybook 테스트와 E2E가 쓰는 Chromium 설치(처음 한 번)
+npm run playwright:install  # E2E가 쓰는 Chromium 설치(처음 한 번)
 npm run dev                 # 개발 서버
 npm run typecheck           # 타입 검사
 npm run lint                # 린트(ESLint)
 npm run format              # 포맷 적용(Prettier)
 npm run format:check        # 포맷 검사
 npm test                    # 단위·컴포넌트 테스트
-npm run test:storybook      # 스토리마다 접근성 검사
 npm run build               # 프로덕션 빌드(배포용 빌드와 목 빌드는 아래 "실행과 배포")
 npm start                   # 빌드 결과로 서버 실행(build 다음에 실행)
 npm run test:e2e            # 빌드 결과로 E2E 테스트(목 빌드 다음에 실행)
-npm run storybook           # Storybook
 npm run api:gen             # OpenAPI 명세(openapi.yaml)에서 API 계층 재생성(orval)
 npm run g                   # Schematic으로 코드 생성(아래 "코드 생성(Schematic)")
 ```
@@ -75,7 +73,7 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 | `config/` | `vitest.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `orval.config.ts`, `next.config.plugins.ts`(위 "앱 조립 파일")                     |
 | `types/`  | `process-env.d.ts`(환경 변수의 타입 선언, 아래 "품질 기준"). Rendering Mode와 Recipe가 읽는 변수는 그 이름의 `process-env.<이름>.d.ts`에 있습니다 |
 
-- `config/`의 설정은 npm 스크립트(`test`, `test:storybook`, `test:e2e`, `api:gen`)가 `--config`로 넘깁니다. `npx vitest`, `npx playwright test`처럼 도구를 직접 부르면 설정을 찾지 못하므로, 파일 하나만 돌릴 때도 npm 스크립트에 인자를 붙입니다(예: `npm test -- src/app/page.test.tsx`, `npm run test:e2e -- e2e/not-found.spec.ts`).
+- `config/`의 설정은 npm 스크립트(`test`, `test:e2e`, `api:gen`)가 `--config`로 넘깁니다. `npx vitest`, `npx playwright test`처럼 도구를 직접 부르면 설정을 찾지 못하므로, 파일 하나만 돌릴 때도 npm 스크립트에 인자를 붙입니다(예: `npm test -- src/app/page.test.tsx`, `npm run test:e2e -- e2e/not-found.spec.ts`).
 - 설정 안의 경로: `vitest.config.ts`는 `root`를 프로젝트 최상위로 정해 최상위 기준으로 적습니다. `playwright.config.ts`와 `orval.config.ts`는 경로를 설정 파일 기준으로 읽으므로 `../e2e`, `../openapi.yaml`처럼 최상위를 가리킵니다.
 - VS Code의 Vitest 확장과 Playwright 확장은 작업 공간 전체에서 설정 파일(`*vitest*.config.*`, `*playwright*.config.*`)을 찾으므로 `config/`의 설정을 그대로 씁니다.
 
@@ -83,7 +81,7 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 
 `.gitlab-ci.yml`이 들어 있어 사내 GitLab에 저장소를 올리면 바로 파이프라인이 돕니다. 잡은 모두 위의 npm 스크립트를 부르므로 실패한 잡은 로컬에서 같은 명령으로 재현할 수 있습니다.
 
-- 단계: `check`(`lint`, `format:check`, `typecheck`, `test`, `test:storybook`) → `build` → `e2e`(`build` 잡의 빌드 결과로 `test:e2e`)
+- 단계: `check`(`lint`, `format:check`, `typecheck`, `test`) → `build` → `e2e`(`build` 잡의 빌드 결과로 `test:e2e`). Storybook을 더하면(`npm run g -- story`) `check`에 `test:storybook`이 생깁니다.
 - `build` 잡은 `API_MOCKING=enabled`로 목 빌드를 만들어 실제 백엔드 없이 돕니다(위 "배포용 빌드와 목 빌드"). 이 결과는 배포하지 않고, 빌드 캐시에 목 응답이 남지 않도록 `.next/cache/fetch-cache`를 지웁니다. 배포 파이프라인을 더할 때는 `API_MOCKING`을 켜지 않고 `API_BASE_URL`을 CI/CD 변수로 넣은 잡에서 배포용 빌드를 따로 만듭니다.
 - 설치는 `npm ci`로 하므로 `package-lock.json`을 함께 커밋합니다. `dcgen new`가 Starter를 만들며 설치할 때 생기고, `--skip-install`로 만들었다면 처음 `npm install`할 때 생깁니다.
 - Node는 `.nvmrc`와 같은 버전의 `node` 이미지를 씁니다. `.nvmrc`를 바꾸면 `.gitlab-ci.yml`의 `image`도 함께 바꿉니다. 이미지를 쓰므로 Docker(또는 Kubernetes) executor 러너가 필요합니다.
@@ -126,9 +124,9 @@ Next.js에서는 서버에서 실행되는 코드와 브라우저에서 실행�
 | `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                                              |
 | `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`. 고른 값을 다시 비울 수 있게 하려면 `clearLabel="선택 안 함"`(비우면 `null`) |
 | `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                                          |
-| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                                          |
+| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃이 이미 감싸 두었습니다.                                                      |
 
-컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 클라이언트에서만 쓰는 훅(상태, 컨텍스트)을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `field-label-id.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
+컴포넌트마다 컴포넌트 테스트(`<이름>.test.tsx`)가 있어 상호작용(키보드 조작 등)과 접근성을 확인합니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 클라이언트에서만 쓰는 훅(상태, 컨텍스트)을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `field-label-id.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
 
 ### 디자인 반영하기
 
@@ -136,7 +134,7 @@ Next.js에서는 서버에서 실행되는 코드와 브라우저에서 실행�
 
 Tailwind 기본 팔레트, 글자 크기, 반경, 그림자는 꺼 두었습니다. 그래서 `bg-red-500`처럼 토큰에 없는 값의 클래스는 아무 스타일도 만들지 않습니다. 토큰 밖의 값이 섞이면 다크 모드 같은 테마를 토큰 값만 바꿔 적용할 수 없기 때문입니다. 새 값이 필요하면 `tokens.css`에 토큰을 더합니다. 토큰은 `:root`의 CSS 변수로도 나가므로, 테마는 같은 이름의 변수 값만 덮어씁니다.
 
-Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Storybook이 같은 설정을 씁니다. 스타일 진입점은 `src/shared/ui/styles.css`입니다.
+Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`와 `next build`(Storybook을 더하면 Storybook도)가 같은 설정을 씁니다. 스타일 진입점은 `src/shared/ui/styles.css`입니다.
 
 ### 변형 더하기
 
@@ -155,7 +153,7 @@ Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Stor
 - `global-error.tsx`가 `error.tsx`의 화면을 그리므로 `error.tsx`는 루트 레이아웃의 Provider(TanStack Query, 알림 등)에 기대지 않습니다. 루트 레이아웃의 `<html lang>`을 바꾸면 `global-error.tsx`의 `lang`도 함께 바꿉니다.
 - 로딩 상태는 라우트의 `loading.tsx`(`npm run g -- page`가 만듭니다)와 컴포넌트의 `<Suspense>`가 맡고, 앱 수준의 `src/app/loading.tsx`는 두지 않습니다. 응답의 상태 코드는 응답을 보내기 시작할 때 정해지는데, 앱 수준 로딩 상태가 있으면 요청마다 렌더링하는 모든 페이지가 그것을 먼저 보내므로 그 뒤에 난 렌더링 오류와 `notFound()`가 상태 코드 200으로 나가기 때문입니다. 요청마다 렌더링하는 라우트에서 그 라우트의 `loading.tsx`나 `<Suspense>` 안에서 난 오류와 `notFound()`도 같은 까닭으로 200으로 나갑니다(404 화면에는 검색 엔진용 `noindex`가 붙습니다).
 - 오류 화면이 받은 오류는 Next.js가 브라우저 콘솔에만 남깁니다. 오류를 모으는 서비스로 보내려면 `error.tsx`에서 보냅니다(예: `sentry` Recipe).
-- 테스트: 화면마다 스토리(`error.stories.tsx`, `not-found.stories.tsx`)와 `e2e/not-found.spec.ts`(없는 주소의 404 화면과 상태 코드, 접근성)가 있습니다.
+- 테스트: 화면마다 컴포넌트 테스트(`error.test.tsx`, `not-found.test.tsx`)와 `e2e/not-found.spec.ts`(없는 주소의 404 화면과 상태 코드, 접근성)가 있습니다.
 
 ## 커밋 훅
 
@@ -167,10 +165,11 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 ## 테스트
 
 - 단위·컴포넌트 테스트: `src/` 안의 `*.test.ts(x)`. Vitest(jsdom)와 Testing Library로 작성합니다.
-- 스토리: `src/` 안의 `*.stories.tsx`. `npm run test:storybook`이 스토리마다 axe로 WCAG 2.2 AA를 검사하고, 위반이 하나라도 있으면 실패합니다. 스토리의 `play` 함수에 적은 상호작용 검사(키보드 조작 등)도 함께 돕니다.
+- 접근성: 컴포넌트 테스트에서 `axeViolations(container)`(`src/shared/a11y/axe-violations.ts`)로 화면의 WCAG 2.2 AA 위반을 찾습니다(`expect(await axeViolations(container)).toEqual([])`). 포털로 그리는 팝업(선택 목록, 대화상자, 알림)까지 보려면 `document.body`를 넘깁니다. jsdom은 색을 계산하지 못하므로 명도 대비는 E2E(`@axe-core/playwright`)가 실제 브라우저에서 검사합니다.
+- Storybook: 처음부터 들어 있지 않습니다. 컴포넌트의 스토리가 필요해지면 `npm run g -- story <컴포넌트 파일>`로 만들고, 그때 Storybook이 더해집니다(아래 "코드 생성(Schematic)"의 story).
 - E2E: `e2e/` 안의 `*.spec.ts`. Playwright가 빌드된 앱을 `npm run start`로 띄워 검사합니다. 목 빌드(`API_MOCKING=enabled npm run build`)의 결과로 돌립니다(위 "배포용 빌드와 목 빌드").
 - Linux CI에서 Chromium에 필요한 시스템 라이브러리가 없으면 `npx playwright install --with-deps chromium`으로 설치합니다.
-- Linux에서 `test:storybook`이나 `test:e2e`가 가끔 `Failed to fetch dynamically imported module`, `net::ERR_NETWORK_CHANGED`, `The iframe ... did not become ready`로 실패하면 그 사이에 같은 호스트에서 컨테이너가 뜨거나 내려가지 않았는지 봅니다(`docker compose up`, `docker build`, Testcontainers 등). Docker는 컨테이너마다 호스트에 네트워크 인터페이스를 만들고 지우는데, Linux의 Chromium은 인터페이스나 주소가 바뀌면 `localhost`로 보내던 요청까지 끊습니다. Chromium에는 이를 끄는 설정이 없으므로 컨테이너를 다 띄운 뒤에 브라우저 테스트를 돌리고, CI에서는 컨테이너를 만드는 잡과 브라우저 테스트를 한 호스트에서 동시에 돌리지 않습니다. 잡마다 컨테이너나 Pod가 따로 뜨는 GitLab CI의 Docker·Kubernetes executor에서는 다른 잡의 컨테이너가 영향을 주지 않습니다.
+- Linux에서 `test:e2e`(Storybook을 더했으면 `test:storybook`도)가 가끔 `Failed to fetch dynamically imported module`, `net::ERR_NETWORK_CHANGED`, `The iframe ... did not become ready`로 실패하면 그 사이에 같은 호스트에서 컨테이너가 뜨거나 내려가지 않았는지 봅니다(`docker compose up`, `docker build`, Testcontainers 등). Docker는 컨테이너마다 호스트에 네트워크 인터페이스를 만들고 지우는데, Linux의 Chromium은 인터페이스나 주소가 바뀌면 `localhost`로 보내던 요청까지 끊습니다. Chromium에는 이를 끄는 설정이 없으므로 컨테이너를 다 띄운 뒤에 브라우저 테스트를 돌리고, CI에서는 컨테이너를 만드는 잡과 브라우저 테스트를 한 호스트에서 동시에 돌리지 않습니다. 잡마다 컨테이너나 Pod가 따로 뜨는 GitLab CI의 Docker·Kubernetes executor에서는 다른 잡의 컨테이너가 영향을 주지 않습니다.
 
 ## API 계층
 
@@ -288,9 +287,10 @@ const {
 | ----------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)                                                  | Query Domain(`src/queries/<domain>/`)                             |
 | `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                                                       | Query Domain(`src/queries/<domain>/`)                             |
-| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트                                     | Feature(`src/features/<feature>/`)                                |
+| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼과 테스트                                                      | Feature(`src/features/<feature>/`)                                |
 | `page`      | 라우트의 페이지(메타데이터, Rendering Mode), 로딩·오류 상태. `--query`의 결과를 보여 줄 컴포넌트와 그 테스트 | 라우트(`src/app/<route>/`), Feature(`src/features/<feature>/`)    |
-| `component` | 컴포넌트, Storybook 스토리, 테스트                                                                           | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+| `component` | 컴포넌트와 테스트                                                                                            | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+| `story`     | 컴포넌트의 Storybook 스토리. Starter에 Storybook이 없으면 Storybook도 더한다                                 | 컴포넌트 옆                                                       |
 
 Schematic을 차례로 실행하면 화면 하나가 됩니다. 예를 들어 상품 목록과 등록 폼이 있는 화면은 이렇게 만듭니다.
 
@@ -338,10 +338,10 @@ npm run g -- mutation <operationId> --optimistic <queryOperationId>  # 낙관적
 
 ```sh
 npm run g -- mutation <operationId>                    # 폼이 요청을 보낼 뮤테이션 훅(먼저 만든다)
-npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<feature>/)에 폼, 스토리, 테스트
+npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<feature>/)에 폼과 테스트
 ```
 
-- JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`), 스토리(`.stories.tsx`), 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
+- JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`)과 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
 - 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `useSchemaForm`으로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
 - 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
 
@@ -360,13 +360,13 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 - 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
 - 뮤테이션 훅이 인자를 받으면(`mutation --optimistic`으로 만든 훅은 응답 전에 고칠 쿼리의 인자를 받습니다) 폼도 같은 이름과 타입의 props로 받아 훅에 넘깁니다. 화면이 보고 있는 쿼리와 같은 값을 넘깁니다.
   - 경로 파라미터와 이름이 같은 인자는 같은 값으로 보고 그 props를 함께 넘깁니다. 예를 들어 `useAddCartItemMutation(cartId)`로 장바구니를 고치는 `<AddCartItemForm cartId={cartId} />`는 `cartId`를 요청 경로와 훅에 모두 씁니다. 이름이 같은데 타입이 다르면 아무 파일도 만들지 않고 알립니다.
-  - 기본값이 있는 인자(쿼리 파라미터 객체 `params` 등)는 생략할 수 있는 props이고, 생략하면 훅의 기본값으로 고칩니다. 테스트와 스토리는 넘기지 않습니다.
-  - 기본값이 없는 인자는 테스트와 스토리가 넘길 값을 정해야 하므로 숫자, 문자열, 불리언만 받습니다. 그 밖의 타입이면 아무 파일도 만들지 않고 알립니다. 폼은 지금 쿼리 모듈에 있는 훅을 읽으므로, 훅의 인자를 고쳤다면 고친 인자를 받습니다.
+  - 기본값이 있는 인자(쿼리 파라미터 객체 `params` 등)는 생략할 수 있는 props이고, 생략하면 훅의 기본값으로 고칩니다. 테스트는 넘기지 않습니다.
+  - 기본값이 없는 인자는 테스트가 넘길 값을 정해야 하므로 숫자, 문자열, 불리언만 받습니다. 그 밖의 타입이면 아무 파일도 만들지 않고 알립니다. 폼은 지금 쿼리 모듈에 있는 훅을 읽으므로, 훅의 인자를 고쳤다면 고친 인자를 받습니다.
 - 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.
 - 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드(null을 받는 필드는 빼고)는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
 - null을 받는 입력(체크박스와 기본값이 있는 필드는 빼고)이 있으면 필수 입력만 채워 제출했을 때 비워 둔 입력이 `null`로 가거나 빠지는지도 봅니다. 폼은 처음 값 없이 시작하므로, 처음 값이 있던 선택 필드를 비우는 경우(`useSchemaForm`의 `defaultValues`)는 `form-resolver.test.ts`와 `use-schema-form.test.ts`가 확인합니다. 수정 폼으로 쓰려면 현재 값을 `useSchemaForm`의 `defaultValues`에 더합니다.
-- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
-- 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
+- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트 대신 그 사실을 주석으로 남깁니다.
+- 테스트는 처음 화면과, 위의 검증 실패를 제출했을 때의 검증 오류 화면을 axe로 검사합니다(`axeViolations`). 폼의 스토리가 필요하면 `npm run g -- story`로 만듭니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 
 ### page
@@ -407,13 +407,29 @@ npm run g -- component <이름> --feature <feature>  # Feature(src/features/<fea
 npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)에
 ```
 
-- 컴포넌트(`<이름>.tsx`), 스토리(`<이름>.stories.tsx`), 테스트(`<이름>.test.tsx`)를 함께 만듭니다. 파일 이름은 kebab-case, 컴포넌트는 PascalCase입니다(예: `order-summary`와 `OrderSummary`는 모두 `order-summary.tsx`의 `OrderSummary`). 명세는 읽지 않습니다.
+- 컴포넌트(`<이름>.tsx`)와 테스트(`<이름>.test.tsx`)를 함께 만듭니다. 파일 이름은 kebab-case, 컴포넌트는 PascalCase입니다(예: `order-summary`와 `OrderSummary`는 모두 `order-summary.tsx`의 `OrderSummary`). 명세는 읽지 않습니다.
 - 둘 곳은 `--feature`와 `--shared` 가운데 꼭 하나를 고릅니다. Feature 폴더가 없으면 만듭니다.
 - 이름은 영문자로 시작하고 영문자, 숫자, 하이픈만 씁니다. 폴더 깊이 제한 때문에 하위 폴더(`orders/summary` 등)는 만들지 않습니다.
 - Feature의 컴포넌트는 공통 UI와 Query Domain의 queryOptions를 조합하는 평범한 컴포넌트로, 제목 하나를 보여 주는 자리표시 내용으로 시작합니다.
 - 공통 UI의 컴포넌트는 다른 공통 컴포넌트처럼 디자인 토큰 유틸리티와 `cva` 변형(`<이름>Variants`)으로 모양을 정하고, `className`은 배치에만 받습니다. 키보드 조작이나 스크린 리더 지원이 필요한 부품이면 `<div>` 대신 Base UI 부품을 감쌉니다(예: `button.tsx`).
-- 만든 직후 스토리는 `npm run test:storybook`의 접근성(axe) 검사를, 테스트는 `npm test`를 통과합니다. 내용을 바꾸면 스토리의 `play`와 테스트도 함께 고칩니다.
-- 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다. 확장자만 다른 파일(`<이름>.ts` 등)도 같은 import 경로로 풀리므로 이미 있는 것으로 봅니다.
+- 테스트는 내용과 접근성(axe)을 검사하고, 만든 직후 `npm test`를 통과합니다. 공통 UI의 테스트는 변형마다 검사하므로 변형을 더하면 테스트에도 더합니다. 내용을 바꾸면 테스트도 함께 고칩니다.
+- 스토리가 필요하면 `npm run g -- story <파일>`로 만듭니다.
+- 두 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다. 확장자만 다른 파일(`<이름>.ts` 등)도 같은 import 경로로 풀리므로 이미 있는 것으로 봅니다.
+
+### story
+
+```sh
+npm run g -- story <컴포넌트 파일>                     # 예: src/features/orders/order-summary.tsx
+npm run g -- story <컴포넌트 파일> --component <이름>  # 파일이 컴포넌트를 여럿 내보낼 때
+```
+
+- 컴포넌트를 다 만들고 Storybook에서 보고 싶어진 때에 실행합니다. 파일 경로는 현재 디렉터리 기준입니다.
+- Starter에 Storybook이 아직 없으면(`.storybook/main.ts`가 없으면) 먼저 Storybook을 더하고 의존성을 설치합니다(`--skip-install`이면 설치하지 않습니다). `.storybook/`의 설정, `storybook`·`test:storybook` 스크립트와 의존성, `config/vitest.config.ts`의 `storybook` 프로젝트, `tsconfig.json`의 `include`, GitLab CI의 `test:storybook` 잡, `.gitignore`와 ESLint가 뺄 결과물, README의 "Storybook" 절을 더합니다. 넣은 Recipe가 Storybook 설정에 더하는 것(예: dark-mode의 테마 툴바와 다크 모드 브라우저)도 그 Recipe의 코드가 남아 있으면 함께 더합니다. Storybook이 이미 있으면 스토리 파일만 만듭니다.
+- 컴포넌트는 `--component`로 고르거나, 없으면 default로 내보낸 컴포넌트, 하나뿐인 컴포넌트, 파일과 이름이 같은 컴포넌트 순으로 고릅니다. 스토리 파일은 컴포넌트 옆에 만들고, 이름은 default로 내보낸 컴포넌트면 컴포넌트 파일과 같은 이름(`not-found.stories.tsx`), 이름으로 내보낸 컴포넌트면 컴포넌트 이름의 kebab-case(`field-label.stories.tsx`)입니다. 제목은 `src` 아래 폴더를 이은 것입니다(예: `Features/Orders/OrderSummary`).
+- 필수 props에는 타입에 맞는 값(문자열, 숫자, 불리언, 리터럴, 함수는 `fn()`, 배열, `Date`, `Error`와 그 값들로 이뤄진 객체)을 넘기고, `children`을 받으면 글자를 넘깁니다. 값을 정할 수 없는 필수 props가 있으면 아무 파일도 만들지 않고 알립니다. 서버 컴포넌트(async 함수)는 Storybook이 그리지 못하므로 만들지 않습니다.
+- 만든 스토리는 `Default` 하나에서 시작합니다. 레이블이 있어야 하는 입력 요소나 부모 컴포넌트 안에서만 쓰는 부품은 `render`로 감싸야 접근성 검사를 통과합니다. 상태(변형, 비활성, 오류 등)마다 스토리를 더하면 `npm run test:storybook`이 상태마다 검사합니다.
+- 데이터를 직접 가져오는 컴포넌트는 Storybook에 백엔드가 없어 요청이 실패한 화면을 보입니다. 데이터를 정하는 방법은 Storybook을 더할 때 생기는 README의 "Storybook" 절에 있습니다.
+- 스토리 파일이 이미 있으면 아무 파일도 바꾸지 않고 알린 뒤 실패합니다.
 
 ## 분석(analytics)
 
@@ -498,7 +514,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 
 ### 테스트
 
-`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(규칙의 경로와 동적 세그먼트, 로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `mock-session.test.ts`(테스트에서 목 계정으로 로그인한 요청), `auth-mock-handlers.test.ts`(목 백엔드의 사용자 저장소: 바꾼 역할을 목 백엔드는 바로, 세션은 refresh하거나 다시 로그인할 때 받음, 더한 사용자와 바꾼 이메일로 로그인), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
+`src/shared/auth/session.test.ts`(쿠키 암호화, 비밀 값 확인), `auth-backend-fetch.test.ts`(BFF 프록시의 토큰 첨부, 401이면 refresh 후 다시 보냄, 동시에 여러 요청이 401을 받아도 refresh는 한 번, 토큰을 발급하는 operation은 전달하지 않음), `auth-proxy.test.ts`(보호된 라우트, 역할, 미리 refresh), `access-rules.test.ts`(규칙의 경로와 동적 세그먼트, 로그인한 뒤 돌아갈 주소는 이 앱 안의 경로만, sitemap 규칙), `refresh-session.test.ts`(따로 번들된 proxy와 BFF 프록시도 refresh는 한 번), `session-routes.test.ts`(로그인·로그아웃 중계와 쿠키), `mock-session.test.ts`(테스트에서 목 계정으로 로그인한 요청), `auth-mock-handlers.test.ts`(목 백엔드의 사용자 저장소: 바꾼 역할을 목 백엔드는 바로, 세션은 refresh하거나 다시 로그인할 때 받음, 더한 사용자와 바꾼 이메일로 로그인), `src/features/login-form/login-form.test.tsx`(처음 화면과 검증 오류의 접근성 포함), `src/features/user-menu/user-menu.test.tsx`(로그인 여부에 따른 메뉴와 접근성), `e2e/auth.spec.ts`(로그인, 보호된 라우트, 역할, 토큰 만료 후 자동 refresh, 로그아웃, 브라우저가 BFF 프록시로 토큰을 받지 못함, 접근성).
 
 ## 차트
 
@@ -517,7 +533,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 차트는 브라우저에서 그리므로 데이터도 브라우저가 가져옵니다(`useQuery`, CSR). 서버가 보낸 HTML에는 불러오는 중 상태가 담기고, Rendering Mode `server`와 `static-export`에서 같은 코드로 동작합니다. 차트마다 따로 가져오므로 한 API가 실패해도 다른 차트는 보입니다.
 - Recharts는 `react-is`를 peer dependency로 씁니다. `react`를 올릴 때 `react-is`도 같은 버전으로 올립니다.
 - 샘플을 지우려면 `src/app/charts/`, `src/features/stats-charts/`, `src/queries/stats/`, `e2e/chart.spec.ts`와 `openapi.yaml`의 `stats` tag·경로·스키마(`DailyVisits`, `ChannelSales`)를 지우고 `npm run api:gen`을 실행합니다. 새 차트에 쓸 `src/shared/chart/`는 남겨 둡니다.
-- 테스트: `src/features/stats-charts/stats-charts.test.tsx`(두 차트의 데이터 표·캡션, 불러오는 중·실패 상태), `src/shared/chart/chart-contrast.test.ts`(명도 대비 계산), `daily-visits-chart.stories.tsx`·`channel-sales-chart.stories.tsx`(axe 검사, 그림을 숨기고 표를 둠, 선·막대·축 글자의 명도 대비. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/chart.spec.ts`(빌드한 앱에서 두 차트와 데이터 표, 운영체제가 라이트·다크 모드일 때의 명도 대비와 axe 검사).
+- 테스트: `src/features/stats-charts/stats-charts.test.tsx`(두 차트의 데이터 표·캡션, 불러오는 중·실패 상태), `src/shared/chart/chart-contrast.test.ts`(명도 대비 계산), `stats-charts.test.tsx`의 axe 검사(그림을 숨기고 표를 둠). 실제 브라우저에서 잰 선·막대·축 글자의 명도 대비는 `e2e/chart.spec.ts`가 라이트·다크 모드에서 봅니다, `e2e/chart.spec.ts`(빌드한 앱에서 두 차트와 데이터 표, 운영체제가 라이트·다크 모드일 때의 명도 대비와 axe 검사).
 
 ## 다크 모드
 
@@ -527,8 +543,8 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 테마는 사용자가 고른 값(`localStorage`의 `theme`)을 따르고, 고르지 않았으면 운영체제 설정(`prefers-color-scheme`)을 따릅니다. 운영체제 설정이 바뀌거나 다른 탭에서 테마를 고르면 바로 따라 바뀝니다(`src/shared/theme/theme.ts`).
 - 모든 페이지 위의 머리글(`src/app/app-shell.tsx`)에 테마 전환 UI(`src/features/theme-switcher`, 시스템 설정·라이트·다크)가 있습니다. 다른 곳으로 옮겨도 됩니다.
 - 첫 화면이 다른 테마로 깜빡이지 않도록 `<body>` 맨 앞의 inline script(`ThemeScript`)가 페이지 내용과 React보다 먼저 테마를 적용합니다. 앱 전체를 가장 바깥에서 감싸는 `ThemeProvider`(`src/shared/theme/theme-provider.tsx`, `src/app/app-shell.tsx`)가 이 스크립트를 둡니다. 스크립트가 `<html>`의 속성을 바꾸므로 루트 레이아웃의 `<html>`에는 `suppressHydrationWarning`이 있습니다. Content-Security-Policy를 도입하면 이 스크립트에 nonce나 hash를 허용해야 합니다.
-- Storybook 툴바의 "테마"로 스토리를 테마별로 볼 수 있습니다. `npm run test:storybook`은 모든 스토리를 라이트 모드 브라우저와 다크 모드 브라우저(`storybook (chromium, dark)`)에서 한 번씩 실행해 두 테마 모두 접근성 검사를 합니다.
-- 테스트: `src/shared/theme/theme.test.ts`(테마 선택과 적용), `src/features/theme-switcher/theme-switcher.stories.tsx`(전환 UI), `e2e/dark-mode.spec.ts`(운영체제 설정, 저장한 선택, 깜빡임 없음, 두 테마의 접근성).
+- Storybook을 더하면(`npm run g -- story`) 툴바의 "테마"로 스토리를 테마별로 볼 수 있고, `npm run test:storybook`이 모든 스토리를 라이트 모드 브라우저와 다크 모드 브라우저(`storybook (chromium, dark)`)에서 한 번씩 실행해 두 테마 모두 접근성 검사를 합니다.
+- 테스트: `src/shared/theme/theme.test.ts`(테마 선택과 적용), `e2e/dark-mode.spec.ts`(전환 UI, 운영체제 설정, 저장한 선택, 깜빡임 없음, 두 테마의 접근성).
 
 ## 컨테이너 이미지(Docker)
 
@@ -620,7 +636,7 @@ docker:
 - 다른 출처의 백엔드(`static-export`): 진행률을 받으려고 `upload` 이벤트를 들으면 브라우저가 업로드 전에 CORS preflight(`OPTIONS /files`)를 보냅니다. 백엔드는 preflight에 답하고(`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods: POST`), 업로드 응답에도 `Access-Control-Allow-Origin`을 붙여야 합니다. 목 백엔드도 그렇게 답합니다. 개발 서버와 E2E에서 브라우저의 MSW(서비스 워커)는 Base가 fetch만 준비될 때까지 붙잡아 두므로(`src/shared/mocks/browser-instrumentation.ts`), 페이지를 연 직후 서비스 워커가 준비되기 전에 올린 업로드는 MSW를 거치지 않고 실패할 수 있습니다. 다시 시도하면 됩니다. E2E는 fetch 하나로 준비를 기다린 뒤 올립니다.
 - MSW: `src/shared/mocks/files.ts`의 핸들러가 올린 파일의 이름·크기·형식을 담아 답하고, 명세처럼 413·415로 거절합니다. `src/shared/mocks/handlers.ts`(확장 지점 MSW 핸들러의 조립 파일)가 생성된 핸들러보다 앞에 둡니다. 실패와 취소를 직접 해 보려면 파일 이름을 바꿉니다. 이름에 `slow`가 들면 3초 뒤에 답하고(그동안 취소해 봅니다), `flaky`가 들면 그 이름으로 처음 올릴 때 503으로 실패합니다(다시 시도하면 받습니다). 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `filesHandlers`를 지웁니다.
 - Rendering Mode: 페이지 뼈대는 빌드할 때 미리 만들고 업로드는 브라우저가 보내므로 `server`와 `static-export`에서 같은 코드로 동작합니다. `apiUpload`는 브라우저에서만 씁니다. 서버 코드에서 올려야 하면 생성된 fetch 함수를 씁니다.
-- 테스트: `src/shared/upload/api-upload.test.ts`(`apiFetch`와 같은 주소, multipart 본문, 진행률, `onProgress`가 없으면 preflight 없음, `ApiError`, 응답 스키마 검증, 취소), `src/shared/upload/upload-policy.test.ts`(기준이 명세와 같음), `src/features/file-uploader/file-uploader.test.tsx`(고르기·끌어 놓기, 진행 막대와 상태 문구, 알림 영역, 크기·형식 검사, 취소 후 다시 시도와 포커스, 더블 클릭, 오프라인, 거절 후 다시 시도, 여러 파일, 키보드로 고르기 창 열기), `file-uploader.stories.tsx`(axe 검사, 키보드 포커스, 거절한 항목. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/file-upload.spec.ts`(빌드한 앱에서 진행률, 끌어 놓기, 크기·형식 검사와 알림, 취소와 다시 시도, 실패와 다시 시도, 운영체제가 라이트·다크 모드일 때의 axe 검사). E2E의 진행률 검사는 Chromium의 네트워크 흉내로 업로드를 늦추고, `static-export`의 E2E처럼 브라우저의 MSW(서비스 워커)가 요청을 받으면 본문이 네트워크를 지나지 않아 중간값 없이 끝나므로 중간값은 `server`에서만 봅니다.
+- 테스트: `src/shared/upload/api-upload.test.ts`(`apiFetch`와 같은 주소, multipart 본문, 진행률, `onProgress`가 없으면 preflight 없음, `ApiError`, 응답 스키마 검증, 취소), `src/shared/upload/upload-policy.test.ts`(기준이 명세와 같음), `src/features/file-uploader/file-uploader.test.tsx`(고르기·끌어 놓기, 진행 막대와 상태 문구, 알림 영역, 크기·형식 검사, 취소 후 다시 시도와 포커스, 더블 클릭, 오프라인, 거절 후 다시 시도, 여러 파일, 키보드로 고르기 창 열기), `file-uploader.test.tsx`의 axe 검사(키보드로 간 파일 선택 버튼, 거절한 항목), `e2e/file-upload.spec.ts`(빌드한 앱에서 진행률, 끌어 놓기, 크기·형식 검사와 알림, 취소와 다시 시도, 실패와 다시 시도, 운영체제가 라이트·다크 모드일 때의 axe 검사). E2E의 진행률 검사는 Chromium의 네트워크 흉내로 업로드를 늦추고, `static-export`의 E2E처럼 브라우저의 MSW(서비스 워커)가 요청을 받으면 본문이 네트워크를 지나지 않아 중간값 없이 끝나므로 중간값은 `server`에서만 봅니다.
 - 샘플을 지우려면 `src/app/upload/`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/mocks/files.ts`(와 `handlers.ts`의 `filesHandlers`), `e2e/file-upload.spec.ts`와 샘플 operation의 기준·테스트(`src/shared/upload/upload-policy.ts`, `upload-policy.test.ts`, `api-upload.test.ts`)를 지우고 `openapi.yaml`에서 `files` tag·경로·스키마(`FileUpload`, `UploadedFile`, `UploadError`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 업로드에 쓸 `src/shared/upload/api-upload.ts`는 남겨 두고, 새 operation으로 테스트를 다시 씁니다.
 
 ## 다국어(i18n)
@@ -640,7 +656,7 @@ docker:
 - sitemap: sitemap을 만드는 Recipe(`seo` 등)와 함께 넣으면 `[locale]` 아래 페이지가 locale마다 sitemap에 들어가 서로를 언어별 주소로 알리고, locale을 골라 보내는 홈(`/`)은 빠집니다(`routing.ts`의 `i18nSitemapRules`, 확장 지점 sitemap 규칙).
 - 날짜·시각은 `Asia/Seoul` 시간대로 보여 줍니다(`src/shared/i18n/messages.ts`의 `TIME_ZONE`). locale을 더하려면 `routing.ts`의 `locales`와 `LOCALE_NAMES`, 카탈로그(`<locale>.json`)와 `messages.ts`의 `MESSAGES`에 더합니다.
 - 다른 Recipe가 더한 화면(예: 머리글의 테마 전환)은 번역하지 않았습니다.
-- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `locale-alternates.test.ts`(번역한 페이지의 locale별 주소와 x-default, og:locale), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `src/features/locale-switcher/locale-switcher.stories.tsx`(locale 전환), `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, canonical과 hreflang, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).
+- 테스트: `src/shared/i18n/messages.test.tsx`(locale마다 같은 키, 없는 키의 타입 오류), `request.test.ts`(서버 컴포넌트가 locale을 넘기지 않으면 실패), `locale-alternates.test.ts`(번역한 페이지의 locale별 주소와 x-default, og:locale), `i18n-proxy.test.ts`(홈에서 locale 고르기, 고른 locale 저장, 번역하지 않은 페이지), `src/features/i18n-example/cart-counter.test.tsx`(locale별 복수형), `e2e/i18n.spec.ts`의 locale 전환, `e2e/i18n.spec.ts`(locale이 붙은 주소, 빌드할 때 번역한 HTML, canonical과 hreflang, locale 전환, 번역하지 않은 페이지, 홈에서 locale 고르기, 접근성).
 
 ## 무한 스크롤과 페이지네이션
 
@@ -662,7 +678,7 @@ docker:
 - 다른 목록에 쓰려면: `src/features/article-list/`의 두 컴포넌트를 복사해, 쓰는 queryOptions와 항목 컴포넌트(`ArticleSummary`)를 바꿉니다. `InfiniteList`와 `Pagination`은 그대로 씁니다. 백엔드가 배열 대신 `{ items, total }` 같은 객체를 돌려주면 infiniteQueryOptions의 `getNextPageParam`과 `pages.flat()`을 그 모양에 맞게 고칩니다.
 - Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고 게시글은 브라우저가 가져옵니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 서버에서 첫 페이지를 미리 가져오려면(`server`만) Base의 `src/app/products/page.tsx`처럼 페이지에서 `getQueryClient().infiniteQuery(listArticlesInfiniteQueryOptions({ pageSize: 10 }))`로 가져와 `HydrationBoundary`로 넘깁니다. Feature가 같은 infiniteQueryOptions를 쓰므로 브라우저는 둘째 페이지부터 요청합니다.
 - MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/articles.ts`의 핸들러가 고정된 규칙으로 만든 게시글 46개(한 페이지 10개씩 다섯 페이지, 마지막 페이지는 6개)를 페이지 번호대로 나눠 돌려줍니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `articlesHandlers`를 지웁니다.
-- 테스트: `src/features/article-list/article-infinite-list.test.tsx`(스크롤로 다음 페이지, 빈 페이지에서 멈춤, 더 보기 버튼과 포커스, 버튼에 포커스가 있을 때 멈춤, 첫 페이지·다음 페이지 실패와 다시 시도, 받아 둔 페이지를 다시 가져오다 실패해도 목록 유지, 빈 목록), `article-paged-list.test.tsx`(쪽 수, 쪽 번호·이전·다음과 요청 파라미터, 한 쪽이 실패해도 다른 쪽으로 이동, 게시글 수 실패와 다시 시도), `src/shared/paging/pagination.test.tsx`(줄임표로 줄이는 쪽 번호), `infinite-list.stories.tsx`·`pagination.stories.tsx`(실제 브라우저의 IntersectionObserver, 키보드, 상태마다 axe 검사. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/infinite-list.spec.ts`(빌드한 앱에서 스크롤로 마지막 페이지까지, 키보드로 더 보기, 브라우저의 fetch를 감싸 둘째 페이지를 실패시킨 뒤 다시 시도, 번호형 페이지네이션, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 테스트: `src/features/article-list/article-infinite-list.test.tsx`(스크롤로 다음 페이지, 빈 페이지에서 멈춤, 더 보기 버튼과 포커스, 버튼에 포커스가 있을 때 멈춤, 첫 페이지·다음 페이지 실패와 다시 시도, 받아 둔 페이지를 다시 가져오다 실패해도 목록 유지, 빈 목록), `article-paged-list.test.tsx`(쪽 수, 쪽 번호·이전·다음과 요청 파라미터, 한 쪽이 실패해도 다른 쪽으로 이동, 게시글 수 실패와 다시 시도), `src/shared/paging/pagination.test.tsx`(줄임표로 줄이는 쪽 번호), `infinite-list.test.tsx`·`pagination.test.tsx`의 상태마다 axe 검사(실제 브라우저의 IntersectionObserver와 스크롤은 `e2e/infinite-list.spec.ts`가 봅니다), `e2e/infinite-list.spec.ts`(빌드한 앱에서 스크롤로 마지막 페이지까지, 키보드로 더 보기, 브라우저의 fetch를 감싸 둘째 페이지를 실패시킨 뒤 다시 시도, 번호형 페이지네이션, 운영체제가 라이트·다크 모드일 때의 axe 검사).
 - 샘플을 지우려면 `src/app/articles/`, `src/features/article-list/`, `src/queries/articles/`, `src/shared/mocks/articles.ts`(와 `src/shared/mocks/handlers.ts`의 `articlesHandlers`), `e2e/infinite-list.spec.ts`를 지우고 `openapi.yaml`에서 `articles` tag·경로·스키마(`Article`, `ArticleCount`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 목록에 쓸 `src/shared/paging/`은 남겨 둡니다.
 
 ## 다단계 폼
@@ -684,7 +700,7 @@ docker:
 - 접근성: 단계 표시(`StepIndicator`)는 지금 단계를 `aria-current="step"`으로, 끝낸 단계를 "(완료)"로 알립니다. 단계를 옮기면 포커스가 그 단계의 제목("담당자 정보 (4단계 중 2단계)")으로 가서 스크린 리더가 지금 단계를 읽고, 검증에 실패하면 첫 오류 필드로 갑니다. 처음 열 때와 새로 고쳐 이어 갈 때는 포커스를 옮기지 않습니다. 브라우저의 뒤로 가기는 단계가 아니라 이전 페이지로 갑니다.
 - Rendering Mode: 페이지 뼈대(첫 단계)는 빌드할 때 미리 만들고, 단계와 값은 브라우저가 들고 있다가 신청할 때만 요청합니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 그래서 두 Rendering Mode에서 같은 코드로 동작합니다.
 - 다른 다단계 폼 만들기: 명세에 요청 본문이 있는 operation을 더하고 `npm run api:gen`, `npm run g -- mutation <operationId>`를 실행한 뒤, `src/features/partner-application/`을 복사해 `partner-application-steps.tsx`의 단계(제목, `.pick`으로 고른 스키마, 입력 요소, 확인 단계에 보일 값)와 폼의 요청 본문 스키마, 뮤테이션 훅, 저장소 키를 바꿉니다. 단계를 더하거나 순서를 바꿀 때도 단계 목록(`PARTNER_APPLICATION_STEPS`)만 고칩니다.
-- 테스트: `src/features/partner-application/partner-application-form.test.tsx`(단계마다 그 단계만 검증, 첫 오류 필드와 단계 제목으로 포커스, 이전·다음과 수정 뒤에도 값 유지, 한 번에 보내는 요청 본문, 실패, 보내는 동안 끈 버튼, 새로 고침과 맞지 않는 저장 값), `src/shared/multi-step-form/draft-storage.test.ts`(저장소를 읽고 쓰지 못할 때와 모양이 다른 값), `partner-application-form.stories.tsx`(첫 단계, 검증 오류, 확인 단계의 axe 검사. `dark-mode`가 있으면 다크 모드 브라우저에서도 실행), `e2e/multi-step-form.spec.ts`(빌드한 앱에서 끝까지 신청, 검증 오류와 키보드 입력, 이전·다음과 새로 고침, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 테스트: `src/features/partner-application/partner-application-form.test.tsx`(단계마다 그 단계만 검증, 첫 오류 필드와 단계 제목으로 포커스, 이전·다음과 수정 뒤에도 값 유지, 한 번에 보내는 요청 본문, 실패, 보내는 동안 끈 버튼, 새로 고침과 맞지 않는 저장 값), `src/shared/multi-step-form/draft-storage.test.ts`(저장소를 읽고 쓰지 못할 때와 모양이 다른 값), `partner-application-form.test.tsx`의 axe 검사(첫 단계, 검증 오류, 확인 단계), `e2e/multi-step-form.spec.ts`(빌드한 앱에서 끝까지 신청, 검증 오류와 키보드 입력, 이전·다음과 새로 고침, 운영체제가 라이트·다크 모드일 때의 axe 검사).
 - 샘플을 지우려면 `src/app/partners/`, `src/features/partner-application/`, `src/queries/partners/`, `e2e/multi-step-form.spec.ts`와 `openapi.yaml`의 `partners` tag·경로·스키마(`PartnerApplication`, `PartnerCategory`, `PartnerApplicationReceipt`)를 지우고 `npm run api:gen`을 실행합니다. 새 다단계 폼에 쓸 `src/shared/multi-step-form/`은 남겨 둡니다.
 
 ## 낙관적 업데이트
@@ -755,7 +771,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 
 ### 테스트와 샘플 지우기
 
-- 테스트: `src/shared/realtime/event-stream.test.ts`(이벤트 형식 읽기, 다시 연결과 `Last-Event-ID`, 실패할 때마다 늘어나는 대기 시간, 연결 끊기), `src/features/delivery-board/delivery-board.test.tsx`(이벤트가 목록을 다시 요청하지 않고 캐시를 고침, 오래된 이벤트와 명세와 다른 이벤트, 다시 연결한 뒤 놓친 변경 맞추기, 가져오는 중에 온 이벤트), `connection-status.stories.tsx`(axe 검사), `e2e/realtime.spec.ts`(빌드한 앱에서 실시간 반영, 끊긴 뒤 다시 연결해 맞추기, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 테스트: `src/shared/realtime/event-stream.test.ts`(이벤트 형식 읽기, 다시 연결과 `Last-Event-ID`, 실패할 때마다 늘어나는 대기 시간, 연결 끊기), `src/features/delivery-board/delivery-board.test.tsx`(이벤트가 목록을 다시 요청하지 않고 캐시를 고침, 오래된 이벤트와 명세와 다른 이벤트, 다시 연결한 뒤 놓친 변경 맞추기, 가져오는 중에 온 이벤트), `connection-status.test.tsx`(상태마다 글자와 axe 검사), `e2e/realtime.spec.ts`(빌드한 앱에서 실시간 반영, 끊긴 뒤 다시 연결해 맞추기, 운영체제가 라이트·다크 모드일 때의 axe 검사).
 - 샘플을 지우려면 `src/app/realtime/`, `src/features/delivery-board/`, `src/queries/deliveries/`, `src/shared/mocks/deliveries.ts`(와 `handlers.ts`의 `deliveriesHandlers`), `e2e/realtime.spec.ts`를 지우고 `openapi.yaml`에서 `deliveries` tag·경로·스키마(`Delivery`, `DeliveryStatus`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 이벤트 스트림에 쓸 `src/shared/realtime/`과 `src/shared/mocks/event-stream.ts`는 남겨 둡니다.
 
 ## 라우트별 Rendering Mode
@@ -886,7 +902,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 - Feature: 머리글 링크와 쇼핑몰 안 이동 `src/features/shop-nav/`, 상품 목록·상세 `src/features/shop-catalog/`(`npm run g -- page`가 만든 보기를 고친 것), 담는 폼과 장바구니 `src/features/shop-cart/`(`npm run g -- form addCartItem`이 만든 폼을 수량만 받게 고친 것), 주문서·결제창·주문 완료 `src/features/shop-checkout/`(multi-step-form Recipe의 `useFormSteps`·`StepForm`과 Base의 `useSchemaForm`으로 만든 단계, `checkout-steps.tsx`에 단계마다 제목·스키마·입력 요소·확인 단계의 값).
 - 목 백엔드: `src/shared/mocks/shop.ts`가 명세의 example 상품으로 시작해 장바구니와 주문을 서버 프로세스의 메모리에 기억하고 재고를 확인합니다. 장바구니를 바꾸는 요청에는 1초 뒤에 답하고, 재고가 2개인 한정판 머그(6번)를 세 개째 담으면 늘 409로 거절합니다. 그래서 개발 서버에서도 응답 전에 바뀌는 모습과 되돌리기를 볼 수 있고, E2E가 테스트만을 위한 코드 없이 실패를 재현합니다. 주문해도 재고는 줄이지 않습니다. 확장 지점 `mockHandlers`로 생성된 핸들러보다 앞에 두고, 목 백엔드 주소(`MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 서버를 다시 띄우면 처음 상태로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 그 테스트(`shop.test.ts`), `src/shared/mocks/handlers.ts`의 `shopHandlers`를 지웁니다.
 - 검색 노출: 장바구니, 주문서, 주문 화면은 `noindex`이고, sitemap을 만드는 Recipe(seo)와 함께 넣으면 sitemap에서도 빠집니다(`src/shared/shop/shop-routes.ts`의 `shopSitemapRules`). 상품 상세(동적 세그먼트)는 sitemap에 저절로 들어가지 않으므로, 필요하면 seo의 `src/app/sitemap.ts`에 상품 목록을 가져와 더합니다.
-- 테스트: `src/shared/mocks/shop.test.ts`(장바구니와 합계, 재고 부족 409, 주문과 결제, 결제 금액 확인), `src/shared/shop/cart-id.test.ts`, `src/features/shop-catalog/catalog-product-list.test.tsx`, `src/features/shop-nav/shop-nav.test.tsx`, `src/features/shop-cart/add-to-cart-form.test.tsx`·`cart-view.test.tsx`(응답 전에 바뀌는 장바구니, 거절되면 다시 가져오기 전에 되돌리고 알림, 없는 장바구니, hydration 전에는 꺼진 담는 폼), `src/features/shop-checkout/checkout-form.test.tsx`(단계마다의 검증, 이전·수정, 장바구니 id와 함께 주문, 거절), `fake-payment.test.tsx`(결제 확인, 장바구니 id와 주문서 지우기, 주문 완료), 주문서의 스토리, `e2e/commerce.spec.ts`(ISR로 미리 렌더링한 목록·상세, 상품 탐색 → 장바구니 → 주문서 → 가짜 결제 → 주문 완료, 재고 부족으로 거절된 담기·수량 변경의 되돌리기, 접근성).
+- 테스트: `src/shared/mocks/shop.test.ts`(장바구니와 합계, 재고 부족 409, 주문과 결제, 결제 금액 확인), `src/shared/shop/cart-id.test.ts`, `src/features/shop-catalog/catalog-product-list.test.tsx`, `src/features/shop-nav/shop-nav.test.tsx`, `src/features/shop-cart/add-to-cart-form.test.tsx`·`cart-view.test.tsx`(응답 전에 바뀌는 장바구니, 거절되면 다시 가져오기 전에 되돌리고 알림, 없는 장바구니, hydration 전에는 꺼진 담는 폼), `src/features/shop-checkout/checkout-form.test.tsx`(단계마다의 검증, 이전·수정, 장바구니 id와 함께 주문, 거절), `fake-payment.test.tsx`(결제 확인, 장바구니 id와 주문서 지우기, 주문 완료), `checkout-form.test.tsx`의 axe 검사(처음 화면, 검증 오류, 주문 확인), `e2e/commerce.spec.ts`(ISR로 미리 렌더링한 목록·상세, 상품 탐색 → 장바구니 → 주문서 → 가짜 결제 → 주문 완료, 재고 부족으로 거절된 담기·수량 변경의 되돌리기, 접근성).
 - 쇼핑몰을 지우려면 `src/app/shop/`, `src/features/shop-nav/`, `shop-catalog/`, `shop-cart/`, `shop-checkout/`, `src/queries/catalog/`, `cart/`, `orders/`, `src/shared/shop/`, `src/shared/mocks/shop.ts`와 `shop.test.ts`(와 `handlers.ts`의 `shopHandlers`), `e2e/commerce.spec.ts`를 지우고, `src/app/app-shell.tsx`의 `ShopLink`(sitemap이 있으면 `src/app/sitemap-rules.ts`의 `shopSitemapRules`), `openapi.yaml`의 `catalog`·`cart`·`orders` tag와 경로, 스키마, 파라미터를 뺀 뒤 `npm run api:gen`을 실행합니다.
 
 ## 관리자 대시보드
@@ -905,7 +921,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 - Query Domain: `src/queries/users/`는 `npm run g -- query listUsers`, `query getUserStats`, `query getUser`, `mutation createUser`, `mutation updateUser`를 차례로 실행해 만든 코드 그대로입니다. 사용자를 추가하거나 고치면 users Query Domain 전체를 무효화하므로 목록과 통계를 다시 가져옵니다.
 - Feature: 사용자 현황 `src/features/user-stats/`(차트는 chart Recipe의 `ChartFigure`로 감싸 데이터 표를 함께 둔다), 사용자 목록 `src/features/user-table/`(table Recipe의 회원 테이블을 복사해 열과 파라미터를 바꾼 것), 추가·수정 폼 `src/features/user-form/`(`npm run g -- form createUser|updateUser --feature user-form`이 만든 폼에서 레이블, 지금 값 채우기, 저장한 뒤 목록으로 옮겨 가기, 같은 이메일 알림을 고친 것), 대시보드 안의 이동과 머리글 링크 `src/features/dashboard-nav/`.
 - 목 백엔드: `src/shared/mocks/users.ts`가 처음 사용자 12명(auth의 목 계정 `user@example.com`, `admin@example.com` 포함)으로 시작해 추가·수정한 사용자를 서버 프로세스의 메모리에 기억합니다. 실제 백엔드처럼 대시보드가 관리하는 사용자와 로그인하는 계정은 같은 사용자 저장소에 있습니다. 이름·이메일·역할은 auth의 목 백엔드가 가진 사용자 저장소(`mockUsers`, `saveMockUser`)에 두고, 상태·부서·추가한 날만 이 파일이 기억합니다. 그래서 목록의 사용자와 추가한 사용자 모두 비밀번호 `password`로 로그인하고, 역할을 바꾸면 목 백엔드는 다음 요청부터 바뀐 역할로 추가·수정을 받거나 403으로 거절하며, 그 계정의 화면 접근 규칙은 다음 로그인이나 refresh(목 백엔드의 accessToken은 10초 뒤에 만료됩니다)부터 바뀝니다. 상태는 대시보드에만 있어 목 백엔드는 정지한 사용자의 로그인도 받습니다. 요청한 사용자는 auth의 목 백엔드가 발급한 accessToken으로 확인합니다(`mockUserOf`). 확장 지점 `mockHandlers`로 생성된 핸들러보다 앞에 두고, 생성된 핸들러처럼 목 백엔드 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 서버를 다시 띄우면 처음 상태로 돌아갑니다. 실제 백엔드로 바꾸면 이 파일과 그 테스트(`users.test.ts`), `src/shared/mocks/handlers.ts`의 `usersHandlers`를 지웁니다.
-- 테스트: `src/shared/mocks/users.test.ts`(로그인하지 않으면 401, 관리자가 아닌 사용자의 추가·수정은 403, 관리자는 추가·수정, 역할을 바꾼 계정은 다시 로그인하면 바뀐 역할로 동작, 추가한 사용자와 바꾼 이메일로 로그인), `src/features/user-stats/user-stats-overview.test.tsx`, `src/features/user-table/user-table.test.tsx`(정렬·검색·역할·상태 필터가 요청 파라미터로 이어짐, 수정 링크), `src/features/user-form/*.test.tsx`(추가하면 목록을 무효화하고 목록으로 옮겨 감, 지금 값 채우기, 부서 지우기, 같은 이메일, 401·403이면 알리고 접근 규칙을 다시 확인), `src/shared/dashboard/dashboard-routes.test.ts`(역할마다 들어가는 화면), 폼과 차트의 스토리, `e2e/dashboard.spec.ts`(로그인 → 통계 확인 → 사용자 추가 → 목록과 통계에 반영 → 수정, 관리자가 아니면 추가·수정 화면에 들어가지 못함, BFF 프록시로 바로 보낸 요청도 401·403, 폼을 연 뒤 세션이 바뀌면 접근 권한 없음·로그인 페이지, 관리자가 역할을 바꾼 계정은 다시 로그인하면 바뀐 역할로 추가·수정 화면에 들어가거나 접근 권한 없음과 403을 받음, 접근성). 컴포넌트 테스트는 `signInAsMockUser`(auth Recipe의 `src/shared/auth/mock-session.ts`)로 누구로 로그인했는지 정합니다.
+- 테스트: `src/shared/mocks/users.test.ts`(로그인하지 않으면 401, 관리자가 아닌 사용자의 추가·수정은 403, 관리자는 추가·수정, 역할을 바꾼 계정은 다시 로그인하면 바뀐 역할로 동작, 추가한 사용자와 바꾼 이메일로 로그인), `src/features/user-stats/user-stats-overview.test.tsx`, `src/features/user-table/user-table.test.tsx`(정렬·검색·역할·상태 필터가 요청 파라미터로 이어짐, 수정 링크), `src/features/user-form/*.test.tsx`(추가하면 목록을 무효화하고 목록으로 옮겨 감, 지금 값 채우기, 부서 지우기, 같은 이메일, 401·403이면 알리고 접근 규칙을 다시 확인), `src/shared/dashboard/dashboard-routes.test.ts`(역할마다 들어가는 화면), 폼(처음 화면, 검증 오류)과 통계의 axe 검사, `e2e/dashboard.spec.ts`(로그인 → 통계 확인 → 사용자 추가 → 목록과 통계에 반영 → 수정, 관리자가 아니면 추가·수정 화면에 들어가지 못함, BFF 프록시로 바로 보낸 요청도 401·403, 폼을 연 뒤 세션이 바뀌면 접근 권한 없음·로그인 페이지, 관리자가 역할을 바꾼 계정은 다시 로그인하면 바뀐 역할로 추가·수정 화면에 들어가거나 접근 권한 없음과 403을 받음, 접근성). 컴포넌트 테스트는 `signInAsMockUser`(auth Recipe의 `src/shared/auth/mock-session.ts`)로 누구로 로그인했는지 정합니다.
 - 대시보드를 지우려면 `src/app/dashboard/`, `src/features/user-stats/`, `user-table/`, `user-form/`, `dashboard-nav/`, `src/queries/users/`, `src/shared/dashboard/`, `src/shared/mocks/users.ts`와 `users.test.ts`(와 `handlers.ts`의 `usersHandlers`), `e2e/dashboard.spec.ts`를 지우고, `src/app/app-shell.tsx`의 `DashboardLink`, `access-rules.ts`의 대시보드 규칙, `openapi.yaml`의 `users` tag·경로·스키마를 뺀 뒤 `npm run api:gen`을 실행합니다.
 
 ## 마케팅 랜딩
@@ -927,6 +943,6 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 - 검색 노출: 페이지는 콘텐츠의 제목·설명을 title·description(og:title·og:description, Twitter 카드)으로, 자기 주소를 canonical로, 같은 페이지의 locale별 주소와 x-default(기본 locale의 주소)를 hreflang으로 알립니다(`localeAlternates(LANDING_PATH)`). og:locale은 `[locale]` 레이아웃이 알리고, sitemap에는 i18n Recipe의 sitemap 규칙이 locale마다 서로를 언어별 주소로 묶어 넣으므로 따로 적지 않습니다.
 - 공유 이미지: locale마다 그 locale의 제목과 설명으로 그린 이미지(`og-image.png`)를 빌드할 때 만들고, 페이지의 metadata가 og:image(와 Twitter 카드의 이미지)로 알립니다. `seo` Recipe처럼 페이지 폴더에 `opengraph-image.tsx`를 두지 않는 것은, Next.js가 그 이미지 라우트에는 `[locale]` 레이아웃의 `generateStaticParams`를 쓰지 않아 locale마다 미리 만들지 못하기 때문입니다(static-export는 빌드가 실패합니다). 그래서 locale을 스스로 정하는 Route Handler(`generateStaticParams`)로 두고, 주소가 `.png`로 끝나 정적 파일 서버도 `image/png`로 응답합니다. `[locale]` 아래의 다른 번역 페이지에 공유 이미지를 따로 줄 때도 이 방법을 씁니다.
 - 랜딩을 홈(`/ko`, `/en`)으로 쓰려면 `src/app/[locale]/landing/`의 페이지와 `og-image.png`를 `src/app/[locale]/`로 옮겨 i18n Recipe의 홈을 대신하고, 주소(`src/features/landing/landing-routes.ts`의 `LANDING_PATH`와 `landingOgImagePath`)를 고칩니다. static-export Starter의 `/`는 `src/app/page.tsx`가 그리므로 그 파일도 고칩니다.
-- 목 백엔드: `src/shared/mocks/landing.ts`가 `ko`, `en` 콘텐츠를 돌려주고 그 밖의 locale은 404로 답합니다. 확장 지점 `mockHandlers`로 생성된 핸들러(늘 명세의 `example`인 `ko` 콘텐츠)보다 앞에 두고, 목 백엔드 주소(`MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 실제 백엔드(CMS)로 바꾸면 이 파일과 그 테스트(`landing.test.ts`), `src/shared/mocks/handlers.ts`의 `landingHandlers`를 지웁니다. 스토리, 단위 테스트, E2E도 이 파일의 콘텐츠를 쓰므로 그때 함께 고칩니다.
-- 테스트: `src/shared/mocks/landing.test.ts`(locale마다 다른 콘텐츠, 없는 locale은 404), `src/features/landing/landing.test.tsx`(섹션마다 제목으로 이름 붙은 랜드마크, 자주 묻는 질문 펼치기), `landing.stories.tsx`(ko·en, 펼친 답의 접근성), `e2e/landing.spec.ts`(주요 섹션, 브라우저가 콘텐츠를 다시 부르지 않음, 빌드할 때 렌더링한 HTML, 언어 전환, 머리글의 링크, 언어별 메타데이터와 공유 이미지, sitemap, 없는 locale의 404, 자주 묻는 질문을 펼친 상태까지 접근성).
+- 목 백엔드: `src/shared/mocks/landing.ts`가 `ko`, `en` 콘텐츠를 돌려주고 그 밖의 locale은 404로 답합니다. 확장 지점 `mockHandlers`로 생성된 핸들러(늘 명세의 `example`인 `ko` 콘텐츠)보다 앞에 두고, 목 백엔드 주소(`MOCK_API_BASE_URL`)로 가는 요청만 받습니다. 실제 백엔드(CMS)로 바꾸면 이 파일과 그 테스트(`landing.test.ts`), `src/shared/mocks/handlers.ts`의 `landingHandlers`를 지웁니다. 단위 테스트와 E2E도 이 파일의 콘텐츠를 쓰므로 그때 함께 고칩니다.
+- 테스트: `src/shared/mocks/landing.test.ts`(locale마다 다른 콘텐츠, 없는 locale은 404), `src/features/landing/landing.test.tsx`(섹션마다 제목으로 이름 붙은 랜드마크, 자주 묻는 질문 펼치기), `landing.test.tsx`의 axe 검사(ko·en, 펼친 답), `e2e/landing.spec.ts`(주요 섹션, 브라우저가 콘텐츠를 다시 부르지 않음, 빌드할 때 렌더링한 HTML, 언어 전환, 머리글의 링크, 언어별 메타데이터와 공유 이미지, sitemap, 없는 locale의 404, 자주 묻는 질문을 펼친 상태까지 접근성).
 - 랜딩을 지우려면 `src/app/[locale]/landing/`, `src/features/landing/`, `src/queries/landing/`, `src/shared/mocks/landing.ts`와 `landing.test.ts`(와 `handlers.ts`의 `landingHandlers`), `e2e/landing.spec.ts`를 지우고, `src/app/app-shell.tsx`의 `LandingLink`, 메시지 카탈로그의 `LandingLink`, `openapi.yaml`의 `landing` tag·경로·스키마를 뺀 뒤 `npm run api:gen`을 실행합니다.
