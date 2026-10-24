@@ -2,13 +2,7 @@
 // 원본(packages/devc-frontend-generator/): archetypes/landing/src/features/landing/landing.tsx
 
 import type { ReactNode } from 'react'
-import type {
-  LandingFaqSection,
-  LandingFeatureSection,
-  LandingHero,
-  LandingPageContent,
-  LandingTestimonialSection,
-} from '@/shared/api/generated/model'
+import type { LandingPageContent } from '@/shared/api/generated/model'
 import { buttonVariants } from '@/shared/ui/button'
 
 /**
@@ -22,80 +16,58 @@ import { buttonVariants } from '@/shared/ui/button'
  *
  * 섹션을 더하려면 명세(openapi.yaml)의 LandingPageContent에 스키마를 더하고 npm run api:gen을 실행한 뒤 여기에 섹션을 더한다.
  */
-export function Landing({ content }: Readonly<{ content: LandingPageContent }>) {
+export function Landing({
+  content: { hero, features, testimonials, faqs },
+}: Readonly<{ content: LandingPageContent }>) {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-16 px-4 py-12">
-      <Hero hero={content.hero} />
-      <Features section={content.features} />
-      <Testimonials section={content.testimonials} />
-      <Faqs section={content.faqs} />
+      <section aria-labelledby="hero-heading" className="flex flex-col items-start gap-4">
+        <h1 id="hero-heading" className="text-lg font-semibold">
+          {hero.heading}
+        </h1>
+        <p className="text-muted-foreground">{hero.body}</p>
+        {/* 페이지 안의 위치(#features)나 다른 사이트로 가는 링크라 next/link 대신 <a>를 쓴다. */}
+        <a href={hero.callToAction.href} className={buttonVariants()}>
+          {hero.callToAction.label}
+        </a>
+      </section>
+      <LandingSection id="features" heading={features.heading}>
+        <ul className="grid gap-4 md:grid-cols-3">
+          {features.items.map((feature) => (
+            <li key={feature.id} className="flex flex-col gap-2 rounded-lg border border-border p-4">
+              <h3 className="font-medium">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground">{feature.body}</p>
+            </li>
+          ))}
+        </ul>
+      </LandingSection>
+      <LandingSection id="testimonials" heading={testimonials.heading}>
+        <ul className="grid gap-4 md:grid-cols-2">
+          {testimonials.items.map((testimonial) => (
+            <li key={testimonial.id}>
+              <figure className="flex h-full flex-col gap-2 rounded-lg bg-muted p-4">
+                <blockquote>
+                  <p>{testimonial.quote}</p>
+                </blockquote>
+                <figcaption className="text-sm text-muted-foreground">
+                  {testimonial.author}, {testimonial.role}
+                </figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
+      </LandingSection>
+      <LandingSection id="faqs" heading={faqs.heading}>
+        <div className="flex flex-col gap-2">
+          {faqs.items.map((faq) => (
+            <details key={faq.id} className="rounded-lg border border-border">
+              <summary className="focus-ring cursor-pointer rounded-lg p-4 font-medium">{faq.question}</summary>
+              <p className="px-4 pb-4 text-muted-foreground">{faq.answer}</p>
+            </details>
+          ))}
+        </div>
+      </LandingSection>
     </main>
-  )
-}
-
-function Hero({ hero }: Readonly<{ hero: LandingHero }>) {
-  return (
-    <section aria-labelledby="hero-heading" className="flex flex-col items-start gap-4">
-      <h1 id="hero-heading" className="text-lg font-semibold">
-        {hero.heading}
-      </h1>
-      <p className="text-muted-foreground">{hero.body}</p>
-      {/* 페이지 안의 위치(#features)나 다른 사이트로 가는 링크라 next/link 대신 <a>를 쓴다. */}
-      <a href={hero.callToAction.href} className={buttonVariants()}>
-        {hero.callToAction.label}
-      </a>
-    </section>
-  )
-}
-
-function Features({ section }: Readonly<{ section: LandingFeatureSection }>) {
-  return (
-    <LandingSection id="features" heading={section.heading}>
-      <ul className="grid gap-4 md:grid-cols-3">
-        {section.items.map((feature) => (
-          <li key={feature.id} className="flex flex-col gap-2 rounded-lg border border-border p-4">
-            <h3 className="font-medium">{feature.title}</h3>
-            <p className="text-sm text-muted-foreground">{feature.body}</p>
-          </li>
-        ))}
-      </ul>
-    </LandingSection>
-  )
-}
-
-function Testimonials({ section }: Readonly<{ section: LandingTestimonialSection }>) {
-  return (
-    <LandingSection id="testimonials" heading={section.heading}>
-      <ul className="grid gap-4 md:grid-cols-2">
-        {section.items.map((testimonial) => (
-          <li key={testimonial.id}>
-            <figure className="flex h-full flex-col gap-2 rounded-lg bg-muted p-4">
-              <blockquote>
-                <p>{testimonial.quote}</p>
-              </blockquote>
-              <figcaption className="text-sm text-muted-foreground">
-                {testimonial.author}, {testimonial.role}
-              </figcaption>
-            </figure>
-          </li>
-        ))}
-      </ul>
-    </LandingSection>
-  )
-}
-
-function Faqs({ section }: Readonly<{ section: LandingFaqSection }>) {
-  return (
-    <LandingSection id="faqs" heading={section.heading}>
-      <div className="flex flex-col gap-2">
-        {section.items.map((faq) => (
-          <details key={faq.id} className="rounded-lg border border-border">
-            <summary className="focus-ring cursor-pointer rounded-lg p-4 font-medium">{faq.question}</summary>
-            <p className="px-4 pb-4 text-muted-foreground">{faq.answer}</p>
-          </details>
-        ))}
-      </div>
-    </LandingSection>
   )
 }
 

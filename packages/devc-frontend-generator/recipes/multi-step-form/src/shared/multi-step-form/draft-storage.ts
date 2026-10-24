@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import { parseJson } from '@/shared/lib/json'
 
 // multi-step-form Recipe: 다단계 폼이 입력하던 값과 단계를 sessionStorage에 둔다. 페이지를 새로 고쳐도 이어서 입력하고,
 // 탭을 닫으면 지워진다. 다른 탭이나 다음 방문에는 남지 않도록 localStorage는 쓰지 않는다.
@@ -21,7 +22,13 @@ const StoredDraftSchema = z.object({
  * 값이 폼의 검증 규칙에 맞는지는 보지 않는다. 그 단계에서 다음으로 넘어갈 때, 그리고 제출할 때 검증한다.
  */
 export function readDraft(key: string): StoredDraft | undefined {
-  const parsed = StoredDraftSchema.safeParse(parseJson(readStorage(key)))
+  let text: string | null = null
+  try {
+    text = sessionStorage.getItem(key)
+  } catch {
+    // 저장소를 쓸 수 없으면 저장한 것도 없다.
+  }
+  const parsed = StoredDraftSchema.safeParse(parseJson(text))
   if (!parsed.success) return undefined
   const values = Object.fromEntries(
     Object.entries(parsed.data.values).filter(
@@ -47,22 +54,5 @@ export function removeDraft(key: string): void {
     sessionStorage.removeItem(key)
   } catch {
     // 저장소를 쓸 수 없으면 저장한 것도 없다.
-  }
-}
-
-function readStorage(key: string): string | null {
-  try {
-    return sessionStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function parseJson(text: string | null): unknown {
-  if (text === null) return undefined
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
   }
 }

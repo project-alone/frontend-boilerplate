@@ -1,5 +1,5 @@
 import 'server-only'
-import { ApiError } from '@/shared/api/api-fetch'
+import { isApiError } from '@/shared/api/api-fetch'
 import { getMe, login, logout, refreshTokens } from '@/shared/api/generated'
 import type { LoginRequest, TokenPair } from '@/shared/api/generated/model'
 import { createSession, type Session } from './session'
@@ -54,7 +54,7 @@ async function unlessUnauthorized<T>(request: Promise<T>): Promise<T | undefined
   try {
     return await request
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) return undefined
+    if (isApiError(error, 401)) return undefined
     throw error
   }
 }

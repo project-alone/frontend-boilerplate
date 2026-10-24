@@ -16,32 +16,15 @@ const SERIES = [
   { dataKey: 'currentMonth', name: '이번 달', fill: CHART_COLORS.primarySeries, stroke: CHART_COLORS.primarySeries },
 ] as const
 
-/** 이번 달과 지난달의 매출 합계를 한 문장으로 알린다. */
-function summarize(sales: readonly ChannelSales[]): string {
-  const total = (month: 'currentMonth' | 'previousMonth') => sales.reduce((sum, channel) => sum + channel[month], 0)
-  return `이번 달 합계 ${formatWon(total('currentMonth'))}, 지난달 합계 ${formatWon(total('previousMonth'))}`
-}
-
-/** 막대와 같은 모양의 견본을 붙인 범례. 글자는 계열 색 대신 본문 글자색으로 써서 계열 색이 바뀌어도 읽힌다. */
-function SeriesLegend() {
-  return (
-    <ul className="flex justify-center gap-4 text-sm text-foreground">
-      {SERIES.map((series) => (
-        <li key={series.dataKey} className="flex items-center gap-1">
-          <span className="size-3 border-2" style={{ backgroundColor: series.fill, borderColor: series.stroke }} />
-          {series.name}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 /** 판매 채널마다 지난달과 이번 달 매출을 나란히 놓은 막대 차트(비교)로 그린다. */
 export function ChannelSalesChart({ sales }: Readonly<{ sales: readonly ChannelSales[] }>) {
+  // 이번 달과 지난달의 매출 합계를 한 문장으로 알린다.
+  const total = (month: 'currentMonth' | 'previousMonth') => sales.reduce((sum, channel) => sum + channel[month], 0)
+
   return (
     <ChartFigure
       title="판매 채널별 매출"
-      summary={summarize(sales)}
+      summary={`이번 달 합계 ${formatWon(total('currentMonth'))}, 지난달 합계 ${formatWon(total('previousMonth'))}`}
       rows={sales}
       rowKey={(channel) => channel.channel}
       columns={[
@@ -63,7 +46,22 @@ export function ChannelSalesChart({ sales }: Readonly<{ sales: readonly ChannelS
           // 이름순 대신 막대와 같은 순서(지난달, 이번 달)로 계열을 놓는다.
           itemSorter={(item) => SERIES.findIndex((series) => series.dataKey === item.dataKey)}
         />
-        <Legend content={<SeriesLegend />} />
+        {/* 막대와 같은 모양의 견본을 붙인 범례. 글자는 계열 색 대신 본문 글자색으로 써서 계열 색이 바뀌어도 읽힌다. */}
+        <Legend
+          content={() => (
+            <ul className="flex justify-center gap-4 text-sm text-foreground">
+              {SERIES.map((series) => (
+                <li key={series.dataKey} className="flex items-center gap-1">
+                  <span
+                    className="size-3 border-2"
+                    style={{ backgroundColor: series.fill, borderColor: series.stroke }}
+                  />
+                  {series.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        />
         {SERIES.map((series) => (
           <Bar
             key={series.dataKey}

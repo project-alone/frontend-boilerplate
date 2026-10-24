@@ -6,10 +6,8 @@ import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import {
   CreateUserBody,
   ListUsersParams,
-  type ListUsersParamsOutput,
   Role,
   UpdateUserBody,
-  type User,
   type UserAccount,
   type UserAccountPage,
   type UserStats,
@@ -21,6 +19,8 @@ import {
   resetMockUsers as resetAuthMockUsers,
   saveMockUser,
 } from '@/shared/auth/auth-mock-handlers'
+import { slicePage } from '@/shared/lib/array'
+import { readJsonBody, searchParamsOf } from '@/shared/lib/http'
 
 // 대시보드 Archetype: 사용자 관리 API(users tag)를 흉내 내는 목 백엔드. 명세에서 생성한 핸들러는 늘 같은 example을
 // 돌려주므로, 추가하고 고친 사용자를 기억하고 쿼리 파라미터대로 거르고 정렬하는 핸들러를 따로 둔다. 확장 지점 mockHandlers
@@ -143,10 +143,6 @@ let profiles = new Map<number, Profile>()
 /** 대시보드는 사용자마다 역할 하나를 고르고, 로그인하는 사용자(auth의 User)는 역할 목록을 갖는다. 관리자는 사용자 역할도 갖는다. */
 const ROLES_OF: Record<Role, readonly Role[]> = { admin: ['admin', 'user'], user: ['user'] }
 
-function roleOf(user: User): Role {
-  return user.roles.includes('admin') ? 'admin' : 'user'
-}
-
 /** 사용자를 기억한다. 이름, 이메일, 역할은 auth의 사용자 저장소에, 나머지는 profiles에 둔다. */
 function saveUser({ id, name, email, role, ...profile }: UserAccount): void {
   saveMockUser({ id, email, name, roles: [...ROLES_OF[role]] })
@@ -159,7 +155,16 @@ function allUsers(): UserAccount[] {
     const profile = profiles.get(user.id)
     return profile === undefined
       ? []
-      : [{ id: user.id, name: user.name, email: user.email, role: roleOf(user), ...profile }]
+      : [
+          {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            // 로그인하는 사용자의 역할 목록에 관리자가 있으면 관리자다(ROLES_OF).
+            role: user.roles.includes('admin') ? 'admin' : 'user',
+            ...profile,
+          },
+        ]
   })
 }
 
@@ -172,48 +177,6 @@ export function resetMockUsers(): void {
 
 // 서버가 이 핸들러를 불러오면 처음 사용자를 auth의 사용자 저장소에 넣는다.
 resetMockUsers()
-
-/** 명세의 listUsers처럼 사용자를 거르고(q, role, status) 정렬하고(sort, order) 한 페이지(page, pageSize)를 잘라 돌려준다. */
-function listUsersPage({ q, role, status, sort, order, page, pageSize }: ListUsersParamsOutput): UserAccountPage {
-  const keyword = q?.trim().toLowerCase() ?? ''
-  const filtered = allUsers().filter(
-    (user) =>
-      (role === undefined || user.role === role) &&
-      (status === undefined || user.status === status) &&
-      (keyword === '' || `${user.name} ${user.email}`.toLowerCase().includes(keyword)),
-  )
-  if (sort === undefined) {
-    // 정렬하지 않으면 최근에 추가한 사용자부터다.
-    filtered.sort((a, b) => b.id - a.id)
-  } else {
-    const direction = order === 'desc' ? -1 : 1
-    // 값이 같으면 추가한 순서(id)를 따르므로 같은 요청에는 늘 같은 순서로 답한다.
-    filtered.sort((a, b) => direction * a[sort].localeCompare(b[sort], 'ko') || a.id - b.id)
-  }
-  const start = (page - 1) * pageSize
-  return { items: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }
-}
-
-function statsOf(all: readonly UserAccount[]): UserStats {
-  return {
-    total: all.length,
-    byStatus: UserStatus.options.map((status) => ({
-      status,
-      count: all.filter((user) => user.status === status).length,
-    })),
-    byRole: Role.options.map((role) => ({ role, count: all.filter((user) => user.role === role).length })),
-  }
-}
-
-/** URL의 쿼리 파라미터를 명세의 파라미터 모양으로 읽는다. 숫자 파라미터는 문자열로 오므로 숫자로 바꾼다. */
-function readParams(url: URL): Record<string, unknown> {
-  const params: Record<string, unknown> = Object.fromEntries(url.searchParams)
-  for (const name of ['page', 'pageSize']) {
-    const value = params[name]
-    if (typeof value === 'string') params[name] = Number(value)
-  }
-  return params
-}
 
 function userAt(userId: unknown): UserAccount | undefined {
   return allUsers().find((user) => String(user.id) === userId)
@@ -242,31 +205,57 @@ function rejectionOf(request: Request, roles?: readonly Role[]) {
   return undefined
 }
 
-async function jsonBody(request: Request): Promise<unknown> {
-  return request.json().catch(() => undefined)
-}
-
 export const usersHandlers = [
   // /users/:userId보다 앞에 두어 stats를 사용자 id로 읽지 않게 한다.
   http.get(`${MOCK_API_BASE_URL}/users/stats`, ({ request }) => {
     const rejection = rejectionOf(request)
     if (rejection !== undefined) return rejection
-    return HttpResponse.json(statsOf(allUsers()))
+    const all = allUsers()
+    return HttpResponse.json({
+      total: all.length,
+      byStatus: UserStatus.options.map((status) => ({
+        status,
+        count: all.filter((user) => user.status === status).length,
+      })),
+      byRole: Role.options.map((role) => ({ role, count: all.filter((user) => user.role === role).length })),
+    } satisfies UserStats)
   }),
 
   http.get(`${MOCK_API_BASE_URL}/users`, ({ request }) => {
     const rejection = rejectionOf(request)
     if (rejection !== undefined) return rejection
     // 실제 백엔드처럼 명세에 없는 값(알 수 없는 정렬 항목 등)은 400으로 거절한다.
-    const params = ListUsersParams.safeParse(readParams(new URL(request.url)))
+    const params = ListUsersParams.safeParse(searchParamsOf(new URL(request.url), ['page', 'pageSize']))
     if (!params.success) return HttpResponse.json({ message: params.error.message }, { status: 400 })
-    return HttpResponse.json(listUsersPage(params.data))
+    // 명세의 listUsers처럼 사용자를 거르고(q, role, status) 정렬하고(sort, order) 한 페이지(page, pageSize)를 잘라 돌려준다.
+    const { q, role, status, sort, order, page, pageSize } = params.data
+    const keyword = q?.trim().toLowerCase() ?? ''
+    const filtered = allUsers().filter(
+      (user) =>
+        (role === undefined || user.role === role) &&
+        (status === undefined || user.status === status) &&
+        (keyword === '' || `${user.name} ${user.email}`.toLowerCase().includes(keyword)),
+    )
+    if (sort === undefined) {
+      // 정렬하지 않으면 최근에 추가한 사용자부터다.
+      filtered.sort((a, b) => b.id - a.id)
+    } else {
+      const direction = order === 'desc' ? -1 : 1
+      // 값이 같으면 추가한 순서(id)를 따르므로 같은 요청에는 늘 같은 순서로 답한다.
+      filtered.sort((a, b) => direction * a[sort].localeCompare(b[sort], 'ko') || a.id - b.id)
+    }
+    return HttpResponse.json({
+      items: slicePage(filtered, page, pageSize),
+      total: filtered.length,
+      page,
+      pageSize,
+    } satisfies UserAccountPage)
   }),
 
   http.post(`${MOCK_API_BASE_URL}/users`, async ({ request }) => {
     const rejection = rejectionOf(request, MANAGER_ROLES)
     if (rejection !== undefined) return rejection
-    const body = CreateUserBody.safeParse(await jsonBody(request))
+    const body = CreateUserBody.safeParse(await readJsonBody(request))
     if (!body.success) return HttpResponse.json({ message: body.error.message }, { status: 400 })
     if (emailTaken(body.data.email)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
     const created: UserAccount = {
@@ -293,7 +282,7 @@ export const usersHandlers = [
     if (rejection !== undefined) return rejection
     const current = userAt(params['userId'])
     if (current === undefined) return HttpResponse.json({ message: '그런 사용자가 없습니다.' }, { status: 404 })
-    const body = UpdateUserBody.safeParse(await jsonBody(request))
+    const body = UpdateUserBody.safeParse(await readJsonBody(request))
     if (!body.success) return HttpResponse.json({ message: body.error.message }, { status: 400 })
     if (emailTaken(body.data.email, current.id)) return HttpResponse.json({ message: DUPLICATE_EMAIL }, { status: 409 })
     // PUT이므로 보내지 않은 선택 항목(department)은 지운다.

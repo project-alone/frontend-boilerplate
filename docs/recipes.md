@@ -394,7 +394,7 @@ TanStack Table로 정렬·필터·페이지를 백엔드가 처리하는 목록 
 
 | 선언하는 것    | `recipes/table/`                                                                                                                                            |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/members/page.tsx`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts`                                             |
+| 추가 파일      | `src/app/members/page.tsx`, `src/features/member-table/`, `src/queries/members/`, `src/shared/mocks/members.ts`, `src/shared/ui/sort-icon.tsx`              |
 | 확장 지점      | `openapi.yaml`(명세 조각): `GET /members`(`listMembers`), 스키마 `Member`, `MemberRole`, `MemberPage`. `extensions.json`: MSW 핸들러 `membersHandlers`(100) |
 | 설정 패치      | 없음                                                                                                                                                        |
 | npm 의존성     | `@tanstack/react-table`                                                                                                                                     |
@@ -595,7 +595,7 @@ fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요
 
 | 선언하는 것    | `recipes/file-upload/`                                                                                                                                         |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`                              |
+| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`, `src/shared/lib/multipart.ts` |
 | 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`. `extensions.json`: MSW 핸들러 `filesHandlers`(100) |
 | 설정 패치      | 없음                                                                                                                                                           |
 | npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                                                           |

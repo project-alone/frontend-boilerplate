@@ -31,20 +31,6 @@ export interface InfiniteListProps<T> {
   onRetry: () => void
 }
 
-/** 지금 상태를 알리는 문구. 목록 끝의 상태 문구(role="status")로 보여 주고 스크린 리더에도 알린다. */
-function statusOf<T>({
-  itemName,
-  items,
-  hasNextPage,
-  isFetchingNextPage,
-}: Pick<InfiniteListProps<T>, 'itemName' | 'items' | 'hasNextPage' | 'isFetchingNextPage'>): string {
-  if (items === undefined) return `${itemName} 목록을 불러오는 중입니다.`
-  if (isFetchingNextPage) return '다음 페이지를 불러오는 중입니다.'
-  if (items.length === 0) return `${itemName} 목록이 비어 있습니다.`
-  const count = String(items.length)
-  return hasNextPage ? `${itemName} ${count}개를 불러왔습니다.` : `${itemName} ${count}개를 모두 불러왔습니다.`
-}
-
 /**
  * 무한 스크롤 목록. 목록 끝이 화면에 들어오면(IntersectionObserver) 다음 페이지를 불러와 이어 붙이고, 빈 페이지를 받아
  * 다음 페이지가 없으면 멈춘다. 스크롤하지 않는 키보드·스크린 리더 사용자는 목록 끝의 더 보기 버튼으로 불러온다.
@@ -109,6 +95,16 @@ export function InfiniteList<T>({
   }, [count, hasNextPage, isFetchingNextPage, isError])
 
   const showsButton = isError || (items !== undefined && hasNextPage)
+  // 지금 상태를 알리는 문구. 목록 끝의 상태 문구(role="status")로 보여 주고 스크린 리더에도 알린다. 실패했으면 비워 두고 오류
+  // 문구(role="alert")로 알린다.
+  let status = ''
+  if (!isError) {
+    if (items === undefined) status = `${itemName} 목록을 불러오는 중입니다.`
+    else if (isFetchingNextPage) status = '다음 페이지를 불러오는 중입니다.'
+    else if (items.length === 0) status = `${itemName} 목록이 비어 있습니다.`
+    else if (hasNextPage) status = `${itemName} ${String(items.length)}개를 불러왔습니다.`
+    else status = `${itemName} ${String(items.length)}개를 모두 불러왔습니다.`
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -128,7 +124,7 @@ export function InfiniteList<T>({
       )}
       {items !== undefined && hasNextPage && <div ref={sentinelRef} aria-hidden="true" />}
       <p ref={statusRef} role="status" tabIndex={-1} className="focus-ring rounded-sm text-sm text-muted-foreground">
-        {isError ? '' : statusOf({ itemName, items, hasNextPage, isFetchingNextPage })}
+        {status}
       </p>
       {isError && (
         <p role="alert" className="text-sm text-danger">

@@ -3,6 +3,7 @@
 
 import { ApiError, type ApiRequestInit } from '@/shared/api/api-fetch'
 import { browserBaseUrl } from '@/shared/api/base-url'
+import { parseBody } from '@/shared/lib/http'
 import { waitForMocks } from '@/shared/mocks/mock-readiness'
 
 /** 업로드 요청의 본문을 보낸 정도. 바이트 단위이고, total은 multipart 경계 등을 포함한 본문 전체의 크기다. */
@@ -63,7 +64,8 @@ export async function apiUpload<T>(path: string, { body, schema, signal, onProgr
     })
     request.addEventListener('load', () => {
       try {
-        const responseBody = readBody(request)
+        // apiFetch처럼 JSON 응답이면 JSON으로, 아니면 글자 그대로 읽고, 본문이 없으면 undefined다.
+        const responseBody = parseBody(request.responseText, request.getResponseHeader('content-type'))
         if (request.status < 200 || request.status >= 300) throw new ApiError(request.status, responseBody)
         resolve(schema === undefined ? (responseBody as T) : schema.parse(responseBody))
       } catch (error) {
@@ -80,12 +82,4 @@ export async function apiUpload<T>(path: string, { body, schema, signal, onProgr
     signal?.addEventListener('abort', abort, { once: true })
     request.send(body)
   })
-}
-
-// apiFetch처럼 JSON 응답이면 JSON으로, 아니면 글자 그대로 읽고, 본문이 없으면 undefined다.
-function readBody(request: XMLHttpRequest): unknown {
-  const text = request.responseText
-  if (text === '') return undefined
-  const isJson = request.getResponseHeader('content-type')?.includes('json') ?? false
-  return isJson ? JSON.parse(text) : text
 }

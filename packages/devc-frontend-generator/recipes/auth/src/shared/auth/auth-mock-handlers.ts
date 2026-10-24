@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { LoginRequest, LogoutRequest, RefreshRequest, type TokenPair, type User } from '@/shared/api/generated/model'
+import { readJsonBody } from '@/shared/lib/http'
 
 // 목 백엔드의 인증(샘플 명세의 auth operation). 생성된 MSW 핸들러(src/shared/api/generated/auth/auth.msw.ts)는 늘 같은
 // example을 돌려주므로, 로그인 실패, accessToken 만료, refreshToken rotation, 로그아웃을 흉내 내려고 발급한 토큰을 기억하는
@@ -82,13 +83,9 @@ function unauthorized(message: string) {
   return HttpResponse.json({ message }, { status: 401 })
 }
 
-async function jsonBody(request: Request): Promise<unknown> {
-  return request.json().catch(() => undefined)
-}
-
 export const authMockHandlers = [
   http.post(`${MOCK_API_BASE_URL}/auth/login`, async ({ request }) => {
-    const credentials = LoginRequest.safeParse(await jsonBody(request))
+    const credentials = LoginRequest.safeParse(await readJsonBody(request))
     const user = credentials.success
       ? users.find(({ email }) => email === credentials.data.email && credentials.data.password === MOCK_PASSWORD)
       : undefined
@@ -97,7 +94,7 @@ export const authMockHandlers = [
   }),
 
   http.post(`${MOCK_API_BASE_URL}/auth/refresh`, async ({ request }) => {
-    const body = RefreshRequest.safeParse(await jsonBody(request))
+    const body = RefreshRequest.safeParse(await readJsonBody(request))
     const userId = body.success ? refreshTokens.get(body.data.refreshToken) : undefined
     if (!body.success || userId === undefined) return unauthorized('refreshToken이 만료되었거나 이미 쓰였습니다.')
     // rotation: 쓴 refreshToken은 더 쓸 수 없다. 같은 토큰으로 두 번 refresh하면 두 번째는 실패한다.
@@ -113,7 +110,7 @@ export const authMockHandlers = [
   // 명세처럼 유효한 accessToken이 있어야 로그아웃을 받는다(bearerAuth).
   http.post(`${MOCK_API_BASE_URL}/auth/logout`, async ({ request }) => {
     if (mockUserOf(request) === undefined) return unauthorized('accessToken이 없거나 만료되었습니다.')
-    const body = LogoutRequest.safeParse(await jsonBody(request))
+    const body = LogoutRequest.safeParse(await readJsonBody(request))
     if (body.success) refreshTokens.delete(body.data.refreshToken)
     const token = accessTokenOf(request)
     if (token !== undefined) accessTokens.delete(token)

@@ -33,11 +33,22 @@ export function ArticlePagedList() {
   const isError = countFailed || pageFailed
   const total = countQuery.data?.total
   const pageArticles = isError ? undefined : pageQuery.data
+  // 지금 쪽(받은 게시글)이 전체 게시글 가운데 몇 번째부터 몇 번째까지인지 알린다.
+  // 불러오지 못했으면 비워 두고 오류 문구(role="alert")로 알린다.
+  let summary = ''
+  if (!isError) {
+    if (total === undefined || pageArticles === undefined) summary = '게시글 목록을 불러오는 중입니다.'
+    else if (total === 0) summary = '게시글 목록이 비어 있습니다.'
+    else {
+      const first = (page - 1) * PAGE_SIZE + 1
+      summary = `게시글 ${String(total)}개 중 ${String(first)}–${String(first + pageArticles.length - 1)}번째`
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <p role="status" className="text-sm text-muted-foreground">
-        {isError ? '' : summaryOf(total, page, pageArticles?.length)}
+        {summary}
       </p>
       {isError && (
         <>
@@ -76,12 +87,4 @@ export function ArticlePagedList() {
       )}
     </div>
   )
-}
-
-/** 지금 쪽(받은 게시글 shownCount개)이 전체 게시글 가운데 몇 번째부터 몇 번째까지인지 알린다. */
-function summaryOf(total: number | undefined, page: number, shownCount: number | undefined): string {
-  if (total === undefined || shownCount === undefined) return '게시글 목록을 불러오는 중입니다.'
-  if (total === 0) return '게시글 목록이 비어 있습니다.'
-  const first = (page - 1) * PAGE_SIZE + 1
-  return `게시글 ${String(total)}개 중 ${String(first)}–${String(first + shownCount - 1)}번째`
 }

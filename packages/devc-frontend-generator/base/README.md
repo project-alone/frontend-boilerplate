@@ -86,6 +86,8 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 - `app`이 `queries`를 직접 쓰는 것은 서버 컴포넌트에서 prefetch할 때만입니다. 린트로는 용도까지 가리지 못하므로 리뷰에서 지킵니다.
 - `process.env`에서 새 환경 변수를 읽으면 `types/process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다. 배포 환경에 넣어야 하는 변수라면 `.env.example`에도 적습니다. 배포할 때 넣는 변수는 모두 `.env.example`에 모여 있습니다.
 - 지원 브라우저는 Next.js 기본 범위(Chrome·Edge·Firefox 111+, Safari 16.4+)이며 `package.json`의 `browserslist`에 적혀 있습니다.
+- 여러 곳에서 쓰는 범용 함수(빈 환경 변수 값 거르기, 응답 본문 읽기, 쿼리 파라미터 읽기, 쪽 나누기, 기다리기 등)는 `src/shared/lib/`에 주제별 파일(`text.ts`, `json.ts`, `http.ts`, `array.ts`, `async.ts`)로 둡니다. 서버와 브라우저, 설정 파일(`config/`)이 불러오는 모듈 어디서나 쓸 수 있도록 `server-only` 같은 표시도 다른 모듈의 import도 없는 순수 함수만 둡니다. Recipe가 더하는 범용 함수도 여기에 자기 파일로 더해집니다(예: file-upload의 `multipart.ts`).
+- 한 곳에서만 쓰는 로직은 함수가 길어져도 쓰는 함수 안에 둡니다. 다시 쓸 일이 없는 작은 함수로 잘게 나누지 않고, 그 안에서 어디서나 쓸 만한 부분을 `src/shared/lib/`의 함수로 뽑습니다.
 
 ## 서버와 브라우저의 경계
 

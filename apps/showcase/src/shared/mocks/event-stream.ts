@@ -29,16 +29,6 @@ export interface MockEventStream {
 
 const encoder = new TextEncoder()
 
-/** 이벤트를 text/event-stream 형식으로 쓴다. 여러 줄의 데이터는 줄마다 data 필드가 된다. */
-function formatEvent({ event, data, id }: MockServerSentEvent): string {
-  const fields = [
-    ...(id === undefined ? [] : [`id: ${id}`]),
-    ...(event === undefined ? [] : [`event: ${event}`]),
-    ...data.split(/\r\n|\r|\n/).map((line) => `data: ${line}`),
-  ]
-  return `${fields.join('\n')}\n\n`
-}
-
 /**
  * 이벤트 스트림 응답을 연다. Node.js의 MSW는 받는 쪽이 연결을 끊어도 핸들러에 알리지 않으므로(요청의 signal도, 응답 본문의
  * cancel도 오지 않는다), 다 쓴 스트림은 close로 닫는다.
@@ -71,8 +61,14 @@ export function createMockEventStream(): MockEventStream {
         ...(typeof window === 'undefined' ? { 'transfer-encoding': 'chunked' } : {}),
       },
     }),
-    send: (event) => {
-      write(formatEvent(event))
+    // 이벤트를 text/event-stream 형식으로 쓴다. 여러 줄의 데이터는 줄마다 data 필드가 된다.
+    send: ({ event, data, id }) => {
+      const fields = [
+        ...(id === undefined ? [] : [`id: ${id}`]),
+        ...(event === undefined ? [] : [`event: ${event}`]),
+        ...data.split(/\r\n|\r|\n/).map((line) => `data: ${line}`),
+      ]
+      write(`${fields.join('\n')}\n\n`)
     },
     write,
     close: () => {

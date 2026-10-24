@@ -12,18 +12,14 @@ const SECTIONS = [
   { href: USERS_PATH, label: '사용자' },
 ] as const
 
-/** 지금 주소가 속한 대시보드 화면. 사용자 추가·수정은 사용자 화면에 속한다. */
-function currentSection(pathname: string): string {
-  return pathname === USERS_PATH || pathname.startsWith(`${USERS_PATH}/`) ? USERS_PATH : DASHBOARD_PATH
-}
-
 /**
  * 대시보드 안의 화면(개요, 사용자)을 오가는 탭 모양의 이동. 지금 보고 있는 화면은 aria-current="page"로, 사용자 추가·수정처럼
  * 그 화면에 속한 다른 주소에 있으면 aria-current="true"로 알린다.
  */
 export function DashboardNav() {
   const pathname = usePathname()
-  const current = currentSection(pathname)
+  // 지금 주소가 속한 대시보드 화면. 사용자 추가·수정은 사용자 화면에 속한다.
+  const current = pathname === USERS_PATH || pathname.startsWith(`${USERS_PATH}/`) ? USERS_PATH : DASHBOARD_PATH
 
   return (
     <nav aria-label="대시보드 화면" className="border-b border-border px-4">

@@ -11,26 +11,25 @@ import { DailyVisitsChart } from './daily-visits-chart'
  * static-export에서 같은 코드로 동작한다. 차트마다 따로 가져오므로 한 차트가 실패해도 다른 차트는 보인다.
  */
 export function StatsCharts() {
+  const visits = useQuery(listDailyVisitsQueryOptions())
+  const sales = useQuery(listChannelSalesQueryOptions())
+
   return (
     <div className="grid gap-8 lg:grid-cols-2">
-      <DailyVisitsSection />
-      <ChannelSalesSection />
+      {visits.isPending ? (
+        <p role="status">일별 방문 수를 불러오는 중입니다.</p>
+      ) : visits.isError ? (
+        <p role="alert">일별 방문 수를 불러오지 못했습니다.</p>
+      ) : (
+        <DailyVisitsChart visits={visits.data} />
+      )}
+      {sales.isPending ? (
+        <p role="status">판매 채널별 매출을 불러오는 중입니다.</p>
+      ) : sales.isError ? (
+        <p role="alert">판매 채널별 매출을 불러오지 못했습니다.</p>
+      ) : (
+        <ChannelSalesChart sales={sales.data} />
+      )}
     </div>
   )
-}
-
-function DailyVisitsSection() {
-  const { data: visits, isPending, isError } = useQuery(listDailyVisitsQueryOptions())
-
-  if (isPending) return <p role="status">일별 방문 수를 불러오는 중입니다.</p>
-  if (isError) return <p role="alert">일별 방문 수를 불러오지 못했습니다.</p>
-  return <DailyVisitsChart visits={visits} />
-}
-
-function ChannelSalesSection() {
-  const { data: sales, isPending, isError } = useQuery(listChannelSalesQueryOptions())
-
-  if (isPending) return <p role="status">판매 채널별 매출을 불러오는 중입니다.</p>
-  if (isError) return <p role="alert">판매 채널별 매출을 불러오지 못했습니다.</p>
-  return <ChannelSalesChart sales={sales} />
 }

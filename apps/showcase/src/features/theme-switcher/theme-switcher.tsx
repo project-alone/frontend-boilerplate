@@ -17,13 +17,11 @@ import { Select } from '@/shared/ui/select'
 
 const OPTIONS = THEME_CHOICES.map((choice) => ({ value: choice, label: THEME_LABELS[choice] }))
 
-// 서버는 저장된 선택을 모르므로 system으로 그리고, 브라우저에서 저장된 선택으로 바꾼다.
-// 화면의 테마는 ThemeScript가 이미 적용해 두었으므로 깜빡이지 않는다.
-const getServerSnapshot = (): ThemeChoice => 'system'
-
 /** 테마(시스템 설정, 라이트, 다크)를 고른다. 고른 테마는 브라우저에 저장되어 다음 방문에도 쓰인다. */
 export function ThemeSwitcher() {
-  const choice = useSyncExternalStore(watchTheme, readThemeChoice, getServerSnapshot)
+  // 서버는 저장된 선택을 모르므로 system으로 그리고, 브라우저에서 저장된 선택으로 바꾼다.
+  // 화면의 테마는 ThemeScript가 이미 적용해 두었으므로 깜빡이지 않는다.
+  const choice = useSyncExternalStore(watchTheme, readThemeChoice, (): ThemeChoice => 'system')
 
   return (
     <Select

@@ -3,12 +3,9 @@
 
 import { http, HttpResponse } from 'msw'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
-import {
-  ListMembersParams,
-  type ListMembersParamsOutput,
-  type Member,
-  type MemberPage,
-} from '@/shared/api/generated/model'
+import { ListMembersParams, type Member, type MemberPage } from '@/shared/api/generated/model'
+import { slicePage } from '@/shared/lib/array'
+import { searchParamsOf } from '@/shared/lib/http'
 
 // table Recipe: 회원 목록(listMembers)을 흉내 내는 MSW 핸들러. 명세에서 생성한 핸들러는 example을 그대로 돌려주므로,
 // 이 핸들러가 그보다 앞에서 쿼리 파라미터대로 거르고 정렬하고 나눈 페이지를 백엔드처럼 돌려준다. 확장 지점 mockHandlers
@@ -43,38 +40,29 @@ const MEMBERS: readonly Member[] = [
   { id: 24, name: '배지호', email: 'jiho.bae@example.com', role: 'viewer', joinedAt: '2024-11-11' },
 ]
 
-/** 명세의 listMembers처럼 회원을 거르고(q, role) 정렬하고(sort, order) 한 페이지(page, pageSize)를 잘라 돌려준다. */
-function listMembersPage({ q, role, sort, order, page, pageSize }: ListMembersParamsOutput): MemberPage {
-  const keyword = q?.trim().toLowerCase() ?? ''
-  const filtered = MEMBERS.filter(
-    (member) =>
-      (role === undefined || member.role === role) &&
-      (keyword === '' || `${member.name} ${member.email}`.toLowerCase().includes(keyword)),
-  )
-  if (sort !== undefined) {
-    const direction = order === 'desc' ? -1 : 1
-    // 값이 같으면 가입한 순서(id)를 따르므로 같은 요청에는 늘 같은 순서로 답한다.
-    filtered.sort((a, b) => direction * a[sort].localeCompare(b[sort], 'ko') || a.id - b.id)
-  }
-  const start = (page - 1) * pageSize
-  return { items: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }
-}
-
-/** URL의 쿼리 파라미터를 명세의 파라미터 모양으로 읽는다. 숫자 파라미터는 문자열로 오므로 숫자로 바꾼다. */
-function readParams(url: URL): Record<string, unknown> {
-  const params: Record<string, unknown> = Object.fromEntries(url.searchParams)
-  for (const name of ['page', 'pageSize']) {
-    const value = params[name]
-    if (typeof value === 'string') params[name] = Number(value)
-  }
-  return params
-}
-
 export const membersHandlers = [
   http.get(`${MOCK_API_BASE_URL}/members`, ({ request }) => {
     // 실제 백엔드처럼 명세에 없는 값(알 수 없는 정렬 항목 등)은 400으로 거절한다.
-    const params = ListMembersParams.safeParse(readParams(new URL(request.url)))
+    const params = ListMembersParams.safeParse(searchParamsOf(new URL(request.url), ['page', 'pageSize']))
     if (!params.success) return HttpResponse.json({ message: params.error.message }, { status: 400 })
-    return HttpResponse.json(listMembersPage(params.data))
+    // 명세의 listMembers처럼 회원을 거르고(q, role) 정렬하고(sort, order) 한 페이지(page, pageSize)를 잘라 돌려준다.
+    const { q, role, sort, order, page, pageSize } = params.data
+    const keyword = q?.trim().toLowerCase() ?? ''
+    const filtered = MEMBERS.filter(
+      (member) =>
+        (role === undefined || member.role === role) &&
+        (keyword === '' || `${member.name} ${member.email}`.toLowerCase().includes(keyword)),
+    )
+    if (sort !== undefined) {
+      const direction = order === 'desc' ? -1 : 1
+      // 값이 같으면 가입한 순서(id)를 따르므로 같은 요청에는 늘 같은 순서로 답한다.
+      filtered.sort((a, b) => direction * a[sort].localeCompare(b[sort], 'ko') || a.id - b.id)
+    }
+    return HttpResponse.json({
+      items: slicePage(filtered, page, pageSize),
+      total: filtered.length,
+      page,
+      pageSize,
+    } satisfies MemberPage)
   }),
 ]

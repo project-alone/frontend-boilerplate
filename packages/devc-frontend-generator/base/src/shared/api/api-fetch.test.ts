@@ -2,7 +2,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw'
 import { afterEach, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 import { server } from '@/shared/mocks/node'
-import { ApiError, apiFetch } from './api-fetch'
+import { ApiError, apiErrorMessage, apiFetch, isApiError } from './api-fetch'
 import { MOCK_API_BASE_URL } from './base-url'
 
 // 이 파일은 브라우저(jsdom)에서 실행된다. 서버에서의 동작은 api-fetch.server.test.ts가 확인한다.
@@ -54,4 +54,17 @@ test('백엔드가 2xx가 아닌 응답을 주면 상태와 본문을 담은 Api
 
   expect(error).toBeInstanceOf(ApiError)
   expect(error).toMatchObject({ status: 404, body: { message: '없는 상품입니다' } })
+})
+
+test('isApiError와 apiErrorMessage는 백엔드가 답한 상태와 명세의 오류 스키마로 알린 이유를 읽는다', () => {
+  const error = new ApiError(409, { message: '이미 있는 이메일입니다' })
+  const ErrorSchema = z.object({ message: z.string() })
+
+  expect(isApiError(error)).toBe(true)
+  expect(isApiError(error, 404, 409)).toBe(true)
+  expect(isApiError(error, 404)).toBe(false)
+  expect(isApiError(new TypeError('네트워크 오류'))).toBe(false)
+  expect(apiErrorMessage(error, ErrorSchema)).toBe('이미 있는 이메일입니다')
+  expect(apiErrorMessage(new ApiError(500, '서버 오류'), ErrorSchema)).toBeUndefined()
+  expect(apiErrorMessage(new TypeError('네트워크 오류'), ErrorSchema)).toBeUndefined()
 })

@@ -1,6 +1,6 @@
 --- a/src/shared/api/api-fetch.server.ts
 +++ b/src/shared/api/api-fetch.server.ts
-@@ -3,15 +3,14 @@
+@@ -4,15 +4,14 @@
  import { backendFetch } from './backend-fetch'
  import { MOCK_API_BASE_URL } from './base-url'
  
@@ -20,7 +20,7 @@
 + * 가져오는 페이지(SSG)가 부를 때 실패해 빌드를 멈춘다.
   */
  export function backendBaseUrl(): string {
-   const url = process.env.API_BASE_URL
+   const url = nonEmpty(process.env.API_BASE_URL)
 @@ -21,13 +20,13 @@
    // NEXT_PHASE는 next build가 넣는 단계 이름이다(next/constants의 PHASE_PRODUCTION_BUILD).
    throw new Error(

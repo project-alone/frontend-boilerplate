@@ -7,7 +7,8 @@ import type { ReactNode } from 'react'
 import { Controller } from 'react-hook-form'
 import { PaymentMethod, PlaceOrderBody } from '@/shared/api/generated/model'
 import type { FormDraft } from '@/shared/form/form-resolver'
-import { StepForm, type StepFormProps, type StepFormReturn } from '@/shared/multi-step-form/step-form'
+import { displayValue, NOT_ENTERED } from '@/shared/multi-step-form/draft-summary'
+import { StepForm, type StepFormProps } from '@/shared/multi-step-form/step-form'
 import { PAYMENT_METHOD_LABELS } from '@/shared/shop/shop-labels'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
@@ -57,32 +58,66 @@ const paymentMethodOptions = PaymentMethod.options.map((method) => ({
   label: PAYMENT_METHOD_LABELS[method],
 }))
 
-const NOT_ENTERED = '입력하지 않음'
-
-function displayValue(value: string | undefined): string {
-  return value === undefined || value === '' ? NOT_ENTERED : value
-}
-
-/** 우편번호, 주소, 상세 주소를 한 줄로 */
-function addressOf({ postalCode, address, addressDetail }: CheckoutDraft): string {
-  const parts = [postalCode, address, addressDetail].filter((part) => part !== undefined && part !== '')
-  return parts.length === 0 ? NOT_ENTERED : parts.join(' ')
-}
-
-/** 입력 단계. 이 뒤에 확인 단계(주문 확인)가 오고, 주문하면 결제 단계(테스트 결제창)로 간다. */
+/**
+ * 입력 단계. 이 뒤에 확인 단계(주문 확인)가 오고, 주문하면 결제 단계(테스트 결제창)로 간다. 단계마다의 입력 요소와 오류 표시는
+ * `npm run g -- form placeOrder`가 만드는 폼과 같다(Base README의 "폼"). 레이블은 명세의 title이다.
+ */
 export const CHECKOUT_STEPS: readonly CheckoutStep[] = [
   {
     title: '배송 정보',
     fields: Object.keys(shippingStep.shape),
     render: (props) => (
       <StepForm schema={shippingStep} {...props}>
-        {(form) => <ShippingFields form={form} />}
+        {({ register, formState: { errors } }) => (
+          <>
+            <Field invalid={errors.recipient !== undefined}>
+              <FieldLabel>받는 사람</FieldLabel>
+              <Input autoComplete="shipping name" {...register('recipient')} />
+              <FieldError match={errors.recipient !== undefined}>{errors.recipient?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.phone !== undefined}>
+              <FieldLabel>연락처</FieldLabel>
+              <Input type="tel" autoComplete="shipping tel" {...register('phone')} />
+              <FieldDescription>010-0000-0000 형식으로 적습니다.</FieldDescription>
+              <FieldError match={errors.phone !== undefined}>{errors.phone?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.postalCode !== undefined}>
+              <FieldLabel>우편번호</FieldLabel>
+              <Input inputMode="numeric" autoComplete="shipping postal-code" {...register('postalCode')} />
+              <FieldDescription>다섯 자리 숫자로 적습니다.</FieldDescription>
+              <FieldError match={errors.postalCode !== undefined}>{errors.postalCode?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.address !== undefined}>
+              <FieldLabel>주소</FieldLabel>
+              <Input autoComplete="shipping address-line1" {...register('address')} />
+              <FieldError match={errors.address !== undefined}>{errors.address?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.addressDetail !== undefined}>
+              <FieldLabel>상세 주소</FieldLabel>
+              <Input autoComplete="shipping address-line2" {...register('addressDetail')} />
+              <FieldError match={errors.addressDetail !== undefined}>{errors.addressDetail?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.deliveryMemo !== undefined}>
+              <FieldLabel>배송 메모</FieldLabel>
+              <Input {...register('deliveryMemo')} />
+              <FieldError match={errors.deliveryMemo !== undefined}>{errors.deliveryMemo?.message}</FieldError>
+            </Field>
+          </>
+        )}
       </StepForm>
     ),
     summary: (draft) => [
       ['받는 사람', displayValue(draft.recipient)],
       ['연락처', displayValue(draft.phone)],
-      ['주소', addressOf(draft)],
+      // 우편번호, 주소, 상세 주소를 한 줄로
+      [
+        '주소',
+        displayValue(
+          [draft.postalCode, draft.address, draft.addressDetail]
+            .filter((part) => part !== undefined && part !== '')
+            .join(' '),
+        ),
+      ],
       ['배송 메모', displayValue(draft.deliveryMemo)],
     ],
   },
@@ -91,7 +126,27 @@ export const CHECKOUT_STEPS: readonly CheckoutStep[] = [
     fields: Object.keys(paymentStep.shape),
     render: (props) => (
       <StepForm schema={paymentStep} {...props}>
-        {(form) => <PaymentFields form={form} />}
+        {({ control, formState: { errors } }) => (
+          <Controller
+            control={control}
+            name="paymentMethod"
+            render={({ field }) => (
+              <Field invalid={errors.paymentMethod !== undefined}>
+                <Select
+                  label="결제 수단"
+                  options={paymentMethodOptions}
+                  value={field.value ?? null}
+                  onValueChange={field.onChange}
+                  inputRef={field.ref}
+                />
+                <FieldDescription>
+                  PG(결제대행사)를 연동하지 않아 어느 결제 수단을 골라도 주문한 뒤 테스트 결제창이 열립니다.
+                </FieldDescription>
+                <FieldError match={errors.paymentMethod !== undefined}>{errors.paymentMethod?.message}</FieldError>
+              </Field>
+            )}
+          />
+        )}
       </StepForm>
     ),
     summary: (draft) => [
@@ -102,76 +157,3 @@ export const CHECKOUT_STEPS: readonly CheckoutStep[] = [
 
 /** 주문서의 모든 단계 제목. 입력 단계, 확인 단계, 그리고 주문한 뒤 다른 화면에서 이어지는 결제 단계다. */
 export const CHECKOUT_STEP_TITLES = [...CHECKOUT_STEPS.map(({ title }) => title), '주문 확인', '결제']
-
-// 입력 요소와 오류 표시는 `npm run g -- form placeOrder`가 만드는 폼과 같다(Base README의 "폼"). 레이블은 명세의 title이다.
-
-function ShippingFields({ form }: Readonly<{ form: StepFormReturn<typeof shippingStep> }>) {
-  const {
-    register,
-    formState: { errors },
-  } = form
-  return (
-    <>
-      <Field invalid={errors.recipient !== undefined}>
-        <FieldLabel>받는 사람</FieldLabel>
-        <Input autoComplete="shipping name" {...register('recipient')} />
-        <FieldError match={errors.recipient !== undefined}>{errors.recipient?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.phone !== undefined}>
-        <FieldLabel>연락처</FieldLabel>
-        <Input type="tel" autoComplete="shipping tel" {...register('phone')} />
-        <FieldDescription>010-0000-0000 형식으로 적습니다.</FieldDescription>
-        <FieldError match={errors.phone !== undefined}>{errors.phone?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.postalCode !== undefined}>
-        <FieldLabel>우편번호</FieldLabel>
-        <Input inputMode="numeric" autoComplete="shipping postal-code" {...register('postalCode')} />
-        <FieldDescription>다섯 자리 숫자로 적습니다.</FieldDescription>
-        <FieldError match={errors.postalCode !== undefined}>{errors.postalCode?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.address !== undefined}>
-        <FieldLabel>주소</FieldLabel>
-        <Input autoComplete="shipping address-line1" {...register('address')} />
-        <FieldError match={errors.address !== undefined}>{errors.address?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.addressDetail !== undefined}>
-        <FieldLabel>상세 주소</FieldLabel>
-        <Input autoComplete="shipping address-line2" {...register('addressDetail')} />
-        <FieldError match={errors.addressDetail !== undefined}>{errors.addressDetail?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.deliveryMemo !== undefined}>
-        <FieldLabel>배송 메모</FieldLabel>
-        <Input {...register('deliveryMemo')} />
-        <FieldError match={errors.deliveryMemo !== undefined}>{errors.deliveryMemo?.message}</FieldError>
-      </Field>
-    </>
-  )
-}
-
-function PaymentFields({ form }: Readonly<{ form: StepFormReturn<typeof paymentStep> }>) {
-  const {
-    control,
-    formState: { errors },
-  } = form
-  return (
-    <Controller
-      control={control}
-      name="paymentMethod"
-      render={({ field }) => (
-        <Field invalid={errors.paymentMethod !== undefined}>
-          <Select
-            label="결제 수단"
-            options={paymentMethodOptions}
-            value={field.value ?? null}
-            onValueChange={field.onChange}
-            inputRef={field.ref}
-          />
-          <FieldDescription>
-            PG(결제대행사)를 연동하지 않아 어느 결제 수단을 골라도 주문한 뒤 테스트 결제창이 열립니다.
-          </FieldDescription>
-          <FieldError match={errors.paymentMethod !== undefined}>{errors.paymentMethod?.message}</FieldError>
-        </Field>
-      )}
-    />
-  )
-}

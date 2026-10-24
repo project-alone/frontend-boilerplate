@@ -1,3 +1,5 @@
+import { nonEmpty } from '@/shared/lib/text'
+
 // seo Recipe: 사이트 자체에 대한 값. 검색 결과와 공유 카드에 보이므로 프로젝트에 맞게 바꾼다.
 
 /** 사이트 이름. 페이지 제목 뒤(`상품 | Starter`), og:site_name, OG 이미지에 보인다. */
@@ -19,8 +21,8 @@ const LOCAL_SITE_URL = 'http://localhost:3000'
  * 빌드할 때 루트 레이아웃과 sitemap이 부르므로 배포용 빌드에 값이 없으면 빌드가 멈춘다.
  */
 export function siteUrl(): URL {
-  const value = process.env.NEXT_PUBLIC_SITE_URL
-  if (value === undefined || value === '') {
+  const value = nonEmpty(process.env.NEXT_PUBLIC_SITE_URL)
+  if (value === undefined) {
     if (process.env.API_MOCKING === 'enabled') return new URL(LOCAL_SITE_URL)
     throw new Error(
       'NEXT_PUBLIC_SITE_URL 환경 변수가 없습니다. sitemap, robots.txt, 페이지의 canonical·OG 주소를 사이트 주소로 만들므로 배포용 빌드에는 사이트의 공개 주소(예: https://www.example.com)를 넣어 주세요. 배포하지 않는 목 빌드(API_MOCKING=enabled)는 넣지 않아도 됩니다(README의 "검색 노출(SEO)").',

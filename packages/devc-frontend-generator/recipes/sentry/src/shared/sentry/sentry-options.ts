@@ -1,3 +1,5 @@
+import { nonEmpty } from '@/shared/lib/text'
+
 // 브라우저와 서버의 Sentry SDK가 함께 쓰는 초기화 조건과 설정(README의 "오류 보고(Sentry)").
 
 /**
@@ -9,7 +11,7 @@
  */
 export function enabledSentryDsn(dsn: string | undefined): string | undefined {
   if (process.env.NODE_ENV !== 'production' || process.env.SENTRY_MOCK_BUILD === 'true') return undefined
-  return dsn === '' ? undefined : dsn
+  return nonEmpty(dsn)
 }
 
 /** 브라우저와 서버가 함께 쓰는 SDK 설정. 성능 추적(tracesSampleRate)과 Session Replay는 켜지 않는다. */

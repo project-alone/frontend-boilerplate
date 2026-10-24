@@ -95,6 +95,8 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 - `app`이 `queries`를 직접 쓰는 것은 서버 컴포넌트에서 prefetch할 때만입니다. 린트로는 용도까지 가리지 못하므로 리뷰에서 지킵니다.
 - `process.env`에서 새 환경 변수를 읽으면 `types/process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다. 배포 환경에 넣어야 하는 변수라면 `.env.example`에도 적습니다. 배포할 때 넣는 변수는 모두 `.env.example`에 모여 있습니다.
 - 지원 브라우저는 Next.js 기본 범위(Chrome·Edge·Firefox 111+, Safari 16.4+)이며 `package.json`의 `browserslist`에 적혀 있습니다.
+- 여러 곳에서 쓰는 범용 함수(빈 환경 변수 값 거르기, 응답 본문 읽기, 쿼리 파라미터 읽기, 쪽 나누기, 기다리기 등)는 `src/shared/lib/`에 주제별 파일(`text.ts`, `json.ts`, `http.ts`, `array.ts`, `async.ts`)로 둡니다. 서버와 브라우저, 설정 파일(`config/`)이 불러오는 모듈 어디서나 쓸 수 있도록 `server-only` 같은 표시도 다른 모듈의 import도 없는 순수 함수만 둡니다. Recipe가 더하는 범용 함수도 여기에 자기 파일로 더해집니다(예: file-upload의 `multipart.ts`).
+- 한 곳에서만 쓰는 로직은 함수가 길어져도 쓰는 함수 안에 둡니다. 다시 쓸 일이 없는 작은 함수로 잘게 나누지 않고, 그 안에서 어디서나 쓸 만한 부분을 `src/shared/lib/`의 함수로 뽑습니다.
 
 ## 서버와 브라우저의 경계
 
@@ -872,7 +874,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 
 - 명세: `openapi.yaml`의 `listMembers`(`GET /members`, tag `members`)가 `q`(이름·이메일 검색어), `role`, `sort`(`name`, `email`, `joinedAt`), `order`(`asc`, `desc`), `page`, `pageSize`를 받아 한 페이지(`MemberPage`: `items`, `total`, `page`, `pageSize`)를 돌려줍니다.
 - Query Domain: `src/queries/members/`는 `npm run g -- query listMembers`가 만든 코드 그대로입니다. 테이블의 상태가 `listMembersQueryOptions(params)`의 인자가 되므로 쿼리 키(`['members', 'listMembers', params]`)와 요청 파라미터가 늘 같습니다. 상태가 바뀌면 새로 요청하고, 다음 결과를 받는 동안에는 지금 결과를 보여 줍니다(`keepPreviousData`).
-- 테이블: `src/features/member-table/member-table.tsx`. 행을 정렬·필터·페이지로 나누는 일은 백엔드에 맡기고(`manualSorting`, `manualFiltering`, `manualPagination`), 정렬(`sorting`), 역할 열 필터(`columnFilters`), 검색어(`globalFilter`), 페이지(`pagination`) 상태를 `toListMembersParams`가 쿼리 파라미터로 바꿉니다. 정렬이나 필터를 바꾸면 첫 페이지로 돌아갑니다. 다른 목록에 쓰려면 이 파일을 복사해 열 정의(`columns`)와 이 함수, 쓰는 queryOptions를 바꿉니다.
+- 테이블: `src/features/member-table/member-table.tsx`. 행을 정렬·필터·페이지로 나누는 일은 백엔드에 맡기고(`manualSorting`, `manualFiltering`, `manualPagination`), 정렬(`sorting`), 역할 열 필터(`columnFilters`), 검색어(`globalFilter`), 페이지(`pagination`) 상태를 컴포넌트 안에서 쿼리 파라미터(`params`)로 바꿉니다. 정렬이나 필터를 바꾸면 첫 페이지로 돌아갑니다. 다른 목록에 쓰려면 이 파일을 복사해 열 정의(`columns`)와 쿼리 파라미터, 쓰는 queryOptions를 바꿉니다. 열 머리글의 정렬 아이콘은 `src/shared/ui/sort-icon.tsx`의 `SortIcon`을 함께 씁니다.
 - 키보드와 스크린 리더: 정렬은 열 머리글 안의 버튼(Enter·Space, 오름차순 → 내림차순 → 정렬 없음)이고, 정렬한 열의 머리글에 `aria-sort`가 붙습니다. 검색어는 입력한 뒤 Enter로 보내고, 역할은 공통 `Select`(화살표 키)로 고릅니다. 결과("회원 24명 중 1–10번째")는 상태 문구(`role="status"`)로 알립니다.
 - Rendering Mode: 두 Rendering Mode 모두 페이지 뼈대만 미리 만들고 목록은 브라우저가 가져옵니다(`server`는 BFF 프록시, `static-export`는 백엔드 주소로 직접). 정렬·필터를 바꿀 때마다 브라우저가 다시 요청하므로 서버에서 미리 가져오지(prefetch) 않습니다.
 - MSW: 생성된 핸들러는 명세의 `example`을 그대로 돌려주므로, `src/shared/mocks/members.ts`의 핸들러가 고정된 회원 24명을 파라미터대로 거르고 정렬해 돌려줍니다. Starter를 만들 때 Generator가 `src/shared/mocks/handlers.ts`에서 생성된 핸들러보다 앞에 두었습니다. 실제 백엔드로 바꾸면 이 파일과 `handlers.ts`의 `membersHandlers`를 지웁니다.

@@ -46,16 +46,12 @@ export async function authProxy(
     return withSessionCookie(NextResponse.rewrite(new URL(FORBIDDEN_PATH, request.url), { status: 403 }), change)
   }
 
-  const response = await next(change === undefined ? request : withRequestCookie(request, change))
-  return withSessionCookie(response, change)
-}
-
-// 라우트(서버 컴포넌트)가 바뀐 세션 쿠키를 읽도록 쿠키를 고친 요청을 만든다.
-function withRequestCookie(request: NextRequest, change: string | null): NextRequest {
+  if (change === undefined) return withSessionCookie(await next(request), change)
+  // 라우트(서버 컴포넌트)가 바뀐 세션 쿠키를 읽도록 쿠키를 고친 요청을 넘긴다.
   const forwarded = new NextRequest(request)
   if (change === null) forwarded.cookies.delete(SESSION_COOKIE)
   else forwarded.cookies.set(SESSION_COOKIE, change)
-  return forwarded
+  return withSessionCookie(await next(forwarded), change)
 }
 
 function withSessionCookie(response: NextResponse, change: CookieChange): NextResponse {

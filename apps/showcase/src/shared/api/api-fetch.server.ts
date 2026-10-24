@@ -2,6 +2,7 @@
 // 원본(packages/devc-frontend-generator/): base/src/shared/api/api-fetch.server.ts
 
 import 'server-only'
+import { nonEmpty, withoutTrailingSlash } from '@/shared/lib/text'
 import { startBuildApiMocking } from './api-mocking'
 import { backendFetch } from './backend-fetch'
 import { MOCK_API_BASE_URL } from './base-url'
@@ -17,9 +18,8 @@ import { MOCK_API_BASE_URL } from './base-url'
  * 빌드할 때 데이터를 가져오는 페이지(SSG·ISR)가 부를 때 실패해 빌드를 멈춘다.
  */
 export function backendBaseUrl(): string {
-  const url = process.env.API_BASE_URL
-  // .env 파일에 `NAME=`처럼 값 없이 적은 변수는 빈 문자열이 되므로 없는 것으로 본다.
-  if (url !== undefined && url !== '') return url.replace(/\/+$/, '')
+  const url = nonEmpty(process.env.API_BASE_URL)
+  if (url !== undefined) return withoutTrailingSlash(url)
   if (process.env.API_MOCKING === 'enabled') return MOCK_API_BASE_URL
   // NEXT_PHASE는 next build가 넣는 단계 이름이다(next/constants의 PHASE_PRODUCTION_BUILD).
   throw new Error(

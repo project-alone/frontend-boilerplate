@@ -2,6 +2,7 @@ import 'server-only'
 import { sealData, unsealData } from 'iron-session'
 import * as z from 'zod'
 import { type TokenPair, User } from '@/shared/api/generated/model'
+import { nonEmpty } from '@/shared/lib/text'
 import { SESSION_COOKIE } from './auth-client'
 
 // 로그인 세션(ADR-0006). 백엔드가 발급한 accessToken·refreshToken과 사용자 정보를 암호화해 httpOnly 쿠키 하나에 담는다.
@@ -58,8 +59,9 @@ export async function sealSession(session: Session): Promise<string> {
 
 /** 쿠키 값을 세션으로 되읽는다. 없거나, 고쳤거나, 만료되었거나, 다른 비밀 값으로 암호화한 값이면 undefined다. */
 export async function unsealSession(sealed: string | undefined): Promise<Session | undefined> {
-  if (sealed === undefined || sealed === '') return undefined
-  const data = await unsealData<unknown>(sealed, { password: sessionSecret(), ttl: SESSION_TTL_SECONDS })
+  const value = nonEmpty(sealed)
+  if (value === undefined) return undefined
+  const data = await unsealData<unknown>(value, { password: sessionSecret(), ttl: SESSION_TTL_SECONDS })
   const parsed = SessionSchema.safeParse(data)
   return parsed.success ? parsed.data : undefined
 }
@@ -95,8 +97,8 @@ export function sessionCookieOptions() {
  * 한 번 불러서, 빠졌으면 요청을 받기 전에 알린다.
  */
 export function sessionSecret(): string {
-  const secret = process.env.SESSION_SECRET
-  if (secret === undefined || secret === '') {
+  const secret = nonEmpty(process.env.SESSION_SECRET)
+  if (secret === undefined) {
     throw new Error(
       'SESSION_SECRET 환경 변수가 없습니다. 로그인 세션 쿠키를 암호화할 32자 이상의 비밀 값(예: `openssl rand -base64 32`의 출력)을 넣어 주세요(README의 "인증").',
     )

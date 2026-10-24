@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useUploadFileMutation } from '@/queries/files/files.queries'
-import { ApiError } from '@/shared/api/api-fetch'
+import { apiErrorMessage } from '@/shared/api/api-fetch'
 import { UploadError } from '@/shared/api/generated/model'
 import { findUploadProblem } from '@/shared/upload/upload-policy'
 
@@ -61,10 +61,9 @@ export function useUploads() {
           update(id, { status: 'succeeded', progress: 1 })
         },
         (error: unknown) => {
-          update(
-            id,
-            controller.signal.aborted ? { status: 'canceled' } : { status: 'failed', error: failureReason(error) },
-          )
+          // 백엔드가 명세의 UploadError로 이유를 알려 주면 그 문구를 쓴다.
+          const reason = apiErrorMessage(error, UploadError) ?? '잠시 뒤 다시 시도해 주세요.'
+          update(id, controller.signal.aborted ? { status: 'canceled' } : { status: 'failed', error: reason })
         },
       )
       .finally(() => {
@@ -100,13 +99,4 @@ export function useUploads() {
       setUploads((current) => current.filter((upload) => upload.id !== id))
     },
   }
-}
-
-/** 업로드가 실패한 이유. 백엔드가 명세의 UploadError로 이유를 알려 주면 그 문구를 쓴다. */
-function failureReason(error: unknown): string {
-  if (error instanceof ApiError) {
-    const body = UploadError.safeParse(error.body)
-    if (body.success) return body.data.message
-  }
-  return '잠시 뒤 다시 시도해 주세요.'
 }

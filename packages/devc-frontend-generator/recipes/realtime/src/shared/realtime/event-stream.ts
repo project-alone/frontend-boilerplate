@@ -1,4 +1,5 @@
 import { browserBaseUrl } from '@/shared/api/base-url'
+import { delay } from '@/shared/lib/async'
 import { waitForMocks } from '@/shared/mocks/mock-readiness'
 
 // realtime Recipe: 백엔드가 Server-Sent Events(text/event-stream)로 보내는 이벤트를 받는 클라이언트(README의 "실시간 이벤트").
@@ -99,7 +100,14 @@ export function connectEventStream({
           await readEvents(response.body, (event) => {
             eventsReceived += 1
             lastEventId = event.lastEventId
-            notifyEvent(onEvent, event)
+            // 받는 쪽의 오류는 연결이 끊긴 것으로 보지 않고 따로 던져 드러낸다.
+            try {
+              onEvent(event)
+            } catch (error) {
+              queueMicrotask(() => {
+                throw error
+              })
+            }
           })
         } else {
           await response.body?.cancel()
@@ -111,7 +119,7 @@ export function connectEventStream({
       const healthy = eventsReceived > 0 || (openedAt !== undefined && Date.now() - openedAt >= HEALTHY_CONNECTION_MS)
       failures = healthy ? 1 : failures + 1
       setStatus('reconnecting')
-      await sleep(retryDelay(failures), signal)
+      await delay(retryDelay(failures), signal)
       if (isClosed()) return
     }
   })()
@@ -119,31 +127,6 @@ export function connectEventStream({
   return () => {
     controller.abort()
   }
-}
-
-/** 이벤트를 알린다. 받는 쪽의 오류는 연결이 끊긴 것으로 보지 않고 따로 던져 드러낸다. */
-function notifyEvent(onEvent: (event: ServerSentEvent) => void, event: ServerSentEvent) {
-  try {
-    onEvent(event)
-  } catch (error) {
-    queueMicrotask(() => {
-      throw error
-    })
-  }
-}
-
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      { once: true },
-    )
-  })
 }
 
 /**
