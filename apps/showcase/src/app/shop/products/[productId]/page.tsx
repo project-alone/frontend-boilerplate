@@ -7,7 +7,7 @@ import { notFound } from 'next/navigation'
 import { AddToCartForm } from '@/features/shop-cart/add-to-cart-form'
 import { CatalogProductDetail } from '@/features/shop-catalog/catalog-product-detail'
 import { getCatalogProductQueryOptions, listCatalogProductsQueryOptions } from '@/queries/catalog/catalog.queries'
-import { ApiError } from '@/shared/api/api-fetch'
+import { isApiError } from '@/shared/api/api-fetch'
 import { getQueryClient } from '@/shared/query-client/get-query-client'
 
 // ISR: 빌드할 때 렌더링해 둔 HTML을 보내다가, 렌더링한 지 revalidate초가 지난 뒤 요청이 오면 그 요청에는 이전 HTML을
@@ -49,7 +49,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!Number.isInteger(productId)) notFound()
   const queryClient = getQueryClient()
   const product = await queryClient.query(getCatalogProductQueryOptions(productId)).catch((error: unknown) => {
-    if (error instanceof ApiError && error.status === 404) notFound()
+    if (isApiError(error, 404)) notFound()
     throw error
   })
 
