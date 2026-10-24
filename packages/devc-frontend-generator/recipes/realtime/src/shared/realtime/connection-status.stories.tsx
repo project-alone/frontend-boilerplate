@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect } from 'storybook/test'
 import { ConnectionStatus } from './connection-status'
 
-// 연결 상태마다 글자로 상태를 알리는지 보고, 스토리마다 axe 접근성 검사를 한다(vitest.config.ts의 storybook 프로젝트).
+// 연결 상태마다 글자로 상태를 알리는지 보고, 스토리마다 axe 접근성 검사를 한다(config/vitest.config.ts의 storybook 프로젝트).
 const meta = {
   title: 'Shared/Realtime/ConnectionStatus',
   component: ConnectionStatus,

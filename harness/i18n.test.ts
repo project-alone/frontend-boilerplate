@@ -52,7 +52,7 @@ export function Typo() {
     for (const route of ['/ko', '/en', '/ko/i18n', '/en/i18n']) expect(buildRouteLine(output, route), output).toContain('●')
   })
 
-  // server는 위 빌드 결과를 띄워 검사하고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(playwright.config.ts).
+  // server는 위 빌드 결과를 띄워 검사하고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(config/playwright.config.ts).
   test('빌드한 앱에서 E2E가 통과한다(locale이 붙은 주소, locale 전환, 번역하지 않은 페이지, locale 고르기)', async () => {
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
   })

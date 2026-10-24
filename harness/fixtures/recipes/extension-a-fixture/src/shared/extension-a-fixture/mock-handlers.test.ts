@@ -3,7 +3,7 @@ import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import { getBeta } from '@/shared/api/generated'
 
 // 이 파일은 브라우저(jsdom)에서 실행된다. Vitest에서는 두 Rendering Mode 모두 브라우저가 목 백엔드(MOCK_API_BASE_URL)를
-// 부르고(server는 src/shared/api/base-url.ts, static-export는 vitest.setup.ts), 요청은 MSW가 Starter의 핸들러 목록
+// 부르고(server는 src/shared/api/base-url.ts, static-export는 config/vitest.setup.ts), 요청은 MSW가 Starter의 핸들러 목록
 // (src/shared/mocks/handlers.ts)으로 받는다.
 // 확장 지점 mockHandlers: b(order 100) → a(order 200)의 핸들러가 명세에서 생성된 핸들러보다 앞에 놓인다.
 

@@ -92,7 +92,7 @@ export function sessionCookieOptions() {
 
 /**
  * 세션 쿠키를 암호화하는 비밀 값. 서버에서만 읽는 환경 변수 SESSION_SECRET에서 가져온다. 개발 서버는 .env.development의 값을,
- * E2E 대상 서버는 playwright.config.ts의 값을 쓰고, 배포하는 서버에는 꼭 넣는다. 서버가 뜰 때 auth-instrumentation.ts가
+ * E2E 대상 서버는 config/playwright.config.ts의 값을 쓰고, 배포하는 서버에는 꼭 넣는다. 서버가 뜰 때 auth-instrumentation.ts가
  * 한 번 불러서, 빠졌으면 요청을 받기 전에 알린다.
  */
 export function sessionSecret(): string {

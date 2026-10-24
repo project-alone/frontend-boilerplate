@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 
-// E2E는 분석 공급자를 붙이지 않은 기본 구현으로 빌드한 앱으로 돈다(playwright.config.ts). 배포용 빌드의 기본 구현은 페이지뷰와
+// E2E는 분석 공급자를 붙이지 않은 기본 구현으로 빌드한 앱으로 돈다(config/playwright.config.ts). 배포용 빌드의 기본 구현은 페이지뷰와
 // 이벤트를 어디에도 보내거나 남기지 않는다. MSW가 받는 샘플 백엔드 주소(MOCK_API_BASE_URL)는 앱의 요청이다.
 
 /** Link를 누른 것처럼 App Router로 페이지를 옮긴다. Base의 홈에는 링크가 없어 Next.js가 window.next.router에 둔 라우터를 부른다. */

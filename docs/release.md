@@ -41,7 +41,7 @@ Generator는 Starter를 만들 때 Base가 고정한 도구 몇 개를 Starter�
 | ---------- | -------------------------------------------------------------------------------- | ------------------------------------ |
 | `orval`    | 명세 조각을 병합한 `openapi.yaml`로 재생성 API 계층을 만든다(`src/api-layer.ts`) | `npm run api:gen`                    |
 | `prettier` | 병합한 명세와 확장 지점의 조립 파일을 포맷한다(`src/format.ts`)                  | `npm run format`, `format:check`     |
-| `jiti`     | 그때 Starter의 `orval.config.ts`를 읽어 실행한다(`src/api-layer.ts`)             | ESLint가 `eslint.config.ts`를 읽는다 |
+| `jiti`     | 그때 Starter의 `config/orval.config.ts`를 읽어 실행한다(`src/api-layer.ts`)      | ESLint가 `eslint.config.ts`를 읽는다 |
 
 - Generator가 Starter의 파일에 새 도구를 실행하게 되면 이 표와 `harness/tool-versions.test.ts`의 목록에 더한다. 하네스는 목록 밖이라도 Generator의 `dependencies`와 Base가 함께 가진 패키지는 같은 버전인지 본다.
 - Schematic(`dcgen g`)은 Starter에 설치된 Prettier로 포맷하므로 이 규칙과 상관없다.

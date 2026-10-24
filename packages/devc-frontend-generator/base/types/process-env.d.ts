@@ -1,11 +1,8 @@
-// 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/process-env.d.ts
-
 // Starter가 읽는 환경 변수. tsconfig의 noPropertyAccessFromIndexSignature 때문에 선언하지 않은 이름은
 // process.env.<이름>으로 읽을 수 없다. 대괄호 표기로 바꾸지 않고 여기에 선언하는 것은 Next.js가
 // process.env.NEXT_RUNTIME 같은 점 표기를 빌드할 때 값으로 바꿔 런타임별로 쓰지 않는 코드를 덜어 내기 때문이다.
 // 환경 변수를 새로 읽으면 여기에 함께 적는다. Rendering Mode와 Recipe가 읽는 환경 변수는 그 overlay가 더한
-// process-env.<이름>.d.ts에 있다.
+// types/process-env.<이름>.d.ts에 있다.
 declare namespace NodeJS {
   interface ProcessEnv {
     /** Next.js가 넣는 서버 런타임 이름 */
@@ -21,7 +18,7 @@ declare namespace NodeJS {
     readonly API_BASE_URL?: string
     /** enabled로 빌드하면 브라우저의 API 요청을 MSW 서비스 워커가 받는다. static-export에서 쓴다(src/shared/mocks/browser-instrumentation.ts). */
     readonly NEXT_PUBLIC_API_MOCKING?: 'enabled' | 'disabled'
-    /** E2E 대상 서버의 포트(playwright.config.ts). 없으면 3100을 쓴다. */
+    /** E2E 대상 서버의 포트(config/playwright.config.ts). 없으면 3100을 쓴다. */
     readonly E2E_PORT?: string
     /** CI 서비스가 넣는다. 있으면 E2E에서 test.only를 막고 서버를 매번 새로 띄운다. */
     readonly CI?: string

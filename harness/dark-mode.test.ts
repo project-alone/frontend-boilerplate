@@ -113,7 +113,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 dark-m
     starter.expectNpmSuccess(['run', 'build'])
   })
 
-  // server는 위 빌드 결과를 띄워 검사하고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(playwright.config.ts).
+  // server는 위 빌드 결과를 띄워 검사하고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(config/playwright.config.ts).
   test('빌드한 앱에서 E2E가 통과한다(운영체제 설정, 저장한 테마, 깜빡임 없음, 두 테마의 접근성)', async () => {
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
   })

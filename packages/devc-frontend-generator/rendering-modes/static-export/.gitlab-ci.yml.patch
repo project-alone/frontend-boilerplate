@@ -25,8 +25,8 @@
    stage: e2e
 -  needs:
 -    - build
-+  # E2E는 브라우저의 MSW를 켜고 직접 다시 빌드한 out/으로 돈다(playwright.config.ts). build 잡의 결과는 받지 않는다.
++  # E2E는 브라우저의 MSW를 켜고 직접 다시 빌드한 out/으로 돈다(config/playwright.config.ts). build 잡의 결과는 받지 않는다.
 +  dependencies: []
    script:
      - npm run test:e2e
-   # 실패한 테스트의 trace(playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.
+   # 실패한 테스트의 trace(config/playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.

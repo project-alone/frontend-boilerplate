@@ -6,7 +6,7 @@ import type { NextConfig } from 'next'
 const FONT_LICENSE = './src/shared/seo/pretendard-license.txt'
 const OG_IMAGE_ROUTES = '/**/opengraph-image/**'
 
-/** seo Recipe의 next.config 래퍼(확장 지점 nextConfig, next.config.plugins.ts). 빌드 결과에 글꼴의 라이선스를 함께 담는다. */
+/** seo Recipe의 next.config 래퍼(확장 지점 nextConfig, config/next.config.plugins.ts). 빌드 결과에 글꼴의 라이선스를 함께 담는다. */
 export function withSeo(config: NextConfig): NextConfig {
   const includes = config.outputFileTracingIncludes ?? {}
   return {

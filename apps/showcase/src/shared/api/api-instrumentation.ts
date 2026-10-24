@@ -6,7 +6,7 @@ import { backendBaseUrl } from './base-url'
 /**
  * Next.js 서버가 뜰 때 한 번 실행된다(src/instrumentation.ts가 부른다).
  * API_MOCKING=enabled이면 서버 컴포넌트와 Route Handler가 보내는 요청을 MSW가 받는다.
- * 개발 서버는 .env.development에서, E2E 대상 서버는 playwright.config.ts에서 이 값을 켠다.
+ * 개발 서버는 .env.development에서, E2E 대상 서버는 config/playwright.config.ts에서 이 값을 켠다.
  * 실제로 배포하는 서버에서는 켜지 않는다(msw는 devDependency다).
  * next build에서는 Next.js가 instrumentation을 실행하지 않으므로, 목 빌드에서는 apiFetch가 MSW를 켠다(api-mocking.ts).
  */
