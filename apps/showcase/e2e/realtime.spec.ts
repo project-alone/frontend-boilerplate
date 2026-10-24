@@ -10,6 +10,9 @@ import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
 // (src/shared/mocks/deliveries.ts)가 새로 연결한 화면마다 정해진 순서로 이벤트를 보낸다. 화면이 연결한 뒤 목록을 받고 나서
 // 1.5초 뒤 D-1002가 배송 중으로 바뀌고, 2.5초 뒤 D-1004가 접수되고, 3.5초 뒤 D-1001이 배송 완료로 바뀌지만 그 이벤트를
 // 보내기 전에 연결이 끊긴다.
+// server에서는 Next.js 서버 하나의 목 백엔드를 모든 화면이 함께 쓰고, 새 화면의 스트림 연결이 들어와야 목록을 처음으로 되돌린다.
+// 그래서 새 화면의 첫 목록 요청이 스트림 연결보다 먼저 닿으면, 앞 테스트의 화면이 남긴 순서가 바꿔 둔 목록(예: D-1001 배송 완료)을
+// 받을 수 있다. 순서가 어디까지 왔는지는 목록의 글자가 아니라 연결 상태로 따라간다.
 
 /** 화면에 보인 연결 상태와 배송 행의 글자 */
 interface Screen {
@@ -53,6 +56,9 @@ async function recordScreens(page: Page) {
     /** 운송장 번호가 id인 행이 지금까지 보인 글자 */
     rowTexts: async (id: string) =>
       withoutRepeats((await screens()).flatMap(({ rows }) => rows.filter((row) => row.startsWith(id)))),
+    /** 연결 상태가 처음 status가 된 화면에서 운송장 번호가 id인 행의 글자 */
+    rowTextWhen: async (status: string, id: string) =>
+      (await screens()).find((screen) => screen.status === status)?.rows.find((row) => row.startsWith(id)),
   }
 }
 
@@ -123,14 +129,13 @@ test('백엔드가 연결을 끊으면 다시 연결하는 중임을 알리고, 
 
   await page.goto('/realtime')
 
-  // 배송 완료는 이벤트로 오지 않으므로, 다시 연결한 뒤 가져온 목록에서만 볼 수 있다.
-  await expect(deliveryRow(page, 'D-1001')).toContainText('배송 완료', { timeout: 10_000 })
-  expect(await screens.statuses()).toEqual([
-    '실시간 연결 중',
-    '실시간 연결됨',
-    '연결이 끊겨 다시 연결하는 중',
-    '실시간 연결됨',
-  ])
+  // 첫 목록에는 앞 화면의 순서가 남긴 배송 완료가 보일 수 있으므로, 배송 완료가 아니라 끊겼다가 다시 연결되는 것을 기다린다.
+  await expect
+    .poll(() => screens.statuses(), { timeout: 10_000 })
+    .toEqual(['실시간 연결 중', '실시간 연결됨', '연결이 끊겨 다시 연결하는 중', '실시간 연결됨'])
+  // 배송 완료는 끊기기 직전에 일어나 이벤트로 오지 않으므로, 끊겼을 때는 몰랐다가 다시 연결한 뒤 가져온 목록으로 맞춘다.
+  expect(await screens.rowTextWhen('연결이 끊겨 다시 연결하는 중', 'D-1001')).toContain('배송 중')
+  await expect(deliveryRow(page, 'D-1001')).toContainText('배송 완료')
   expect(listRequests).toHaveLength(3)
   // 이벤트로 받은 변경은 다시 가져온 목록에도 그대로 있다.
   await expect(deliveryRow(page, 'D-1002')).toContainText('배송 중')
