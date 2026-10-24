@@ -1,7 +1,4 @@
-// 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): recipes/seo/process-env.seo.d.ts
-
-// seo Recipe가 읽는 환경 변수. Base의 process-env.d.ts와 합쳐진다.
+// seo Recipe가 읽는 환경 변수. Base의 types/process-env.d.ts와 합쳐진다.
 declare namespace NodeJS {
   interface ProcessEnv {
     /**

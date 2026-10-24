@@ -2,17 +2,17 @@
 
 `seo` Recipe로 넣었습니다. 검색 엔진과 메신저·SNS의 공유 카드에 보이는 정보(메타데이터, 공유 이미지, `/sitemap.xml`, `/robots.txt`)를 만듭니다.
 
-| 위치                                      | 내용                                                                                                 |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/shared/seo/site.ts`                  | 사이트 이름·설명·locale과 사이트 주소(`NEXT_PUBLIC_SITE_URL`)                                        |
-| `src/shared/seo/metadata.ts`              | 모든 페이지가 물려받는 메타데이터의 기본값(`siteMetadata`). 루트 레이아웃(`src/app/layout.tsx`)이 씀 |
-| `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                            |
-| `src/shared/seo/pretendard-license.txt`   | 글꼴의 저작권 표시와 SIL Open Font License 1.1 전문                                                  |
-| `src/shared/seo/next-config.ts`           | 빌드 결과에 글꼴의 라이선스를 함께 담는 next.config 래퍼(`withSeo`, `next.config.plugins.ts`가 씀)   |
-| `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                          |
-| `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                        |
-| `src/app/sitemap-rules.ts`                | 다른 Recipe가 자기 페이지에 대해 알린 sitemap·robots.txt의 규칙(Generator가 조립)                    |
-| `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예        |
+| 위치                                      | 내용                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `src/shared/seo/site.ts`                  | 사이트 이름·설명·locale과 사이트 주소(`NEXT_PUBLIC_SITE_URL`)                                             |
+| `src/shared/seo/metadata.ts`              | 모든 페이지가 물려받는 메타데이터의 기본값(`siteMetadata`). 루트 레이아웃(`src/app/layout.tsx`)이 씀      |
+| `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                                 |
+| `src/shared/seo/pretendard-license.txt`   | 글꼴의 저작권 표시와 SIL Open Font License 1.1 전문                                                       |
+| `src/shared/seo/next-config.ts`           | 빌드 결과에 글꼴의 라이선스를 함께 담는 next.config 래퍼(`withSeo`, `config/next.config.plugins.ts`가 씀) |
+| `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                               |
+| `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                             |
+| `src/app/sitemap-rules.ts`                | 다른 Recipe가 자기 페이지에 대해 알린 sitemap·robots.txt의 규칙(Generator가 조립)                         |
+| `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예             |
 
 - **사이트 주소**: `NEXT_PUBLIC_SITE_URL`(예: `https://www.example.com`)로 sitemap, robots.txt, canonical, og:url, 공유 이미지의 절대 주소를 만듭니다. 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다(`.env.example`). 없으면 엉뚱한 주소가 검색 엔진에 알려지지 않도록 빌드가 실패합니다. 개발 서버는 `.env.development`의 `http://localhost:3000`을 쓰고, 배포하지 않는 목 빌드(`API_MOCKING=enabled`. GitLab CI의 `build` 잡과 E2E)는 값이 없으면 같은 주소를 씁니다.
 

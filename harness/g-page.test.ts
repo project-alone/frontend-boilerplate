@@ -388,7 +388,7 @@ describe('server Starter', () => {
     // 서버의 apiFetch가 빌드할 때 MSW를 켜는 코드와 MSW는 브라우저 번들에 들어가지 않는다.
     expect(scriptsContaining(join(starter.dir, '.next/static'), MSW_MARKER)).toEqual([])
 
-    // 위 빌드 결과를 next start로 띄워 검사한다(playwright.config.ts). 서버는 MSW로 요청을 받는다.
+    // 위 빌드 결과를 next start로 띄워 검사한다(config/playwright.config.ts). 서버는 MSW로 요청을 받는다.
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
   })
 })
@@ -440,7 +440,7 @@ describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
   })
 
   // 하네스 매트릭스: server Starter와 같은 차례로 만든 화면을, E2E(harness/fixtures/g-page/static-export.spec.ts)가 브라우저의
-  // MSW를 켜고 다시 빌드한 정적 파일에서 검사한다(playwright.config.ts). SSG 페이지가 그 빌드에서 보내는 요청에는 MSW가 응답한다.
+  // MSW를 켜고 다시 빌드한 정적 파일에서 검사한다(config/playwright.config.ts). SSG 페이지가 그 빌드에서 보내는 요청에는 MSW가 응답한다.
   // 그 전에 배포용 빌드와 목 빌드(GitLab CI의 build 잡)가 빌드할 때의 요청을 어떻게 다루는지 본다.
   test('query → mutation → form → page로 만든 화면이 Starter의 검사와 E2E(목록 표시, 폼 제출 뒤 목록 갱신)를 통과한다', {
     timeout: 20 * 60_000,
@@ -469,7 +469,7 @@ describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
     for (const { name } of SAMPLE_PRODUCTS) expect(html).toContain(name)
     expect(scriptsContaining(join(starter.dir, 'out/_next'), MSW_MARKER)).toEqual([])
 
-    // E2E는 빌드할 때와 브라우저의 MSW를 모두 켜고 다시 빌드한 out/으로 돈다(playwright.config.ts). 빌드용 백엔드는 띄우지 않는다.
+    // E2E는 빌드할 때와 브라우저의 MSW를 모두 켜고 다시 빌드한 out/으로 돈다(config/playwright.config.ts). 빌드용 백엔드는 띄우지 않는다.
     starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()), API_BASE_URL: '' })
   })
 })

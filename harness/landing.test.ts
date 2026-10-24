@@ -75,7 +75,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 랜딩
     expect(build.output).toContain('API_BASE_URL 환경 변수가 없습니다. 빌드할 때 데이터를 가져오는 페이지')
   })
 
-  // server는 여기서 만든 목 빌드를 띄우고, static-export는 E2E가 브라우저의 MSW까지 켜고 직접 다시 빌드한다(playwright.config.ts).
+  // server는 여기서 만든 목 빌드를 띄우고, static-export는 E2E가 브라우저의 MSW까지 켜고 직접 다시 빌드한다(config/playwright.config.ts).
   test('목 빌드는 랜딩 페이지와 공유 이미지를 locale마다 빌드할 때 렌더링하고, 빌드한 앱에서 E2E(주요 섹션, 언어 전환, 언어별 메타데이터·공유 이미지·sitemap, 접근성)가 통과한다', async () => {
     const { output } = starter.expectNpmSuccess(['run', 'build'], MOCK_BUILD_ENV)
 

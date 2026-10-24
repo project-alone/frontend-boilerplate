@@ -13,6 +13,6 @@ Starter의 서버 전용 모듈은 `import 'server-only'`로, 컴포넌트가 �
 이미 만든 Starter에 적용하려면:
 
 1. `npm install server-only@0.0.1`(브라우저 전용 모듈에 표시하려면 `client-only@0.0.1`도)을 실행한다.
-2. 새 Generator로 같은 Recipe를 넣은 Starter를 만들어 `package.json`의 `imports`, `src/shared/api/`의 `api-fetch.ts`·`api-fetch.server.ts`·`api-fetch.ssr.ts`·`base-url.ts`·`bff-proxy.ts`·`api-instrumentation.ts`, `vitest.config.ts`의 unit 프로젝트에 더한 `resolve.alias`를 옮긴다. 고치지 않은 파일은 그대로 덮어써도 된다.
+2. 새 Generator로 같은 Recipe를 넣은 Starter를 만들어 `package.json`의 `imports`, `src/shared/api/`의 `api-fetch.ts`·`api-fetch.server.ts`·`api-fetch.ssr.ts`·`base-url.ts`·`bff-proxy.ts`·`api-instrumentation.ts`, `config/vitest.config.ts`의 unit 프로젝트에 더한 `resolve.alias`를 옮긴다. 고치지 않은 파일은 그대로 덮어써도 된다.
 3. 서버에서만 실행되는 모듈의 맨 위에 `import 'server-only'`를 더한다. auth Recipe를 넣었다면 `SESSION_COOKIE`를 `auth-client.ts`로 옮기고 import를 고친다.
-4. `npm run typecheck`, `npm test`, `API_MOCKING=enabled npm run build`로 확인한다. 빌드가 `"server-only"`나 `"client-only"`를 알리며 실패하면, 알린 import 경로를 따라가 반대쪽 모듈을 import하는 곳을 고친다.
+4. `npm run typecheck`, `npm test`, `API_MOCKING=enabled npm run build`로 확인한다. 빌드가 `server-only`나 `client-only`를 알리며 실패하면, 알린 import 경로를 따라가 반대쪽 모듈을 import하는 곳을 고친다.

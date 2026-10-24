@@ -39,7 +39,7 @@ export function signInAsMockUser(email: string): () => void {
     return fetchWithoutSession(input, { ...init, headers })
   }
 
-  // fetch는 함수로 선언되어 있어 대입할 수 없으므로 vitest.setup.ts의 dns.lookup처럼 Object.assign으로 바꾼다.
+  // fetch는 함수로 선언되어 있어 대입할 수 없으므로 config/vitest.setup.ts의 dns.lookup처럼 Object.assign으로 바꾼다.
   Object.assign(globalThis, { fetch: fetchWithSession })
   return () => {
     Object.assign(globalThis, { fetch: fetchWithoutSession })

@@ -112,7 +112,7 @@ test:e2e:
     - build
   script:
     - npm run test:e2e
-  # 실패한 테스트의 trace(playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.
+  # 실패한 테스트의 trace(config/playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.
   artifacts:
     when: on_failure
     paths:

@@ -1,8 +1,9 @@
 import { defineConfig } from 'orval'
-import { MOCK_API_BASE_URL } from './src/shared/api/base-url'
+import { MOCK_API_BASE_URL } from '../src/shared/api/base-url'
 
 // `npm run api:gen`이 읽는 설정. openapi.yaml에서 재생성 계층(src/shared/api/generated)을 만든다(ADR-0003).
-// 재생성 계층은 손으로 고치지 않고, 명세를 고친 뒤 다시 생성한다.
+// 재생성 계층은 손으로 고치지 않고, 명세를 고친 뒤 다시 생성한다. orval은 경로를 이 파일 기준으로 읽으므로 Starter 최상위의
+// 파일은 ../로 가리킨다.
 //
 // - 타입과 Zod 스키마: model/<스키마>.zod.ts. 타입은 Zod 스키마에서 뽑는다.
 // - fetch 함수: <tag>/<tag>.ts. 모든 요청이 src/shared/api/api-fetch.ts의 apiFetch를 거치고, 응답은 Zod 스키마로 검증된다.
@@ -13,11 +14,11 @@ import { MOCK_API_BASE_URL } from './src/shared/api/base-url'
 // 뮤테이션 훅은 src/queries/<Query Domain>에 두고 프로젝트가 직접 소유한다.
 export default defineConfig({
   api: {
-    input: { target: './openapi.yaml' },
+    input: { target: '../openapi.yaml' },
     output: {
       mode: 'tags-split',
-      target: './src/shared/api/generated/index.ts',
-      schemas: { path: './src/shared/api/generated/model', type: 'zod' },
+      target: '../src/shared/api/generated/index.ts',
+      schemas: { path: '../src/shared/api/generated/model', type: 'zod' },
       client: 'fetch',
       httpClient: 'fetch',
       clean: true,
@@ -25,7 +26,7 @@ export default defineConfig({
       // 명세의 example을 목 응답으로 쓴다. example이 없는 응답은 faker가 만든다.
       mock: { indexMockFiles: true, generators: [{ type: 'msw', useExamples: true, baseUrl: MOCK_API_BASE_URL }] },
       override: {
-        mutator: { path: './src/shared/api/api-fetch.ts', name: 'apiFetch' },
+        mutator: { path: '../src/shared/api/api-fetch.ts', name: 'apiFetch' },
         fetch: { includeHttpResponseReturnType: false, runtimeValidation: true },
         // fetch 함수는 응답 타입과 같은 이름의 Zod 스키마로 응답을 검증한다. 응답이 이름 있는 스키마가 아니라 그 자리에 적은
         // oneOf·anyOf(스키마 둘 중 하나, 스키마 또는 null 등)이면 orval은 타입을 `A | B`로만 적어 검증할 Zod 스키마가 없고,

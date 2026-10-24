@@ -63,7 +63,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s Starter�
     expect(html).toContain('찾는 화면이 없습니다')
   })
 
-  // server는 이 빌드 결과를 next start로 띄우고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(playwright.config.ts).
+  // server는 이 빌드 결과를 next start로 띄우고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(config/playwright.config.ts).
   test('빌드한 앱에서 없는 주소, 페이지의 오류, 루트 레이아웃의 오류(와 server의 서버 오류 500, notFound() 404)를 앱 수준 화면이 받는다', async () => {
     writeProbes(starter, renderingMode)
     if (renderingMode === 'server') starter.expectNpmSuccess(['run', 'build'])

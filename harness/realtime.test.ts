@@ -74,7 +74,7 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
       }
     })
 
-    // server는 위 빌드 결과를 띄워 검사하고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(playwright.config.ts).
+    // server는 위 빌드 결과를 띄워 검사하고, static-export는 E2E가 MSW를 켜고 직접 다시 빌드한다(config/playwright.config.ts).
     test('빌드한 앱에서 E2E가 통과한다(실시간 이벤트가 목록에 바로 반영됨, 끊긴 뒤 다시 연결해 놓친 변경을 맞춤, 접근성)', async () => {
       starter.expectNpmSuccess(['run', 'test:e2e'], { E2E_PORT: String(await freePort()) })
     })

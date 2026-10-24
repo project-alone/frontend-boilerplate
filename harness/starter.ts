@@ -242,7 +242,7 @@ function copyInstall(from: string, to: string): void {
 
 /**
  * 이미 떠 있는 서버(예: 개발 서버)를 대상으로 Starter의 Playwright 테스트를 실행한다.
- * Starter의 playwright.config.ts는 빌드 결과를 띄워 검사하므로, baseURL만 바꾼 설정을 잠시 두고 지운다.
+ * Starter의 config/playwright.config.ts는 빌드 결과를 띄워 검사하므로, baseURL만 바꾼 설정을 잠시 두고 지운다.
  */
 export function runPlaywrightAgainst(starterDir: string, baseURL: string, specs: readonly string[]): RunResult {
   const config = 'playwright.harness-dev.config.ts'

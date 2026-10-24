@@ -123,7 +123,7 @@ export const SITEMAP_ROUTE = 'src/app/sitemap.ts'
  * 확장 지점을 모아 만드는 조립 파일. 조각의 모양은 조립 파일의 타입이 정하므로 Starter의 typecheck가 검사한다.
  *
  * - src/app/app-shell.tsx: 루트 레이아웃이 쓰므로 늘 만든다.
- * - next.config.plugins.ts: next.config.ts가 쓰므로 늘 만든다.
+ * - config/next.config.plugins.ts: next.config.ts가 쓰므로 늘 만든다.
  * - src/shared/api/backend-fetch.ts: Base의 apiFetch와 BFF 프록시가 쓰므로 늘 만든다.
  * - src/shared/mocks/handlers.ts: Base의 MSW(node.ts, Rendering Mode static-export의 browser.ts)가 쓰므로 늘 만든다.
  * - src/instrumentation.ts, src/instrumentation-client.ts: 조각이 있을 때만 만든다.
@@ -158,7 +158,7 @@ export const ASSEMBLED_FILES: readonly AssembledFile[] = [
     },
   }),
   assembledFile({
-    path: 'next.config.plugins.ts',
+    path: 'config/next.config.plugins.ts',
     points: ['nextConfig'],
     imports: ["import type { NextConfig } from 'next'"],
     render: ({ nextConfig }) => [

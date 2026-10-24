@@ -617,9 +617,9 @@ test('브라우저의 API 요청은 BFF 프록시로 간다', async ({ page, bas
 `
 
   test('server Starter의 예시 환경 변수와 타입 선언에는 브라우저가 직접 부를 백엔드 주소(NEXT_PUBLIC_API_BASE_URL)가 없다', () => {
-    const files = ['.env.example', ...readdirSync(starter.dir).filter((name) => /^process-env.*\.d\.ts$/.test(name))]
+    const files = ['.env.example', ...readdirSync(join(starter.dir, 'types')).map((name) => join('types', name))]
 
-    expect(files).toContain('process-env.d.ts')
+    expect(files).toContain(join('types', 'process-env.d.ts'))
     for (const file of files) {
       expect(readFileSync(join(starter.dir, file), 'utf8'), file).not.toContain('NEXT_PUBLIC_API_BASE_URL')
     }

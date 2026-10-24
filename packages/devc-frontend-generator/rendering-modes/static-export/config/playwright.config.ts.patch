@@ -1,6 +1,6 @@
---- a/playwright.config.ts
-+++ b/playwright.config.ts
-@@ -12,13 +12,16 @@
+--- a/config/playwright.config.ts
++++ b/config/playwright.config.ts
+@@ -15,14 +15,17 @@
      trace: 'retain-on-failure',
    },
    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
@@ -14,6 +14,7 @@
    webServer: {
 -    command: `npm run start -- --port ${PORT}`,
 +    command: `npm run build && npm run start -- --port ${PORT}`,
+     cwd: '..',
      url: baseURL,
      reuseExistingServer: !process.env.CI,
 -    env: { API_MOCKING: 'enabled' },

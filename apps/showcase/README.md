@@ -57,13 +57,27 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 | 파일                              | 내용                                                                                                                             |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `src/app/app-shell.tsx`           | 루트 레이아웃(`src/app/layout.tsx`)이 모든 페이지를 감싸는 Provider(위에 적힌 것이 바깥)와 머리글                                |
-| `next.config.plugins.ts`          | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것이 바깥                                     |
+| `config/next.config.plugins.ts`   | `next.config.ts`의 설정을 감싸는 래퍼(예: next-intl, Sentry의 플러그인). 위에 적힌 것이 바깥                                     |
 | `src/instrumentation.ts`          | 서버가 뜰 때 실행할 코드(API 목킹이나 백엔드 주소 확인 등)와 서버가 요청을 처리하다 난 오류의 처리                               |
 | `src/instrumentation-client.ts`   | 브라우저에서 앱 코드보다 먼저 실행할 코드와 페이지 이동 알림. 넣은 코드가 있을 때만 있음                                         |
 | `src/proxy.ts`                    | 페이지 요청이 라우트에 닿기 전에 차례로 실행할 처리기(Next.js Proxy). 넣은 처리기가 있을 때만 있음                               |
 | `src/shared/api/backend-fetch.ts` | 서버가 백엔드로 보내는 요청(서버의 `apiFetch`, BFF 프록시)이 차례로 거칠 처리기(예: 토큰 첨부). 처리기가 없으면 그대로 보냄      |
 | `src/shared/mocks/handlers.ts`    | MSW가 쓰는 핸들러 목록. Recipe가 직접 만든 핸들러(위에 적힌 것이 먼저 응답)와 명세에서 생성한 핸들러                             |
 | `src/app/sitemap-rules.ts`        | sitemap과 robots.txt가 따르는 규칙(예: 로그인해야 들어가는 페이지는 알리지 않음). sitemap(`src/app/sitemap.ts`)이 있을 때만 있음 |
+
+## 설정 파일의 위치
+
+도구가 프로젝트 최상위에서만 찾는 설정만 최상위에 두고, 나머지 설정은 `config/`에, 환경 변수의 타입 선언은 `types/`에 모았습니다.
+
+| 위치      | 파일                                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 최상위    | `next.config.ts`, `postcss.config.mjs`(Next.js가 최상위에서 찾음), `eslint.config.ts`(ESLint와 에디터가 최상위에서 찾음), `tsconfig.json`         |
+| `config/` | `vitest.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `orval.config.ts`, `next.config.plugins.ts`(위 "앱 조립 파일")                     |
+| `types/`  | `process-env.d.ts`(환경 변수의 타입 선언, 아래 "품질 기준"). Rendering Mode와 Recipe가 읽는 변수는 그 이름의 `process-env.<이름>.d.ts`에 있습니다 |
+
+- `config/`의 설정은 npm 스크립트(`test`, `test:storybook`, `test:e2e`, `api:gen`)가 `--config`로 넘깁니다. `npx vitest`, `npx playwright test`처럼 도구를 직접 부르면 설정을 찾지 못하므로, 파일 하나만 돌릴 때도 npm 스크립트에 인자를 붙입니다(예: `npm test -- src/app/page.test.tsx`, `npm run test:e2e -- e2e/not-found.spec.ts`).
+- 설정 안의 경로: `vitest.config.ts`는 `root`를 프로젝트 최상위로 정해 최상위 기준으로 적습니다. `playwright.config.ts`와 `orval.config.ts`는 경로를 설정 파일 기준으로 읽으므로 `../e2e`, `../openapi.yaml`처럼 최상위를 가리킵니다.
+- VS Code의 Vitest 확장과 Playwright 확장은 작업 공간 전체에서 설정 파일(`*vitest*.config.*`, `*playwright*.config.*`)을 찾으므로 `config/`의 설정을 그대로 씁니다.
 
 ## GitLab CI
 
@@ -81,7 +95,7 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 - 린트와 포맷은 나뉘어 있습니다. ESLint는 코드 규칙만, Prettier는 포맷만 맡습니다.
 - import는 `app → features → queries → shared` 방향으로만 할 수 있고, 네 계층 밖의 `src` 파일은 import할 수 없습니다. `app` 밖의 파일은 `src/<계층>/<이름>/<파일>`보다 깊은 폴더에 둘 수 없습니다. 어기면 린트 오류가 납니다.
 - `app`이 `queries`를 직접 쓰는 것은 서버 컴포넌트에서 prefetch할 때만입니다. 린트로는 용도까지 가리지 못하므로 리뷰에서 지킵니다.
-- `process.env`에서 새 환경 변수를 읽으면 `process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다. 배포 환경에 넣어야 하는 변수라면 `.env.example`에도 적습니다. 배포할 때 넣는 변수는 모두 `.env.example`에 모여 있습니다.
+- `process.env`에서 새 환경 변수를 읽으면 `types/process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다. 배포 환경에 넣어야 하는 변수라면 `.env.example`에도 적습니다. 배포할 때 넣는 변수는 모두 `.env.example`에 모여 있습니다.
 - 지원 브라우저는 Next.js 기본 범위(Chrome·Edge·Firefox 111+, Safari 16.4+)이며 `package.json`의 `browserslist`에 적혀 있습니다.
 
 ## 서버와 브라우저의 경계
@@ -98,7 +112,7 @@ Next.js에서는 서버에서 실행되는 코드와 브라우저에서 실행�
 - `'use server'`는 서버 전용 표시로 쓰지 않습니다. `'use server'`는 Server Function(Server Action)을 선언하는 지시어라, 붙인 파일이 내보내는 async 함수를 브라우저가 부를 수 있는 엔드포인트로 엽니다. 이 Starter는 브라우저의 요청을 Route Handler(BFF 프록시 등)로 받습니다.
 - 서버와 브라우저가 함께 쓰는 모듈에는 서버에서만 쓰는 값을 두지 않습니다. 예를 들어 요청 주소는 브라우저도 쓰는 `base-url.ts`(`browserBaseUrl`, 목 백엔드 주소)와 서버 전용 `api-fetch.server.ts`(`backendBaseUrl`)로 나뉩니다.
 - 생성된 fetch 함수가 모두 거치는 `apiFetch`(`api-fetch.ts`)는 서버와 브라우저가 함께 쓰므로, 서버의 요청을 보내는 모듈을 `package.json`의 `imports`(`#api-fetch.server`)로 불러옵니다. 서버 컴포넌트, Route Handler, proxy, instrumentation에서는 Next.js가 `react-server` 조건으로 `api-fetch.server.ts`를 고르고, 서버에서 렌더링하는 클라이언트 컴포넌트에서는 `api-fetch.ssr.ts`를 고릅니다. 클라이언트 컴포넌트가 import하는 모듈은 서버 전용 모듈을 불러올 수 없고, 그 렌더링에는 요청의 쿠키도 없기 때문입니다. 그래서 클라이언트 컴포넌트가 서버 렌더링 중에 API를 부르면 고치는 방법을 알리며 실패합니다. 클라이언트 컴포넌트의 데이터는 서버 컴포넌트가 가져와 `HydrationBoundary`로 넘기거나(`useSuspenseQuery`) 브라우저에서 가져옵니다(`useQuery`).
-- 단위 테스트(Vitest)는 Next.js 밖에서 서버 모듈도 직접 불러 시험하므로, `vitest.config.ts`가 `server-only`를 빈 모듈로, `#api-fetch.server`를 `api-fetch.server.ts`로 바꿉니다. E2E(Playwright)와 `next.config.ts`가 불러오는 코드는 Node.js에서 그대로 실행되므로 `server-only`로 시작하는 모듈을 import할 수 없습니다. 그런 곳이 쓰는 값은 표시하지 않은 모듈에 둡니다.
+- 단위 테스트(Vitest)는 Next.js 밖에서 서버 모듈도 직접 불러 시험하므로, `config/vitest.config.ts`가 `server-only`를 빈 모듈로, `#api-fetch.server`를 `api-fetch.server.ts`로 바꿉니다. E2E(Playwright), `next.config.ts`, `config/`의 설정(예: `config/orval.config.ts`가 읽는 `base-url.ts`)이 불러오는 코드는 Node.js에서 그대로 실행되므로 `server-only`로 시작하는 모듈을 import할 수 없습니다. 그런 곳이 쓰는 값은 표시하지 않은 모듈에 둡니다.
 
 ## 공통 UI와 디자인 토큰
 
@@ -170,10 +184,10 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 | `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                                                                            | 프로젝트                                       |
 | `src/app`                    | 라우트. 서버 컴포넌트에서 prefetch                                                                                                      | 프로젝트                                       |
 
-- `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
+- `npm run api:gen`은 `config/orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
-- 명세의 선택 속성(`required`에 없는 속성)은 `comment?: string`처럼 키를 뺄 수 있는 속성이 되고, `undefined`를 값으로 넣을 수는 없습니다(`tsconfig.json`의 `exactOptionalPropertyTypes`). Zod 스키마는 `.exactOptional()`로, MSW 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 빼는 것으로 이를 따릅니다(`orval.config.ts`). 그래서 백엔드의 명세를 선택 속성 그대로 쓰면 됩니다.
-- 응답 스키마가 이름 있는 스키마가 아니라 그 자리에 적은 `oneOf`·`anyOf`여도(스키마 둘 중 하나, 스키마 또는 `null` 등) fetch 함수가 응답을 Zod 스키마로 검증합니다. 이런 응답의 타입과 Zod 스키마는 `<operationId><상태 코드>` 이름(예: `GetPayment200`, 배열의 항목은 `ListPayments200Item`)으로 만들어집니다(`orval.config.ts`의 `aliasCombinedTypes`). 이런 요청 본문은 `<operationId>Body` 타입으로 받습니다.
+- 명세의 선택 속성(`required`에 없는 속성)은 `comment?: string`처럼 키를 뺄 수 있는 속성이 되고, `undefined`를 값으로 넣을 수는 없습니다(`tsconfig.json`의 `exactOptionalPropertyTypes`). Zod 스키마는 `.exactOptional()`로, MSW 목은 선택 속성을 응답마다 값과 함께 넣거나 키째 빼는 것으로 이를 따릅니다(`config/orval.config.ts`). 그래서 백엔드의 명세를 선택 속성 그대로 쓰면 됩니다.
+- 응답 스키마가 이름 있는 스키마가 아니라 그 자리에 적은 `oneOf`·`anyOf`여도(스키마 둘 중 하나, 스키마 또는 `null` 등) fetch 함수가 응답을 Zod 스키마로 검증합니다. 이런 응답의 타입과 Zod 스키마는 `<operationId><상태 코드>` 이름(예: `GetPayment200`, 배열의 항목은 `ListPayments200Item`)으로 만들어집니다(`config/orval.config.ts`의 `aliasCombinedTypes`). 이런 요청 본문은 `<operationId>Body` 타입으로 받습니다.
 - Query Domain 이름은 OpenAPI tag를 따르고, 쿼리 키는 `['products', 'listProducts', params]`처럼 계층으로 만듭니다. `src/queries`의 코드는 `npm run g -- query <operationId>`와 `npm run g -- mutation <operationId>`로 만들 수 있습니다(아래 "코드 생성(Schematic)").
 - 샘플: `/products` 페이지(`src/app/products/page.tsx`)가 서버에서 `listProductsQueryOptions()`로 데이터를 가져오고(prefetch), `HydrationBoundary`로 넘긴 데이터를 `src/features/product-list`가 이어받습니다. 브라우저는 같은 데이터를 다시 요청하지 않습니다(`e2e/products.spec.ts`).
 
@@ -203,11 +217,11 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세에서 생성한 핸들러(`src/shared/api/generated/<tag>/<tag>.msw.ts`)를 모두 담습니다. 핸들러는 명세의 `example`을 돌려주고, `example`이 없으면 faker가 스키마에 맞는 값을 만듭니다. faker가 만든 값에는 선택 속성이 응답마다 있기도 하고 빠지기도 하므로, 화면이 선택 속성이 빠진 응답도 다루는지 개발 중에 드러납니다. 늘 같은 값이 필요하면 명세에 `example`을 적습니다. 요청에 따라 다른 값을 돌려줘야 하면(파라미터대로 거르기, 실패 흉내 등) 직접 만든 핸들러를 이 목록의 생성된 핸들러 앞에 둡니다. 앞의 핸들러가 먼저 응답합니다.
 
-목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. MSW를 켜고 `API_BASE_URL`을 넣지 않으면 서버가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`orval.config.ts`). 그래서 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고, 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`는 페이지를 열거나 새로 고치는 요청을 목 응답 없이 그대로 보냅니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다. MSW를 켜 둬도 `API_BASE_URL`을 넣으면 그 백엔드를 부르고, MSW는 그 요청을 받지 않습니다.
+목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. MSW를 켜고 `API_BASE_URL`을 넣지 않으면 서버가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`config/orval.config.ts`). 그래서 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고, 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`는 페이지를 열거나 새로 고치는 요청을 목 응답 없이 그대로 보냅니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다. MSW를 켜 둬도 `API_BASE_URL`을 넣으면 그 백엔드를 부르고, MSW는 그 요청을 받지 않습니다.
 
 - Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 브라우저 코드(jsdom)의 요청도 BFF 프록시 대신 목 백엔드로 갑니다. 테스트에는 프록시를 받을 Next.js 서버가 없으므로, `src/shared/api/base-url.ts`가 Vitest가 넣는 `VITEST=true`를 보고 목 백엔드를 고릅니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
 - 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다. 코드를 고쳐 개발 서버가 라우트의 서버 번들을 다시 쓰면 Next.js가 `fetch`를 MSW를 켜기 전의 것으로 되돌리는데, `src/shared/api/api-mocking.ts`가 그 자리에 MSW가 씌운 `fetch`를 넣어 개발 서버를 다시 띄우지 않아도 MSW가 요청을 계속 받습니다.
-- E2E: `playwright.config.ts`가 서버를 `API_MOCKING=enabled`로 띄웁니다.
+- E2E: `config/playwright.config.ts`가 서버를 `API_MOCKING=enabled`로 띄웁니다.
 - 빌드: `API_MOCKING=enabled`로 빌드하면(목 빌드) 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다. 목 빌드의 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").
 
 MSW는 Next.js 서버(서버 컴포넌트, Route Handler)가 보내는 요청을 받습니다. 브라우저의 요청도 BFF 프록시를 거쳐 서버에서 나가므로 MSW가 받습니다. 브라우저의 MSW(서비스 워커)를 쓰는 Rendering Mode(`static-export`)에서 fetch를 쓰지 않는 요청(XMLHttpRequest 등)은 `src/shared/mocks/mock-readiness.ts`의 `waitForMocks()`로 서비스 워커가 준비되기를 기다린 뒤 보냅니다. 이 Rendering Mode에서는 바로 끝나므로 두 Rendering Mode에서 같은 코드를 씁니다. 서버의 MSW(`msw/node`)는 번들에 넣지 않고 `node_modules`에서 불러옵니다(`next.config.ts`의 `serverExternalPackages`).
@@ -416,7 +430,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 - 이벤트: 브라우저 코드(예: 버튼의 `onClick`)에서 `trackEvent('signup_completed', { plan: 'pro' })`처럼 부릅니다. 이름은 snake_case로 짓고, 속성에는 문자열·숫자·불리언만 담습니다. 이메일, 이름 같은 개인정보는 담지 않습니다. 페이지뷰는 저절로 남으므로 부르지 않습니다.
 - 페이지뷰의 주소는 경로와 쿼리 문자열입니다(예: `/products?page=2`). 쿼리 문자열에 개인정보가 담기는 화면이 있으면 공급자에서 빼고 보냅니다. App Router로 옮겨 갈 때는 옮겨 가기 시작할 때 요청한 주소로 남기므로, 도중에 redirect되면(예: proxy가 로그인 페이지로 보냄) 처음 요청한 주소가 남고 도중에 취소된 이동도 남습니다.
 - 기본 구현: 개발 서버(`npm run dev`)에서는 브라우저 콘솔에 `[analytics] page_view /products` 같은 줄만 남기고, 배포용 빌드와 테스트에서는 아무것도 하지 않습니다. 그래서 공급자를 붙이기 전에는 어디에도 보내지 않습니다.
-- 분석 서비스 붙이기: `analytics-provider.ts`의 `analyticsProvider`를 그 서비스로 보내는 공급자로 바꿉니다. 측정 ID 같은 값은 `NEXT_PUBLIC_` 환경 변수로 받아 `.env.example`과 `process-env.d.ts`에 적고, 개발과 테스트에서 보내지 않도록 배포용 빌드(`NODE_ENV`가 `production`)에 그 값이 있을 때만 붙입니다. E2E와 GitLab CI의 목 빌드도 `production`이므로 그 값은 배포용 빌드를 만드는 곳에만 넣습니다(GitLab CI/CD 변수라면 배포 잡의 environment로 범위를 정하고, `.env.production.local`에 두지 않습니다). 이 모듈은 instrumentation-client가 앱 코드보다 먼저 불러오고 클라이언트 컴포넌트를 서버에서 렌더링할 때도 불러오므로, 모듈 최상위에서는 SDK를 불러오거나 초기화하지 않고 처음 보낼 때 브라우저(`typeof window !== 'undefined'`)에서 한 번 합니다. GA4라면 다음과 같습니다. `gtag.js`는 `src/app/layout.tsx`에서 `next/script`로 불러오고, 페이지뷰를 두 번 남기지 않도록 `gtag('config', <측정 ID>, { send_page_view: false })`로 GA4의 자동 페이지뷰를 끕니다. Amplitude라면 `@amplitude/analytics-browser`의 `init`을 처음 보낼 때 한 번 부르고 `track(name, properties)`로 보냅니다.
+- 분석 서비스 붙이기: `analytics-provider.ts`의 `analyticsProvider`를 그 서비스로 보내는 공급자로 바꿉니다. 측정 ID 같은 값은 `NEXT_PUBLIC_` 환경 변수로 받아 `.env.example`과 `types/process-env.d.ts`에 적고, 개발과 테스트에서 보내지 않도록 배포용 빌드(`NODE_ENV`가 `production`)에 그 값이 있을 때만 붙입니다. E2E와 GitLab CI의 목 빌드도 `production`이므로 그 값은 배포용 빌드를 만드는 곳에만 넣습니다(GitLab CI/CD 변수라면 배포 잡의 environment로 범위를 정하고, `.env.production.local`에 두지 않습니다). 이 모듈은 instrumentation-client가 앱 코드보다 먼저 불러오고 클라이언트 컴포넌트를 서버에서 렌더링할 때도 불러오므로, 모듈 최상위에서는 SDK를 불러오거나 초기화하지 않고 처음 보낼 때 브라우저(`typeof window !== 'undefined'`)에서 한 번 합니다. GA4라면 다음과 같습니다. `gtag.js`는 `src/app/layout.tsx`에서 `next/script`로 불러오고, 페이지뷰를 두 번 남기지 않도록 `gtag('config', <측정 ID>, { send_page_view: false })`로 GA4의 자동 페이지뷰를 끕니다. Amplitude라면 `@amplitude/analytics-browser`의 `init`을 처음 보낼 때 한 번 부르고 `track(name, properties)`로 보냅니다.
 
   ```ts
   const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
@@ -471,7 +485,7 @@ npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)
 | ---------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SESSION_SECRET` | 서버(`src/shared/auth/session.ts`, 실행할 때) | 세션 쿠키를 암호화하는 32자 이상의 비밀 값(예: `openssl rand -base64 32`의 출력). 배포하는 서버에는 꼭 넣고, 서버가 여러 대면 같은 값을 넣습니다. 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다 |
 
-개발 서버는 `.env.development`의 값을, E2E 대상 서버는 `playwright.config.ts`의 값을 씁니다. 둘 다 배포 환경에 쓰지 않습니다. 값을 바꾸면 로그인한 사용자가 모두 로그아웃됩니다.
+개발 서버는 `.env.development`의 값을, E2E 대상 서버는 `config/playwright.config.ts`의 값을 씁니다. 둘 다 배포 환경에 쓰지 않습니다. 값을 바꾸면 로그인한 사용자가 모두 로그아웃됩니다.
 
 ### 목 백엔드와 실제 백엔드
 
@@ -772,7 +786,7 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 | `src/shared/sentry/sentry-options.ts`                | 초기화 조건(`NODE_ENV`가 `production`이고 목 빌드가 아니며 DSN이 있을 때)과 두 SDK가 함께 쓰는 설정                                                       |
 | `src/shared/sentry/sentry-next-config.ts`            | `next.config.ts`의 설정을 감싸는 `withSentryConfig`(소스맵 업로드 등 빌드 설정)와 목 빌드 표시(`SENTRY_MOCK_BUILD`). 다른 래퍼보다 바깥에 씌워져 있습니다 |
 
-세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일"). 앱 수준의 오류 화면(`src/app/error.tsx`)도 받은 오류를 Sentry로 보냅니다(아래 "오류 경계").
+세 조각은 `src/instrumentation-client.ts`, `src/instrumentation.ts`, `config/next.config.plugins.ts`에 들어가 있습니다(위 "앱 조립 파일"). 앱 수준의 오류 화면(`src/app/error.tsx`)도 받은 오류를 Sentry로 보냅니다(아래 "오류 경계").
 
 - 켜기: 배포 환경에 DSN을 넣습니다(`.env.example`). 서버의 `SENTRY_DSN`은 서버를 띄울 때 읽고, 브라우저의 `NEXT_PUBLIC_SENTRY_DSN`은 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다. 보통 두 값은 같은 DSN입니다. `static-export`에는 서버가 없어 `NEXT_PUBLIC_SENTRY_DSN`만 씁니다. 컨테이너 이미지(`docker` Recipe)는 `docker build --build-arg NEXT_PUBLIC_SENTRY_DSN=<DSN>`으로 만들고 `docker run -e SENTRY_DSN=<DSN>`으로 띄웁니다. DSN은 브라우저에 드러나도 되는 값이지만 아래의 인증 토큰은 비밀 값입니다.
 - 개발과 테스트: SDK는 `NODE_ENV`가 `production`일 때만 초기화하므로 개발 서버(`npm run dev`)와 단위 테스트는 DSN을 넣어도 보내지 않습니다. 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`. E2E와 GitLab CI의 `build` 잡)도 배포하지 않는 빌드라 빌드하는 환경에 DSN이 있어도 초기화하지 않습니다. `sentry-next-config.ts`가 빌드할 때 목 빌드인지를 코드에 박아 두기 때문입니다(`SENTRY_MOCK_BUILD`). 실제로 보내지는지 확인하려면 목을 끈 배포용 빌드를 DSN과 함께 만들고 `npm start`로 띄워 오류를 냅니다.
@@ -781,23 +795,23 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 - 광고 차단기: 브라우저가 Sentry에 바로 보내는 요청은 광고 차단기에 막힐 수 있습니다. `server` Starter라면 `sentry-next-config.ts`의 `withSentryConfig` 옵션에 `tunnelRoute`를 더해 Next.js 서버를 거쳐 보낼 수 있습니다(기본은 꺼 두었습니다). proxy(`src/proxy.ts`)가 있으면 그 경로가 proxy 처리기에 막히지 않도록 proxy의 matcher가 빼는 `/api` 아래 경로(예: `/api/monitoring`)를 씁니다. `static-export`에는 서버가 없어 쓸 수 없습니다.
 - 오류 경계: 오류 경계가 잡지 않은 오류는 SDK가 그대로 받지만, Next.js는 오류 경계(`error.tsx`, `global-error.tsx`)가 잡은 브라우저의 렌더링 오류를 콘솔에만 남깁니다. 그래서 앱 수준의 오류 화면(`src/app/error.tsx`. 루트 레이아웃의 오류를 받는 `global-error.tsx`도 이 화면을 그립니다)이 받은 오류를 `Sentry.captureException`으로 보냅니다. 서버 컴포넌트에서 난 오류(`digest`가 있음)는 서버의 `onRequestError`가 이미 보냈으므로 다시 보내지 않습니다. 라우트에 따로 둔 `error.tsx`(예: `npm run g -- page`가 만든 오류 상태)가 잡은 오류도 보내려면 그 경계에서 `useEffect(() => { Sentry.captureException(error) }, [error])`를 부릅니다.
 - 테스트: `src/shared/sentry/sentry.test.ts`(개발·테스트 환경, 목 빌드이거나 DSN이 없으면 브라우저와 서버의 조각이 SDK를 초기화하지 않음), `sentry-instrumentation.test.ts`(DSN이 있으면 서버가 요청을 처리하다 난 오류를 그 DSN으로 보냄. 요청은 MSW가 받아 밖으로 나가지 않음), `e2e/sentry.spec.ts`(DSN 없이 빌드한 앱은 브라우저에서 오류가 나도 앱 밖으로 요청을 보내지 않음).
-- 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을, `src/app/error.tsx`에서 `Sentry.captureException`을 부르는 `useEffect`를 지웁니다.
+- 빼려면 `src/shared/sentry/`, `e2e/sentry.spec.ts`, `types/process-env.sentry.d.ts`, `.env.example`의 Sentry 변수, `package.json`의 `@sentry/nextjs`를 지우고 세 조립 파일에서 Sentry의 조각을, `src/app/error.tsx`에서 `Sentry.captureException`을 부르는 `useEffect`를 지웁니다.
 
 ## 검색 노출(SEO)
 
 `seo` Recipe로 넣었습니다. 검색 엔진과 메신저·SNS의 공유 카드에 보이는 정보(메타데이터, 공유 이미지, `/sitemap.xml`, `/robots.txt`)를 만듭니다.
 
-| 위치                                      | 내용                                                                                                 |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/shared/seo/site.ts`                  | 사이트 이름·설명·locale과 사이트 주소(`NEXT_PUBLIC_SITE_URL`)                                        |
-| `src/shared/seo/metadata.ts`              | 모든 페이지가 물려받는 메타데이터의 기본값(`siteMetadata`). 루트 레이아웃(`src/app/layout.tsx`)이 씀 |
-| `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                            |
-| `src/shared/seo/pretendard-license.txt`   | 글꼴의 저작권 표시와 SIL Open Font License 1.1 전문                                                  |
-| `src/shared/seo/next-config.ts`           | 빌드 결과에 글꼴의 라이선스를 함께 담는 next.config 래퍼(`withSeo`, `next.config.plugins.ts`가 씀)   |
-| `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                          |
-| `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                        |
-| `src/app/sitemap-rules.ts`                | 다른 Recipe가 자기 페이지에 대해 알린 sitemap·robots.txt의 규칙(Generator가 조립)                    |
-| `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예        |
+| 위치                                      | 내용                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `src/shared/seo/site.ts`                  | 사이트 이름·설명·locale과 사이트 주소(`NEXT_PUBLIC_SITE_URL`)                                             |
+| `src/shared/seo/metadata.ts`              | 모든 페이지가 물려받는 메타데이터의 기본값(`siteMetadata`). 루트 레이아웃(`src/app/layout.tsx`)이 씀      |
+| `src/shared/seo/og-image.tsx`             | 공유 이미지를 그리는 `ogImage`와 그 글꼴(Pretendard Bold)                                                 |
+| `src/shared/seo/pretendard-license.txt`   | 글꼴의 저작권 표시와 SIL Open Font License 1.1 전문                                                       |
+| `src/shared/seo/next-config.ts`           | 빌드 결과에 글꼴의 라이선스를 함께 담는 next.config 래퍼(`withSeo`, `config/next.config.plugins.ts`가 씀) |
+| `src/shared/seo/page-routes.ts`           | sitemap에 넣을 페이지를 `src/app`에서 찾는 `findPageRoutes`                                               |
+| `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml`, `/robots.txt`                                                                             |
+| `src/app/sitemap-rules.ts`                | 다른 Recipe가 자기 페이지에 대해 알린 sitemap·robots.txt의 규칙(Generator가 조립)                         |
+| `src/app/opengraph-image.tsx`             | 사이트의 기본 공유 이미지. `src/app/products/opengraph-image.tsx`는 페이지별 공유 이미지의 예             |
 
 - **사이트 주소**: `NEXT_PUBLIC_SITE_URL`(예: `https://www.example.com`)로 sitemap, robots.txt, canonical, og:url, 공유 이미지의 절대 주소를 만듭니다. 빌드할 때 코드에 박히므로 배포용 빌드를 만드는 환경에 넣습니다(`.env.example`). 없으면 엉뚱한 주소가 검색 엔진에 알려지지 않도록 빌드가 실패합니다. 개발 서버는 `.env.development`의 `http://localhost:3000`을 쓰고, 배포하지 않는 목 빌드(`API_MOCKING=enabled`. GitLab CI의 `build` 잡과 E2E)는 값이 없으면 같은 주소를 씁니다.
 

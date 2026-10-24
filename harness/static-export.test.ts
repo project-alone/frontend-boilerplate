@@ -211,7 +211,7 @@ describe('Base를 고친 Generator로 만든 static-export Starter', () => {
         'src/shared/api/base-url.ts',
         'src/features/product-list/product-list.tsx',
         'next.config.ts',
-        'vitest.setup.ts',
+        'config/vitest.setup.ts',
       ]),
     )
     expect(kept.filter((path) => !readFileSync(join(result.starter, path), 'utf8').includes(marker))).toEqual([])
