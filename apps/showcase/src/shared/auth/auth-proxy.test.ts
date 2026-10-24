@@ -7,9 +7,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { server } from '@/shared/mocks/node'
 import { loginAtBackend } from './auth-backend'
+import { SESSION_COOKIE } from './auth-client'
 import { MOCK_PASSWORD } from './auth-mock-handlers'
 import { authProxy } from './auth-proxy'
-import { type Session, SESSION_COOKIE, sealSession, unsealSession } from './session'
+import { type Session, sealSession, unsealSession } from './session'
 
 // 페이지 요청이 라우트에 닿기 전에 실행되는 proxy 처리기(src/proxy.ts가 부른다). 보호된 라우트와 역할은 access-rules.ts에 있다.
 // 이 파일은 서버처럼 window가 없는 Node.js에서 실행되고, 백엔드는 목 백엔드(auth-mock-handlers.ts)다.

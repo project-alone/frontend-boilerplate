@@ -5,8 +5,8 @@ import AxeBuilder from '@axe-core/playwright'
 import { type BrowserContext, expect, type Page, test } from '@playwright/test'
 import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
 import { BFF_PROXY_PATH } from '@/shared/api/base-url'
+import { SESSION_COOKIE } from '@/shared/auth/auth-client'
 import { MOCK_ACCESS_TOKEN_TTL_SECONDS, MOCK_PASSWORD } from '@/shared/auth/auth-mock-handlers'
-import { SESSION_COOKIE } from '@/shared/auth/session'
 
 // auth Recipe의 로그인 흐름. E2E 대상 서버의 백엔드는 목 백엔드(src/shared/auth/auth-mock-handlers.ts)이고, 목 백엔드의
 // accessToken은 MOCK_ACCESS_TOKEN_TTL_SECONDS 뒤에 만료된다.

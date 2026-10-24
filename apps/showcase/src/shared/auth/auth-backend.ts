@@ -1,6 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): recipes/auth/src/shared/auth/auth-backend.ts
 
+import 'server-only'
 import { ApiError } from '@/shared/api/api-fetch'
 import { getMe, login, logout, refreshTokens } from '@/shared/api/generated'
 import type { LoginRequest, TokenPair } from '@/shared/api/generated/model'

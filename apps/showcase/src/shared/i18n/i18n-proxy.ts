@@ -1,6 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): recipes/i18n/src/shared/i18n/i18n-proxy.ts
 
+import 'server-only'
 import createMiddleware from 'next-intl/middleware'
 import type { NextRequest, NextResponse } from 'next/server'
 import { routing } from './routing'

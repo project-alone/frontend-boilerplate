@@ -8,8 +8,9 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { forwardToBackend } from '@/shared/api/bff-proxy'
 import { server } from '@/shared/mocks/node'
 import { loginAtBackend } from './auth-backend'
+import { SESSION_COOKIE } from './auth-client'
 import { MOCK_PASSWORD, MOCK_USERS } from './auth-mock-handlers'
-import { type Session, SESSION_COOKIE, sealSession, unsealSession } from './session'
+import { type Session, sealSession, unsealSession } from './session'
 
 // BFF 프록시(Base의 forwardToBackend, /api/proxy/*)가 브라우저의 요청을 백엔드로 전달할 때 auth Recipe의 backendFetch
 // 처리기(auth-backend-fetch.ts)가 하는 일을 본다. 백엔드는 발급한 토큰을 기억하는 목 백엔드(auth-mock-handlers.ts)다.

@@ -1,7 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): base/src/shared/api/api-instrumentation.ts
 
-import { backendBaseUrl } from './base-url'
+import 'server-only'
 
 /**
  * Next.js 서버가 뜰 때 한 번 실행된다(src/instrumentation.ts가 부른다).
@@ -22,6 +22,7 @@ export const apiInstrumentation = {
 
     // MSW를 끈 서버는 API_BASE_URL의 백엔드를 부른다. 주소가 없으면 backendBaseUrl()이 여기서 실패해, 서버가
     // 요청을 처리하지 않고 무엇을 넣어야 하는지 알린다.
+    const { backendBaseUrl } = await import('./api-fetch.server')
     backendBaseUrl()
   },
 }

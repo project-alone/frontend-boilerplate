@@ -1,9 +1,10 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): base/src/shared/api/api-mocking.ts
 
+import 'server-only'
+
 // 서버(Next.js 서버, next build)가 보내는 API 요청을 MSW(msw/node)가 받게 한다(README의 "API 목킹(MSW)").
 // API_MOCKING=enabled일 때만 쓰며, MSW는 이때 처음 불러온다. 목을 끈 서버와 빌드는 MSW 코드를 실행하지 않는다.
-// 서버에서만 쓰는 모듈이다. 브라우저 번들에 들어가지 않도록 서버에서만 실행되는 코드에서 동적 import로 불러온다(api-fetch.ts).
 
 // 한 프로세스에서 MSW를 켠 결과. 번들마다 이 모듈을 따로 불러와도 MSW를 한 번만 켜도록 모듈 변수 대신 globalThis에 둔다.
 const processState = globalThis as typeof globalThis & { starterApiMocking?: Promise<void> }
