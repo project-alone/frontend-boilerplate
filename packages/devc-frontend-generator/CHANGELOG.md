@@ -1,5 +1,60 @@
 # devc-frontend-generator
 
+## 0.2.0
+
+### Minor Changes
+
+- 063973e: Starter 최상위에 흩어져 있던 설정 파일과 환경 변수의 타입 선언을 디렉터리로 모은다. 최상위에는 도구가 최상위에서만 찾는 `next.config.ts`, `postcss.config.mjs`, `eslint.config.ts`, `tsconfig.json`만 남는다.
+
+  - `config/`: `vitest.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `orval.config.ts`, `next.config.plugins.ts`
+  - `types/`: `process-env.d.ts`와 Rendering Mode·Recipe가 더하는 `process-env.<이름>.d.ts`
+
+  npm 스크립트(`test`, `test:storybook`, `test:e2e`, `api:gen`)는 `--config`로 새 위치의 설정을 넘긴다. Vitest와 Playwright를 `npx`로 직접 부르면 설정을 찾지 못하므로, 파일 하나만 돌릴 때도 `npm test -- <파일>`, `npm run test:e2e -- <파일>`처럼 npm 스크립트를 쓴다. VS Code의 Vitest·Playwright 확장은 `config/`의 설정을 그대로 찾는다.
+
+  이미 만든 Starter는 옮기지 않아도 그대로 동작하고, 새 Generator의 `dcgen g`도 옮기지 않은 Starter에서 동작한다. 같은 구조로 옮기려면 다음과 같이 한다.
+
+  1. `config/`와 `types/`를 만들고 위 파일을 옮긴다(`git mv`).
+  2. `next.config.ts`의 `import { withPlugins } from './next.config.plugins'`를 `'./config/next.config.plugins'`로 바꾸고, `config/next.config.plugins.ts` 안의 `./src/...` import를 `../src/...`로 바꾼다.
+  3. `config/vitest.config.ts`: `import { join } from 'node:path'`와 `const root = join(import.meta.dirname, '..')`를 더하고, 설정에 `root`를 넣는다. `setupFiles`는 `['config/vitest.setup.ts']`로, Storybook 플러그인은 `storybookTest({ configDir: join(root, '.storybook') })`로 바꾼다.
+  4. `config/playwright.config.ts`: `testDir`를 `'../e2e'`로 바꾸고 `outputDir: '../test-results'`와 `webServer`의 `cwd: '..'`를 더한다.
+  5. `config/orval.config.ts`: `./openapi.yaml`, `./src/...`로 시작하는 경로와 `MOCK_API_BASE_URL`의 import를 `../`로 시작하게 바꾼다. orval은 경로를 설정 파일 기준으로 읽는다.
+  6. `package.json`의 스크립트를 `vitest run --config config/vitest.config.ts --project unit`(`test:storybook`은 `--project storybook`), `playwright test --config config/playwright.config.ts`, `orval --config config/orval.config.ts`로 바꾼다.
+
+- 1ad962a: Starter의 서버 전용 모듈은 `import 'server-only'`로, 컴포넌트가 아니면서 브라우저에서만 실행되는 모듈은 `import 'client-only'`로 시작한다. 파일 맨 위만 봐도 어디서 실행되는지 알 수 있고, 클라이언트 컴포넌트가 서버 전용 모듈(예: auth Recipe의 세션)을, 서버 컴포넌트가 브라우저 전용 모듈을 import하면 `next build`가 실패한다. 표시한 모듈은 Base의 `src/shared/api/`(`api-fetch.server.ts`, `api-instrumentation.ts`, `api-mocking.ts`, `backend-fetch.ts`, `bff-proxy.ts`)와 `src/shared/mocks/node.ts`, auth·i18n·seo·sentry Recipe의 서버 모듈, analytics·sentry Recipe와 Rendering Mode `static-export`의 브라우저 모듈이다. `'use server'`는 Server Function을 여는 지시어이므로 이 용도로 쓰지 않는다. 쓰는 법은 Starter README의 "서버와 브라우저의 경계"에 있다.
+
+  함께 바뀌는 것(0.x의 깨지는 변경):
+
+  - 서버가 백엔드를 부르는 주소 `backendBaseUrl()`이 `src/shared/api/base-url.ts`에서 서버 전용 `src/shared/api/api-fetch.server.ts`로 옮겨 간다. `base-url.ts`에는 브라우저 코드, MSW 핸들러, 테스트가 함께 쓰는 값만 남는다.
+  - `apiFetch`는 서버의 요청을 `package.json`의 `imports`(`#api-fetch.server`)로 불러온다. 서버 컴포넌트, Route Handler, proxy, instrumentation은 `api-fetch.server.ts`를, 서버에서 렌더링하는 클라이언트 컴포넌트는 `api-fetch.ssr.ts`를 고른다. 서버에서 렌더링하는 클라이언트 컴포넌트가 API를 부르면 이제 백엔드에 요청하지 않고, 서버 컴포넌트에서 가져와 넘기라고 알리며 실패한다. Starter의 화면은 모두 서버 컴포넌트에서 가져오므로 동작이 달라지지 않는다.
+  - auth Recipe의 세션 쿠키 이름 `SESSION_COOKIE`가 `session.ts`에서 `auth-client.ts`로 옮겨 간다. E2E처럼 Next.js 밖에서 실행되는 코드는 `server-only`로 시작하는 모듈을 import할 수 없기 때문이다.
+
+  이미 만든 Starter에 적용하려면:
+
+  1. `npm install server-only@0.0.1`(브라우저 전용 모듈에 표시하려면 `client-only@0.0.1`도)을 실행한다.
+  2. 새 Generator로 같은 Recipe를 넣은 Starter를 만들어 `package.json`의 `imports`, `src/shared/api/`의 `api-fetch.ts`·`api-fetch.server.ts`·`api-fetch.ssr.ts`·`base-url.ts`·`bff-proxy.ts`·`api-instrumentation.ts`, `config/vitest.config.ts`의 unit 프로젝트에 더한 `resolve.alias`를 옮긴다. 고치지 않은 파일은 그대로 덮어써도 된다.
+  3. 서버에서만 실행되는 모듈의 맨 위에 `import 'server-only'`를 더한다. auth Recipe를 넣었다면 `SESSION_COOKIE`를 `auth-client.ts`로 옮기고 import를 고친다.
+  4. `npm run typecheck`, `npm test`, `API_MOCKING=enabled npm run build`로 확인한다. 빌드가 `server-only`나 `client-only`를 알리며 실패하면, 알린 import 경로를 따라가 반대쪽 모듈을 import하는 곳을 고친다.
+
+- 4ca4ab9: Starter에 Storybook을 처음부터 넣지 않습니다. 스토리가 필요해지면 `npm run g -- story <컴포넌트 파일>`로 원하는 컴포넌트의 스토리를 만듭니다. Starter에 Storybook이 아직 없으면 이때 Storybook을 더하고 의존성을 설치합니다. 더하는 것은 `.storybook/` 설정, 의존성, `storybook`·`test:storybook` 스크립트, Vitest의 `storybook` 프로젝트, GitLab CI의 `test:storybook` 잡입니다. dark-mode Recipe가 들어 있으면 테마 툴바와 다크 모드 브라우저 검사도 함께 더합니다.
+
+  깨지는 변경입니다.
+
+  - `dcgen new`로 만든 Starter에는 Storybook과 미리 만든 스토리가 없습니다. Base·Recipe·Archetype의 스토리가 하던 검사는 컴포넌트 테스트로 옮겼습니다. 상호작용은 Testing Library로, 상태마다의 접근성은 새 `axeViolations`(`src/shared/a11y/axe-violations.ts`, `axe-core`)로 검사합니다. 실제 브라우저가 있어야 하는 명도 대비는 E2E가 검사합니다.
+  - `g component`와 `g form`은 스토리를 만들지 않습니다. 대신 생성한 테스트가 접근성(axe)도 검사합니다.
+
+  이미 만든 Starter는 Storybook을 그대로 쓸 수 있습니다. Generator를 올린 뒤 새 컴포넌트의 스토리는 `npm run g -- story <파일>`로 만듭니다. Storybook이 이미 있으면 스토리 파일만 만듭니다. 올린 Generator의 `g component`·`g form`이 만드는 테스트는 `@/shared/a11y/axe-violations`를 import하므로, 먼저 `npm install -D axe-core@4.14.0`을 실행하고 새로 만든 Starter의 `src/shared/a11y/axe-violations.ts`를 같은 경로에 복사합니다.
+
+### Patch Changes
+
+- 37232f6: commerce Archetype의 상품·주문·결제 페이지와 dashboard Archetype의 사용자 수정 페이지가 백엔드의 404를 `isApiError(error, 404)`로 판단한다. 다른 코드와 같은 방법으로 API 오류를 확인하도록 맞춘 것이고, 화면의 동작은 달라지지 않는다. 이미 만든 Starter는 옮기지 않아도 된다.
+- 8b783d4: `realtime` Recipe의 E2E(`e2e/realtime.spec.ts`)에서 다시 연결 테스트가 가끔 실패하던 것을 고친다. `server`에서는 Next.js 서버 하나의 목 백엔드를 모든 화면이 함께 써서, 새 화면이 스트림에 연결하기 전에 보낸 첫 목록 요청이 앞 테스트의 화면이 바꿔 둔 목록(D-1001 `배송 완료`)을 받을 수 있다. 테스트는 `배송 완료`가 보이면 다시 연결한 것으로 여겨 연결 상태를 너무 일찍 확인했다. 이제 연결 상태가 끊김과 다시 연결을 거칠 때까지 기다리고, 끊겼을 때의 화면에서 D-1001이 아직 `배송 중`이었는지 확인한 뒤 다시 가져온 목록의 `배송 완료`를 확인한다. 앱 코드와 목 백엔드는 달라지지 않는다.
+
+  이미 만든 Starter에서 이 테스트가 가끔 실패하면, 새 Generator로 `realtime` Recipe를 넣은 Starter를 만들어 `e2e/realtime.spec.ts`를 옮긴다. 이 파일을 고치지 않았다면 그대로 덮어써도 된다.
+
+- c9d003c: Starter에 여러 곳에서 쓰는 범용 함수를 모은 `src/shared/lib/`를 더한다. 주제마다 파일 하나씩 두며(`text.ts`의 `nonEmpty`·`withoutTrailingSlash`, `json.ts`의 `parseJson`, `http.ts`의 `parseBody`·`readJsonBody`·`searchParamsOf`, `array.ts`의 `range`·`slicePage`, `async.ts`의 `delay`), 서버와 브라우저가 함께 쓰도록 `server-only` 같은 표시가 없는 순수 함수만 둔다. Recipe가 더하는 범용 함수도 같은 곳에 자기 파일로 들어간다(file-upload의 `multipart.ts`). `src/shared/api/api-fetch.ts`는 `ApiError`를 다루는 `isApiError(error, ...statuses)`와 `apiErrorMessage(error, schema)`를 함께 내보내고, table Recipe는 정렬 아이콘을 `src/shared/ui/sort-icon.tsx`로 내보내 대시보드 Archetype의 사용자 테이블과 함께 쓴다.
+
+  Base·Recipe·Archetype 코드에서 한 번만 쓰던 작은 함수는 쓰는 함수 안으로 합쳤고, 여러 파일에 같은 내용으로 있던 함수(목 핸들러의 쿼리 파라미터 읽기, 응답 본문 읽기, 빈 환경 변수 값 거르기 등)는 `src/shared/lib/`의 함수로 바꿨다. 화면과 API의 동작은 달라지지 않는다. 이미 만든 Starter는 옮기지 않아도 된다.
+
 ## 0.1.0
 
 ### Minor Changes
