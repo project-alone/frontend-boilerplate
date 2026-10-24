@@ -1,6 +1,8 @@
 import { isMap, isScalar, isSeq, type Node, parseDocument, YAMLMap, YAMLSeq } from 'yaml'
-import { isHttpMethod, OPENAPI_SPEC } from './openapi-spec.js'
+import { HTTP_METHODS, OPENAPI_SPEC } from './openapi-spec.js'
 import { OverlayError } from './overlay.js'
+import { bulletList } from './utils/text.js'
+import { isOneOf } from './utils/type-guards.js'
 
 /** 명세 조각이 담을 수 있는 최상위 항목. info, servers, security처럼 명세 전체에 걸리는 값은 Base만 정한다. */
 const FRAGMENT_KEYS = ['paths', 'components', 'tags']
@@ -52,10 +54,10 @@ export function mergeOpenApiFragments(base: string, fragments: readonly SpecFrag
   })
   if (problems.length > 0) {
     throw new OverlayError(
-      [
+      bulletList(
         `명세 조각(${OPENAPI_SPEC})이 Base나 다른 Recipe의 명세와 겹쳐 병합할 수 없습니다. 겹친 이름을 바꾸세요.`,
-        ...problems.map((problem) => `- ${problem}`),
-      ].join('\n'),
+        problems,
+      ),
     )
   }
 
@@ -69,7 +71,21 @@ export function mergeOpenApiFragments(base: string, fragments: readonly SpecFrag
       }
     }
     const tags = fragment.get('tags', true)
-    if (isSeq(tags)) appendItems(childSeq(root, 'tags'), tags)
+    if (isSeq(tags)) {
+      // 명세의 tags(배열). 없으면 빈 배열을 만들어 끝에 더한다.
+      const parent: YAMLMap = root
+      const existing = parent.get('tags', true)
+      let target: YAMLSeq
+      if (isSeq(existing)) target = existing
+      else {
+        target = new YAMLSeq()
+        parent.set('tags', target)
+      }
+      // appendPairs처럼 조각의 첫 항목 위에 적은 주석을 첫 항목으로 넘긴다.
+      const [first] = tags.items
+      if (isMap(first) || isSeq(first) || isScalar(first)) moveCommentBefore(tags, first)
+      target.items.push(...tags.items)
+    }
   }
   return spec.toString(STRINGIFY_OPTIONS)
 }
@@ -86,9 +102,10 @@ function definedNames(contents: unknown, label: string): { names: string[]; inva
   const paths = contents.get('paths', true)
   if (paths !== undefined && !isMap(paths)) invalid.push('paths는 객체여야 합니다')
   for (const { key, value } of isMap(paths) ? paths.items : []) {
-    names.push(`paths.${templatedPath(keyOf(key))}`)
+    // `/betas/{betaId}`와 `/betas/{id}`는 OpenAPI에서 같은 경로이므로 경로 변수의 이름을 지우고 비교한다.
+    names.push(`paths.${keyOf(key).replace(/\{[^}]*\}/g, '{}')}`)
     for (const { key: method, value: operation } of isMap(value) ? value.items : []) {
-      if (!isHttpMethod(keyOf(method)) || !isMap(operation)) continue
+      if (!isOneOf(HTTP_METHODS, keyOf(method)) || !isMap(operation)) continue
       const operationId = operation.get('operationId')
       if (typeof operationId === 'string') names.push(`operationId ${operationId}`)
     }
@@ -114,11 +131,6 @@ function definedNames(contents: unknown, label: string): { names: string[]; inva
   return { names, invalid }
 }
 
-// `/betas/{betaId}`와 `/betas/{id}`는 OpenAPI에서 같은 경로이므로 경로 변수의 이름을 지우고 비교한다.
-function templatedPath(path: string): string {
-  return path.replace(/\{[^}]*\}/g, '{}')
-}
-
 function keyOf(key: unknown): string {
   return String(isScalar(key) ? key.value : key)
 }
@@ -132,14 +144,6 @@ function childMap(parent: YAMLMap, key: string): YAMLMap {
   return created
 }
 
-function childSeq(parent: YAMLMap, key: string): YAMLSeq {
-  const child = parent.get(key, true)
-  if (isSeq(child)) return child
-  const created = new YAMLSeq()
-  parent.set(key, created)
-  return created
-}
-
 // 조각의 첫 항목 위에 적은 주석은 항목이 아니라 그 항목을 담은 객체·배열에 붙어 있으므로, 옮길 때 첫 항목으로 넘긴다.
 function appendPairs(target: YAMLMap, source: YAMLMap): void {
   const [first] = source.items
@@ -147,18 +151,8 @@ function appendPairs(target: YAMLMap, source: YAMLMap): void {
   target.items.push(...source.items)
 }
 
-function appendItems(target: YAMLSeq, source: YAMLSeq): void {
-  const [first] = source.items
-  if (first !== undefined && isNode(first)) moveCommentBefore(source, first)
-  target.items.push(...source.items)
-}
-
 function moveCommentBefore(from: YAMLMap | YAMLSeq, to: Node): void {
   if (from.commentBefore === undefined || from.commentBefore === null) return
   to.commentBefore = to.commentBefore ? `${from.commentBefore}\n${to.commentBefore}` : from.commentBefore
   from.commentBefore = null
-}
-
-function isNode(value: unknown): value is Node {
-  return isMap(value) || isSeq(value) || isScalar(value)
 }

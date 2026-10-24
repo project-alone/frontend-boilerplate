@@ -9,6 +9,9 @@ export function isDotenvFile(path: string): boolean {
 // `NAME=값`(앞에 export가 붙어도 된다) 줄
 const VARIABLE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/
 
+// `=` 뒤의 값: 따옴표로 감싼 값은 따옴표 안, 따옴표 없는 값은 `#`(주석) 앞까지에서 앞뒤 공백을 뺀 것. dotenv가 읽는 방법이다.
+const VALUE = /^\s*(?:'([^']*)'|"((?:\\"|[^"])*)"|`([^`]*)`|([^#]*))/
+
 /** 빈 줄로 나뉜 문단 안의 항목. 변수는 바로 위의 주석과 한 항목이고, 변수에 붙지 않은 주석은 key가 없다. */
 interface Item {
   key: string | undefined
@@ -70,7 +73,10 @@ export function findDotenvConflicts(sources: readonly DotenvSource[]): DotenvCon
   for (const { label, path, text } of sources) {
     for (const item of parseParagraphs(text).flat()) {
       if (item.key === undefined) continue
-      const value = valueOf(item.lines.at(-1) ?? '')
+      // 변수 줄(`NAME=값`)의 값
+      const line = item.lines.at(-1) ?? ''
+      const [, single, double, backtick, bare] = VALUE.exec(line.slice(line.indexOf('=') + 1)) ?? []
+      const value = single ?? double ?? backtick ?? (bare ?? '').trim()
       const id = `${path}\n${item.key}`
       const first = defined.get(id)
       if (first === undefined) defined.set(id, { label, value })
@@ -78,15 +84,6 @@ export function findDotenvConflicts(sources: readonly DotenvSource[]): DotenvCon
     }
   }
   return conflicts
-}
-
-// `=` 뒤의 값: 따옴표로 감싼 값은 따옴표 안, 따옴표 없는 값은 `#`(주석) 앞까지에서 앞뒤 공백을 뺀 것. dotenv가 읽는 방법이다.
-const VALUE = /^\s*(?:'([^']*)'|"((?:\\"|[^"])*)"|`([^`]*)`|([^#]*))/
-
-/** 변수 줄(`NAME=값`)의 값 */
-function valueOf(line: string): string {
-  const [, single, double, backtick, bare] = VALUE.exec(line.slice(line.indexOf('=') + 1)) ?? []
-  return single ?? double ?? backtick ?? (bare ?? '').trim()
 }
 
 function parseParagraphs(text: string): Item[][] {

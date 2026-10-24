@@ -1,3 +1,5 @@
+import { trimBlankLines } from './utils/text.js'
+
 interface Section {
   /** `## `로 시작하는 제목 줄. 첫 제목 앞의 내용은 undefined다. */
   heading: string | undefined
@@ -37,12 +39,4 @@ function splitSections(markdown: string): Section[] {
     current.lines.push(line)
   }
   return sections
-}
-
-function trimBlankLines(lines: string[]): string[] {
-  const isBlank = (line: string | undefined) => line !== undefined && line.trim() === ''
-  const trimmed = [...lines]
-  while (isBlank(trimmed[0])) trimmed.shift()
-  while (isBlank(trimmed.at(-1))) trimmed.pop()
-  return trimmed
 }

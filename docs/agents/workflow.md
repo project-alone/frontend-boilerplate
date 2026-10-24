@@ -36,6 +36,20 @@ Generator 사용자에게 보이는 변경에는 `.changeset/*.md`를 함께 커
 - 요약은 CHANGELOG에 그대로 실린다. 한국어로, Starter를 쓰는 사람에게 무엇이 달라지는지 쓴다.
 - 이미 만든 Starter는 새 Generator 버전을 저절로 받지 않는다. 기존 Starter가 손으로 옮겨야 하는 변경이면 옮기는 방법도 적는다(예: `.changeset/msw-mock-optional-properties.md`).
 
+## 함수 나누기
+
+Generator 코드와 Starter 코드(Base, Rendering Mode, Recipe, Archetype, Schematic이 만드는 코드)에 함께 적용한다.
+
+- 한 곳에서만 부르는 로직은 함수로 빼지 않고 부르는 함수 안에 둔다. 함수가 길어져도 된다. 단계는 빈 줄과 주석으로 나눈다.
+- 이름 있는 함수로 따로 두는 것은 다음 경우다.
+  - 두 곳 이상에서 부른다.
+  - 재귀하거나, 콜백으로 넘기거나, 값으로 담아 둔다.
+  - React의 규칙 때문에 컴포넌트여야 한다(목록 항목마다 훅을 따로 가져야 하는 것, `<Suspense>`가 기다릴 async 서버 컴포넌트 등).
+  - 특정 기능에 묶이지 않은 범용 로직이다(글자·경로·빈 값 처리, 파일 읽기 등). 한 곳에서만 쓰더라도 공용 유틸 모듈에 두고, 더하기 전에 같은 일을 하는 유틸이 이미 있는지 찾는다.
+    - Generator: `packages/devc-frontend-generator/src/utils/`에 주제별 파일로 둔다(`fs.ts`, `text.ts`, `names.ts`, `type-guards.ts`, `collections.ts`, `terminal.ts`).
+    - Starter: Base의 `src/shared/lib/`에 주제별 파일로 두고 테스트를 함께 둔다. 서버, 브라우저, `config/`의 설정 어디서나 불러오도록 실행 위치 표시(`server-only` 등)가 없는 순수 함수만 둔다. Recipe의 범용 함수는 같은 디렉터리에 자기 파일로 더한다.
+  - Schematic이 만드는 파일의 소스(`<파일>Source`)가 길어서 Schematic 함수 안에 두면 검사 코드와 여러 파일의 내용이 섞일 때. 짧은 소스는 `newModules`에 바로 적는다.
+
 ## 커밋과 PR
 
 - 커밋은 Conventional Commits를 따른다. 제목은 영어로, 본문은 한국어로 왜 바꿨는지 쓴다. 이슈는 본문 끝에 `Refs #N`(관련)이나 `Closes #N`(해결)으로 잇는다.

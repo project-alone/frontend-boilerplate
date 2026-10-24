@@ -1,8 +1,9 @@
-import { isStringArray, loadManifests, type Manifest, parseRenderingModes } from './manifest.js'
+import { loadManifests, parseRenderingModes } from './manifest.js'
 import { ARCHETYPE_MANIFEST, type Overlay } from './overlay.js'
 import type { Recipe } from './recipes.js'
 import { RENDERING_MODES, type RenderingMode } from './rendering-mode.js'
 import { withRequired } from './selection.js'
+import { isStringArray } from './utils/type-guards.js'
 
 // Archetype은 `archetypes/<이름>/`에 담긴 overlay(overlay.ts)와 그 최상위의 선언 파일 archetype.json이다. 여러 Recipe를
 // 조합한 완성된 앱 유형(예: 관리자 대시보드)으로, 필요한 Recipe와 자기 화면(overlay)을 선언한다. Starter에는 고른
@@ -25,47 +26,45 @@ export interface Archetype {
   dir: string
 }
 
+const MANIFEST_KEYS = ['description', 'recipes', 'renderingModes', 'renderingModesReason']
+
 /**
- * Generator에 담긴 Archetype을 이름순으로 읽는다. 필요한 Recipe는 recipes(loadRecipes의 결과)에 있어야 한다.
+ * Generator에 담긴 Archetype을 이름순으로 읽는다. 필요한 Recipe는 available(loadRecipes의 결과)에 있어야 한다.
  * 선언이 잘못되었으면 DefinitionError를 던진다. Archetype이 하나도 없으면(디렉터리가 없으면) 빈 배열이다.
  */
-export async function loadArchetypes(recipes: readonly Recipe[]): Promise<Archetype[]> {
-  return loadManifests('archetypes', ARCHETYPE_MANIFEST, MANIFEST_KEYS, (manifest) => parseManifest(manifest, recipes))
+export async function loadArchetypes(available: readonly Recipe[]): Promise<Archetype[]> {
+  return loadManifests('archetypes', ARCHETYPE_MANIFEST, MANIFEST_KEYS, ({ name, dir, description, fields, fail }): Archetype => {
+    const { recipes, renderingModes, renderingModesReason } = fields
+    if (!isStringArray(recipes) || recipes.length === 0) throw fail('recipes는 이 Archetype이 쓰는 Recipe 이름의 배열이어야 합니다.')
+    const byName = new Map(available.map((recipe) => [recipe.name, recipe]))
+    const unknown = recipes.filter((recipe) => !byName.has(recipe))
+    if (unknown.length > 0) throw fail(`recipes에 없는 Recipe가 있습니다: ${unknown.join(', ')}`)
+    if (renderingModesReason !== undefined && (typeof renderingModesReason !== 'string' || renderingModes === undefined)) {
+      throw fail('renderingModesReason은 renderingModes와 함께 적는 문자열이어야 합니다.')
+    }
+
+    // 필요한 Recipe와 그 Recipe가 필요로 하는 Recipe가 모두 지원하는 Rendering Mode
+    const required = withRequired(recipes, byName).map(({ recipe }) => recipe)
+    const supported = RENDERING_MODES.filter((mode) => required.every((recipe) => recipe.renderingModes.includes(mode)))
+    if (supported.length === 0) throw fail(`recipes(${recipes.join(', ')})를 함께 쓸 수 있는 Rendering Mode가 없습니다.`)
+    const declared = renderingModes === undefined ? undefined : parseRenderingModes(renderingModes, fail)
+    const beyond = declared?.filter((mode) => !supported.includes(mode)) ?? []
+    if (beyond.length > 0) {
+      throw fail(`renderingModes의 ${beyond.join(', ')}는 recipes가 지원하지 않습니다(함께 쓸 수 있는 Rendering Mode: ${supported.join(', ')}).`)
+    }
+
+    return {
+      name,
+      description,
+      recipes,
+      renderingModes: declared ?? supported,
+      ...(typeof renderingModesReason === 'string' ? { renderingModesReason } : {}),
+      dir,
+    }
+  })
 }
 
 /** Archetype의 overlay. Recipe를 모두 덧입힌 뒤에 덧입힌다. */
 export function archetypeOverlay(archetype: Archetype): Overlay {
   return { label: `Archetype ${archetype.name}`, dir: archetype.dir }
-}
-
-const MANIFEST_KEYS = ['description', 'recipes', 'renderingModes', 'renderingModesReason']
-
-function parseManifest({ name, dir, description, fields, fail }: Manifest, available: readonly Recipe[]): Archetype {
-  const { recipes, renderingModes, renderingModesReason } = fields
-  if (!isStringArray(recipes) || recipes.length === 0) throw fail('recipes는 이 Archetype이 쓰는 Recipe 이름의 배열이어야 합니다.')
-  const byName = new Map(available.map((recipe) => [recipe.name, recipe]))
-  const unknown = recipes.filter((recipe) => !byName.has(recipe))
-  if (unknown.length > 0) throw fail(`recipes에 없는 Recipe가 있습니다: ${unknown.join(', ')}`)
-  if (renderingModesReason !== undefined && (typeof renderingModesReason !== 'string' || renderingModes === undefined)) {
-    throw fail('renderingModesReason은 renderingModes와 함께 적는 문자열이어야 합니다.')
-  }
-
-  // 필요한 Recipe와 그 Recipe가 필요로 하는 Recipe가 모두 지원하는 Rendering Mode
-  const required = withRequired(recipes, byName).map(({ recipe }) => recipe)
-  const supported = RENDERING_MODES.filter((mode) => required.every((recipe) => recipe.renderingModes.includes(mode)))
-  if (supported.length === 0) throw fail(`recipes(${recipes.join(', ')})를 함께 쓸 수 있는 Rendering Mode가 없습니다.`)
-  const declared = renderingModes === undefined ? undefined : parseRenderingModes(renderingModes, fail)
-  const beyond = declared?.filter((mode) => !supported.includes(mode)) ?? []
-  if (beyond.length > 0) {
-    throw fail(`renderingModes의 ${beyond.join(', ')}는 recipes가 지원하지 않습니다(함께 쓸 수 있는 Rendering Mode: ${supported.join(', ')}).`)
-  }
-
-  return {
-    name,
-    description,
-    recipes,
-    renderingModes: declared ?? supported,
-    ...(typeof renderingModesReason === 'string' ? { renderingModesReason } : {}),
-    dir,
-  }
 }

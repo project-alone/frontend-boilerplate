@@ -1,5 +1,6 @@
 import { type ObjectLiteralExpression, type SourceFile, SyntaxKind } from 'ts-morph'
-import { camelCase, kebabCase, splitWords } from './names.js'
+import { camelCase, kebabCase, splitWords } from '../utils/names.js'
+import { indentLines } from '../utils/text.js'
 import { type GeneratedFunction, type Operation, SchematicError, type StarterProject } from './starter-project.js'
 
 const QUERIES_DIR = 'src/queries'
@@ -47,10 +48,29 @@ export interface QueryDomainModules {
 }
 
 /** Query Domain의 쿼리 키 모듈과 쿼리 모듈을 연다. 없으면 새로 만든다(StarterProject.module과 같이 save 전에는 쓰지 않는다). */
-export function openQueryDomain(starter: StarterProject, domain: QueryDomain): QueryDomainModules {
-  const keysModule = starter.module(domain.keysPath, newKeysModule(domain))
-  const queriesModule = starter.module(domain.queriesPath, newQueriesModule(domain))
-  return { keysModule, keys: keysObject(keysModule, domain), queriesModule }
+export function openQueryDomain(
+  starter: StarterProject,
+  { name, tag, keysName, keysPath, queriesPath }: QueryDomain,
+): QueryDomainModules {
+  const keysModule = starter.module(
+    keysPath,
+    `// ${name} Query Domain(OpenAPI tag \`${tag}\`)의 쿼리 키. 위 단계의 키로 아래 단계를 한꺼번에 무효화할 수 있게
+// ['${name}'] → ['${name}', <operationId>] → ['${name}', <operationId>, ...인자]처럼 계층으로 만든다.
+export const ${keysName} = {
+  all: ['${name}'] as const,
+}
+`,
+  )
+  const queriesModule = starter.module(
+    queriesPath,
+    `// ${name} Query Domain의 queryOptions와 뮤테이션 훅. queryOptions는 서버 컴포넌트의 prefetch와 클라이언트 컴포넌트의 쿼리 훅(useSuspenseQuery 등)이 함께 쓴다.
+`,
+  )
+  const keys = keysModule.getVariableDeclaration(keysName)?.getInitializerIfKind(SyntaxKind.ObjectLiteralExpression)
+  if (keys === undefined) {
+    throw new SchematicError(`${keysPath}에 ${keysName} 쿼리 키 객체가 없어 쿼리 키를 끼워 넣을 수 없습니다.`)
+  }
+  return { keysModule, keys, queriesModule }
 }
 
 /** operation의 queryOptions 함수(<operationId>QueryOptions) 또는 infiniteQueryOptions 함수의 이름(ADR-0008) */
@@ -71,30 +91,6 @@ export function rejectConflicts(conflicts: readonly (string | false | undefined)
   const found = conflicts.filter((conflict) => typeof conflict === 'string')
   if (found.length === 0) return
   throw new SchematicError(
-    `같은 이름의 코드가 이미 있어 덮어쓰지 않았습니다. 파일은 바꾸지 않았습니다.\n${found.map((conflict) => `  ${conflict}`).join('\n')}`,
+    `같은 이름의 코드가 이미 있어 덮어쓰지 않았습니다. 파일은 바꾸지 않았습니다.\n${indentLines(found)}`,
   )
-}
-
-/** 쿼리 키 모듈이 없을 때 새로 만드는 모듈의 처음 내용 */
-function newKeysModule({ name, tag, keysName }: QueryDomain): string {
-  return `// ${name} Query Domain(OpenAPI tag \`${tag}\`)의 쿼리 키. 위 단계의 키로 아래 단계를 한꺼번에 무효화할 수 있게
-// ['${name}'] → ['${name}', <operationId>] → ['${name}', <operationId>, ...인자]처럼 계층으로 만든다.
-export const ${keysName} = {
-  all: ['${name}'] as const,
-}
-`
-}
-
-/** 쿼리 모듈이 없을 때 새로 만드는 모듈의 처음 내용 */
-function newQueriesModule({ name }: QueryDomain): string {
-  return `// ${name} Query Domain의 queryOptions와 뮤테이션 훅. queryOptions는 서버 컴포넌트의 prefetch와 클라이언트 컴포넌트의 쿼리 훅(useSuspenseQuery 등)이 함께 쓴다.
-`
-}
-
-function keysObject(file: SourceFile, { keysName, keysPath }: QueryDomain): ObjectLiteralExpression {
-  const keys = file.getVariableDeclaration(keysName)?.getInitializerIfKind(SyntaxKind.ObjectLiteralExpression)
-  if (keys === undefined) {
-    throw new SchematicError(`${keysPath}에 ${keysName} 쿼리 키 객체가 없어 쿼리 키를 끼워 넣을 수 없습니다.`)
-  }
-  return keys
 }

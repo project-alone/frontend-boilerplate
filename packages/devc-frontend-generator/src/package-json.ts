@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { isRecord } from './manifest.js'
+import { compareText } from './utils/text.js'
+import { isRecord } from './utils/type-guards.js'
 
 export type PackageJson = Record<string, unknown>
 
@@ -18,7 +19,7 @@ export async function updatePackageJson(
   const updated = update(JSON.parse(await readFile(path, 'utf8')) as PackageJson)
   for (const field of DEPENDENCY_FIELDS) {
     const dependencies = updated[field]
-    if (isRecord(dependencies)) updated[field] = Object.fromEntries(Object.entries(dependencies).sort(byKey))
+    if (isRecord(dependencies)) updated[field] = Object.fromEntries(Object.entries(dependencies).sort(([a], [b]) => compareText(a, b)))
   }
   await writeFile(path, `${JSON.stringify(updated, null, 2)}\n`)
 }
@@ -31,8 +32,4 @@ export function mergePackageJson(base: PackageJson, patch: PackageJson): Package
     merged[key] = isRecord(current) && isRecord(value) ? mergePackageJson(current, value) : value
   }
   return merged
-}
-
-function byKey([a]: [string, unknown], [b]: [string, unknown]): number {
-  return a.localeCompare(b, 'en')
 }
