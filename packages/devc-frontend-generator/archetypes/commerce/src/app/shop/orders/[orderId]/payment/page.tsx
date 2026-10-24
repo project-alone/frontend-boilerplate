@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
 import { FakePayment } from '@/features/shop-checkout/fake-payment'
 import { getOrderQueryOptions } from '@/queries/orders/orders.queries'
-import { ApiError } from '@/shared/api/api-fetch'
+import { isApiError } from '@/shared/api/api-fetch'
 import { getQueryClient } from '@/shared/query-client/get-query-client'
 
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ export default async function OrderPaymentPage({ params }: OrderPaymentPageProps
   const { orderId } = await params
   const queryClient = getQueryClient()
   await queryClient.query(getOrderQueryOptions(orderId)).catch((error: unknown) => {
-    if (error instanceof ApiError && error.status === 404) notFound()
+    if (isApiError(error, 404)) notFound()
     throw error
   })
 

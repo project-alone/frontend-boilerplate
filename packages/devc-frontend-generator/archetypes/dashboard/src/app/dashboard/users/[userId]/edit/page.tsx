@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { UpdateUserForm } from '@/features/user-form/update-user-form'
 import { getUserQueryOptions } from '@/queries/users/users.queries'
-import { ApiError } from '@/shared/api/api-fetch'
+import { isApiError } from '@/shared/api/api-fetch'
 import { requireServerSession } from '@/shared/auth/server-session'
 import { getQueryClient } from '@/shared/query-client/get-query-client'
 
@@ -26,7 +26,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   if (!Number.isInteger(userId)) notFound()
   const queryClient = getQueryClient()
   await queryClient.query(getUserQueryOptions(userId)).catch((error: unknown) => {
-    if (error instanceof ApiError && error.status === 404) notFound()
+    if (isApiError(error, 404)) notFound()
     throw error
   })
 
