@@ -1,5 +1,5 @@
 import { cp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { basename, join, relative, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { regenerateApiLayer } from './api-layer.js'
 import { type Archetype, archetypeOverlay } from './archetypes.js'
@@ -9,17 +9,12 @@ import { formatForStarter } from './format.js'
 import { generatorPackage } from './generator-package.js'
 import { mergeOpenApiFragments, type SpecFragment } from './openapi-fragments.js'
 import { OPENAPI_SPEC } from './openapi-spec.js'
-import {
-  applyOverlay,
-  isNotFound,
-  type Overlay,
-  OverlayError,
-  readOptionalFile,
-  STORYBOOK_OVERLAY_DIR,
-} from './overlay.js'
+import { applyOverlay, type Overlay, OverlayError, STORYBOOK_OVERLAY_DIR } from './overlay.js'
 import { mergePackageJson, updatePackageJson } from './package-json.js'
 import { type Recipe, recipeOverlay } from './recipes.js'
 import { type RenderingMode, renderingModeOverlay } from './rendering-mode.js'
+import { isNonEmptyDirectory, listFiles, readOptionalFile } from './utils/fs.js'
+import { bulletList } from './utils/text.js'
 
 const BASE_DIR = fileURLToPath(new URL('../base', import.meta.url))
 export const BASE: Overlay = { label: 'Base', dir: BASE_DIR }
@@ -75,10 +70,35 @@ export async function createStarter(
   ].filter((overlay) => overlay !== undefined)
   const pieces = (await Promise.all([BASE, ...overlays].map(readExtensions))).flat()
   checkExtensions(pieces)
-  const fragments = await readSpecFragments(overlays)
-  // 쓰기 전에 병합해 보아 겹치는 명세 조각을 먼저 알린다.
+  // overlay 최상위의 명세 조각(openapi.yaml)을 덧입히는 순서대로 읽고, 쓰기 전에 병합해 보아 겹치는 명세 조각을 먼저 알린다.
+  const fragments: SpecFragment[] = []
+  for (const { label, dir } of overlays) {
+    const text = await readOptionalFile(join(dir, OPENAPI_SPEC))
+    if (text !== undefined) fragments.push({ label, text })
+  }
   mergeOpenApiFragments(await readFile(join(BASE_DIR, OPENAPI_SPEC), 'utf8'), fragments)
-  checkDotenvSources(await readDotenvSources([BASE, ...overlays]))
+
+  // dotenv 파일은 변수 단위로 병합하므로(overlay.ts), Base·Rendering Mode·Recipe 가운데 둘이 같은 파일의 같은 변수에 다른 값을
+  // 적었으면 어느 쪽의 값이 맞는지 Generator가 정할 수 없다. 그런 변수를 모두 알리고 멈춘다. 값이 같으면 된다.
+  const dotenvSources: DotenvSource[] = []
+  for (const { label, dir } of [BASE, ...overlays]) {
+    for (const path of (await listFiles(dir)).filter(isDotenvFile)) {
+      dotenvSources.push({ label, path, text: await readFile(join(dir, path), 'utf8') })
+    }
+  }
+  const conflicts = findDotenvConflicts(dotenvSources)
+  if (conflicts.length > 0) {
+    throw new OverlayError(
+      bulletList(
+        '환경 변수 파일의 같은 변수에 서로 다른 값을 적은 곳이 있어 병합할 수 없습니다. 같은 값을 적거나, 다른 값이 필요하면 ' +
+          'Recipe 이름을 담은 다른 변수를 쓰세요(docs/recipes.md의 "환경 변수").',
+        conflicts.map(
+          ({ path, key, first, second }) =>
+            `${path}의 ${key}: ${first.label}에서 '${first.value}', ${second.label}에서 '${second.value}'`,
+        ),
+      ),
+    )
+  }
 
   const existed = await readdir(target).then(
     () => true,
@@ -88,7 +108,19 @@ export async function createStarter(
     await cp(BASE_DIR, target, { recursive: true, filter: (source) => !NOT_COPIED.includes(source) })
     await rename(join(target, PACKED_GITIGNORE), join(target, '.gitignore'))
     for (const overlay of overlays) await applyOverlay(target, overlay, ASSEMBLED)
-    if (fragments.length > 0) await writeMergedSpec(target, fragments)
+    if (fragments.length > 0) {
+      // Starter의 명세에 명세 조각을 병합해 쓰고, 병합한 명세로 재생성 API 계층을 다시 만든다(`npm run api:gen`과 같다).
+      const spec = join(target, OPENAPI_SPEC)
+      const base = await readOptionalFile(spec)
+      if (base === undefined) throw new OverlayError(`명세 조각을 병합할 ${OPENAPI_SPEC}가 Starter에 없습니다.`)
+      await writeFile(spec, await formatForStarter(spec, mergeOpenApiFragments(base, fragments)))
+      await regenerateApiLayer(target).catch((error: unknown) => {
+        const sources = fragments.map(({ label }) => label).join(', ')
+        throw new OverlayError(
+          `명세 조각(${sources})을 병합한 ${OPENAPI_SPEC}로 재생성 API 계층을 만들지 못했습니다(orval): ${String(error)}`,
+        )
+      })
+    }
     await writeExtensionFiles(target, pieces, renderingMode)
     // Starter는 자신을 만든 Generator를 정확한 버전으로 고정해, 팀원 모두가 같은 Schematic 결과를 얻는다(`npm run g`).
     // Rendering Mode와 Recipe를 모두 덧입힌 뒤에 정하므로 어떤 overlay도 이 값을 바꾸지 못한다.
@@ -101,74 +133,6 @@ export async function createStarter(
   } catch (error) {
     if (existed) await Promise.all((await readdir(target)).map((entry) => rm(join(target, entry), { recursive: true })))
     else await rm(target, { recursive: true, force: true })
-    throw error
-  }
-}
-
-/** Base와 overlay의 dotenv 파일(.env, .env.<이름>)을 덧입히는 순서대로 읽는다. */
-async function readDotenvSources(overlays: readonly Overlay[]): Promise<DotenvSource[]> {
-  const sources: DotenvSource[] = []
-  for (const { label, dir } of overlays) {
-    const entries = await readdir(dir, { recursive: true, withFileTypes: true })
-    const paths = entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => relative(dir, join(entry.parentPath, entry.name)))
-      .filter(isDotenvFile)
-      .sort()
-    for (const path of paths) sources.push({ label, path, text: await readFile(join(dir, path), 'utf8') })
-  }
-  return sources
-}
-
-/**
- * dotenv 파일은 변수 단위로 병합하므로(overlay.ts), Base·Rendering Mode·Recipe 가운데 둘이 같은 파일의 같은 변수에 다른 값을
- * 적었으면 어느 쪽의 값이 맞는지 Generator가 정할 수 없다. 그런 변수를 모두 알리는 OverlayError를 던진다. 값이 같으면 된다.
- */
-function checkDotenvSources(sources: readonly DotenvSource[]): void {
-  const conflicts = findDotenvConflicts(sources)
-  if (conflicts.length === 0) return
-  throw new OverlayError(
-    [
-      '환경 변수 파일의 같은 변수에 서로 다른 값을 적은 곳이 있어 병합할 수 없습니다. 같은 값을 적거나, 다른 값이 필요하면 ' +
-        'Recipe 이름을 담은 다른 변수를 쓰세요(docs/recipes.md의 "환경 변수").',
-      ...conflicts.map(
-        ({ path, key, first, second }) =>
-          `- ${path}의 ${key}: ${first.label}에서 '${first.value}', ${second.label}에서 '${second.value}'`,
-      ),
-    ].join('\n'),
-  )
-}
-
-/** overlay 최상위의 명세 조각(openapi.yaml)을 덧입히는 순서대로 읽는다. */
-async function readSpecFragments(overlays: readonly Overlay[]): Promise<SpecFragment[]> {
-  const fragments: SpecFragment[] = []
-  for (const { label, dir } of overlays) {
-    const text = await readOptionalFile(join(dir, OPENAPI_SPEC))
-    if (text !== undefined) fragments.push({ label, text })
-  }
-  return fragments
-}
-
-/** Starter의 명세에 명세 조각을 병합해 쓰고, 병합한 명세로 재생성 API 계층을 다시 만든다(`npm run api:gen`과 같다). */
-async function writeMergedSpec(target: string, fragments: readonly SpecFragment[]): Promise<void> {
-  const spec = join(target, OPENAPI_SPEC)
-  const base = await readOptionalFile(spec)
-  if (base === undefined) throw new OverlayError(`명세 조각을 병합할 ${OPENAPI_SPEC}가 Starter에 없습니다.`)
-  const merged = mergeOpenApiFragments(base, fragments)
-  await writeFile(spec, await formatForStarter(spec, merged))
-  await regenerateApiLayer(target).catch((error: unknown) => {
-    const sources = fragments.map(({ label }) => label).join(', ')
-    throw new OverlayError(
-      `명세 조각(${sources})을 병합한 ${OPENAPI_SPEC}로 재생성 API 계층을 만들지 못했습니다(orval): ${String(error)}`,
-    )
-  })
-}
-
-async function isNonEmptyDirectory(directory: string): Promise<boolean> {
-  try {
-    return (await readdir(directory)).length > 0
-  } catch (error) {
-    if (isNotFound(error)) return false
     throw error
   }
 }

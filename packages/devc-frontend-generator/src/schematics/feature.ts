@@ -1,4 +1,4 @@
-import { kebabCase, splitWords } from './names.js'
+import { kebabCase, splitWords } from '../utils/names.js'
 import { SchematicError } from './starter-project.js'
 
 /** Feature를 두는 폴더. Starter 최상위 기준이다. */
@@ -25,7 +25,7 @@ export function featureNamed(name: string): Feature {
 
 /**
  * kind의 이름을 단어로 나눈다. 파일이나 폴더 이름으로 쓸 수 없는 이름이면 SchematicError를 던진다.
- * names.ts는 SchematicError를 가진 starter-project.ts가 가져다 쓰므로, 서로 가져오지 않도록 여기에 둔다.
+ * SchematicError(starter-project.ts)를 던지므로 범용 유틸인 utils/names.ts가 아니라 여기에 둔다.
  */
 export function nameWords(kind: '컴포넌트' | 'Feature', name: string): string[] {
   if (NAME_PATTERN.test(name)) return splitWords(name)

@@ -7,18 +7,12 @@ import { isMap, isScalar, parseDocument, type Scalar } from 'yaml'
 import { archetypeOverlay, loadArchetypes } from './archetypes.js'
 import { formatForStarter } from './format.js'
 import { DefinitionError } from './manifest.js'
-import {
-  applyOverlay,
-  type Overlay,
-  overlayFiles,
-  overlayTarget,
-  readOptionalFile,
-  STORYBOOK_OVERLAY_DIR,
-} from './overlay.js'
+import { applyOverlay, type Overlay, overlayTarget, STORYBOOK_OVERLAY_DIR } from './overlay.js'
 import { loadRecipes, recipeOverlay } from './recipes.js'
 import { type RenderingMode, renderingModeOverlay } from './rendering-mode.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
 import { withRequired } from './selection.js'
+import { listFiles, readOptionalFile } from './utils/fs.js'
 
 // Storybook을 더할 때 Base에서 덧입히는 overlay(ADR-0014). Starter를 만들 때는 복사하지 않는다(create-starter.ts).
 const BASE_STORYBOOK: Overlay = {
@@ -47,6 +41,8 @@ export function hasStorybook(root: string): boolean {
  *
  * 1. Base의 Storybook overlay(`base/storybook/`)와, Starter에 들어 있는 Rendering Mode·Recipe·Archetype의 Storybook overlay를
  *    `dcgen new`와 같은 순서와 형식으로 덧입힌다(.storybook/의 설정, package.json의 의존성과 스크립트, README의 절).
+ *    Starter는 고른 Recipe·Archetype을 기록하지 않으므로, Recipe·Archetype의 것은 그 overlay가 가져다 쓰는 Starter 모듈(`@/...`)이
+ *    Starter에 모두 있을 때 넣는다. Starter 모듈을 하나도 쓰지 않는 overlay는 넣을지 정할 수 없으므로 DefinitionError를 던진다.
  * 2. 프로젝트가 고쳤을 수 있는 설정 파일은 패치하지 않고, 구조를 읽어 Storybook에 필요한 항목만 더한다.
  *    vitest.config.ts의 projects와 tsconfig.json의 include는 꼭 필요하므로, 찾지 못하면 아무 파일도 쓰기 전에
  *    SchematicError를 던진다. 나머지(eslint.config.ts의 globalIgnores, GitLab CI의 Chromium 잡 틀)는 찾지 못하면 건너뛰고
@@ -56,7 +52,49 @@ export async function addStorybook(
   root: string,
   renderingMode: RenderingMode,
 ): Promise<{ changed: ChangedFile[]; skipped: string[] }> {
-  const overlays = await storybookOverlays(root, renderingMode)
+  // 덧입힐 Storybook overlay를 덧입힐 순서대로 고른다. Base의 것은 늘, Rendering Mode의 것은 Starter의 Rendering Mode일 때 넣는다.
+  const recipes = await loadRecipes()
+  const byName = new Map(recipes.map((recipe) => [recipe.name, recipe]))
+  const ordered = [
+    ...withRequired(
+      recipes.map(({ name }) => name),
+      byName,
+    ).map(({ recipe }) => recipeOverlay(recipe)),
+    ...(await loadArchetypes(recipes)).map(archetypeOverlay),
+  ]
+  const storybookOf = ({ label, dir }: Overlay): Overlay | undefined => {
+    const storybookDir = join(dir, STORYBOOK_OVERLAY_DIR)
+    return existsSync(storybookDir) ? { label, dir: storybookDir } : undefined
+  }
+
+  const mode = renderingModeOverlay(renderingMode)
+  const modeStorybook = mode === undefined ? undefined : storybookOf(mode)
+  const overlays = modeStorybook === undefined ? [BASE_STORYBOOK] : [BASE_STORYBOOK, modeStorybook]
+  for (const candidate of ordered) {
+    const overlay = storybookOf(candidate)
+    if (overlay === undefined) continue
+    // 패치는 더하는 줄만 본다. 맥락 줄과 지우는 줄은 Base의 Storybook 설정에 있던 것이다.
+    const sources = await Promise.all(
+      (await listFiles(overlay.dir)).map(async (path) => {
+        const text = await readFile(join(overlay.dir, path), 'utf8')
+        if (overlayTarget(path) === path) return text
+        return text
+          .split('\n')
+          .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+          .join('\n')
+      }),
+    )
+    const modules = [...sources.join('\n').matchAll(/(?:from|import)\s+'@\/([^']+)'/g)].map(([, module = '']) => module)
+    if (modules.length === 0) {
+      throw new DefinitionError(
+        `${overlay.label}의 ${STORYBOOK_OVERLAY_DIR}/가 Starter 모듈(@/...)을 하나도 가져오지 않아, Starter에 ${overlay.label}이(가) 들어 있는지 알 수 없습니다(ADR-0014).`,
+      )
+    }
+    const present = (module: string) =>
+      ['', '.ts', '.tsx', '/index.ts', '/index.tsx'].some((suffix) => existsSync(join(root, 'src', `${module}${suffix}`)))
+    if (modules.every(present)) overlays.push(overlay)
+  }
+
   const edits: { path: string; text: string }[] = []
   const skipped: string[] = []
   const project = new Project({ useInMemoryFileSystem: true, manipulationSettings: { quoteKind: QuoteKind.Single } })
@@ -167,7 +205,7 @@ export async function addStorybook(
   // 무엇을 바꾸는지는 쓰기 전에 정한다. 이미 있던 파일은 고친 것이다.
   const paths = [
     ...new Set([
-      ...(await Promise.all(overlays.map(async ({ dir }) => (await overlayFiles(dir)).map(overlayTarget)))).flat(),
+      ...(await Promise.all(overlays.map(async ({ dir }) => (await listFiles(dir)).map(overlayTarget)))).flat(),
       ...edits.map(({ path }) => path),
     ]),
   ]
@@ -175,55 +213,4 @@ export async function addStorybook(
   for (const overlay of overlays) await applyOverlay(root, overlay, [])
   for (const { path, text } of edits) await writeFile(join(root, path), text)
   return { changed, skipped }
-}
-
-/**
- * Storybook을 더할 때 덧입힐 overlay를 덧입힐 순서대로 돌려준다. Base의 것은 늘 넣는다. Rendering Mode의 것은 Starter의
- * Rendering Mode일 때 넣는다. Starter는 고른 Recipe·Archetype을 기록하지 않으므로, Recipe·Archetype의 것은 그 overlay가
- * 가져다 쓰는 Starter 모듈(`@/...`)이 Starter에 모두 있을 때 넣는다. Starter 모듈을 하나도 쓰지 않는 overlay는 넣을지 정할 수
- * 없으므로 DefinitionError를 던진다.
- */
-async function storybookOverlays(root: string, renderingMode: RenderingMode): Promise<Overlay[]> {
-  const recipes = await loadRecipes()
-  const byName = new Map(recipes.map((recipe) => [recipe.name, recipe]))
-  const ordered = [
-    ...withRequired(
-      recipes.map(({ name }) => name),
-      byName,
-    ).map(({ recipe }) => recipeOverlay(recipe)),
-    ...(await loadArchetypes(recipes)).map(archetypeOverlay),
-  ]
-  const storybookOf = ({ label, dir }: Overlay): Overlay | undefined => {
-    const storybookDir = join(dir, STORYBOOK_OVERLAY_DIR)
-    return existsSync(storybookDir) ? { label, dir: storybookDir } : undefined
-  }
-
-  const mode = renderingModeOverlay(renderingMode)
-  const modeStorybook = mode === undefined ? undefined : storybookOf(mode)
-  const overlays = modeStorybook === undefined ? [BASE_STORYBOOK] : [BASE_STORYBOOK, modeStorybook]
-  for (const candidate of ordered) {
-    const overlay = storybookOf(candidate)
-    if (overlay === undefined) continue
-    // 패치는 더하는 줄만 본다. 맥락 줄과 지우는 줄은 Base의 Storybook 설정에 있던 것이다.
-    const sources = await Promise.all(
-      (await overlayFiles(overlay.dir)).map(async (path) => {
-        const text = await readFile(join(overlay.dir, path), 'utf8')
-        if (overlayTarget(path) === path) return text
-        return text
-          .split('\n')
-          .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
-          .join('\n')
-      }),
-    )
-    const modules = [...sources.join('\n').matchAll(/(?:from|import)\s+'@\/([^']+)'/g)].map(([, module = '']) => module)
-    if (modules.length === 0) {
-      throw new DefinitionError(
-        `${overlay.label}의 ${STORYBOOK_OVERLAY_DIR}/가 Starter 모듈(@/...)을 하나도 가져오지 않아, Starter에 ${overlay.label}이(가) 들어 있는지 알 수 없습니다(ADR-0014).`,
-      )
-    }
-    const present = (module: string) =>
-      ['', '.ts', '.tsx', '/index.ts', '/index.tsx'].some((suffix) => existsSync(join(root, 'src', `${module}${suffix}`)))
-    if (modules.every(present)) overlays.push(overlay)
-  }
-  return overlays
 }

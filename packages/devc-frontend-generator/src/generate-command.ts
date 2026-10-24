@@ -6,6 +6,7 @@ import { generatePage, PAGE_MODES } from './schematics/page.js'
 import { generateQuery } from './schematics/query.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
 import { generateStory } from './schematics/story.js'
+import { printNextSteps } from './utils/terminal.js'
 
 /**
  * `dcgen g <schematic>`: Starter 안에서 Schematic으로 코드를 만든다. Schematic마다 하위 명령을 하나씩 둔다.
@@ -160,12 +161,11 @@ export function registerGenerateCommand(program: Command): void {
           : []),
       ]
       report(notes.join('\n'), story.changed)
-      const steps = [
+      printNextSteps([
         ...(story.storybookAdded && !story.installed ? ['npm install'] : []),
         'npm run storybook',
         'npm run test:storybook',
-      ]
-      console.log(`\n다음 단계:\n\n${steps.map((step) => `  ${step}`).join('\n')}\n`)
+      ])
     })
 }
 

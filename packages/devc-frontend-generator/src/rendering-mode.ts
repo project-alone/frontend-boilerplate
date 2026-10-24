@@ -16,10 +16,6 @@ export const RENDERING_MODE_DESCRIPTIONS: Record<RenderingMode, string> = {
 
 const RENDERING_MODES_DIR = fileURLToPath(new URL('../rendering-modes', import.meta.url))
 
-export function isRenderingMode(value: unknown): value is RenderingMode {
-  return RENDERING_MODES.some((mode) => mode === value)
-}
-
 /**
  * Base로 만든 Starter에 덧입힐 Rendering Mode의 overlay. Base는 server Starter 그대로이므로 server는 overlay가 없다.
  * 다른 Rendering Mode는 Base와 달라지는 부분만 `rendering-modes/<mode>/`에 overlay(Recipe와 같은 형식)로 담아 둔다(overlay.ts).

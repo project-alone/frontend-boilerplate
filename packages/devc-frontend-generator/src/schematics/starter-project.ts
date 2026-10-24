@@ -15,7 +15,9 @@ import {
 } from 'ts-morph'
 import { GENERATED_API_DIR, HTTP_METHODS, type HttpMethod, OPENAPI_SPEC } from '../openapi-spec.js'
 import type { RenderingMode } from '../rendering-mode.js'
-import { camelCase, splitWords, upperFirst } from './names.js'
+import { hasErrorCode } from '../utils/fs.js'
+import { camelCase, splitWords, upperFirst } from '../utils/names.js'
+import { indentLines } from '../utils/text.js'
 
 /** 재생성 계층의 fetch 함수를 가져오는 경로. orval의 tags-split 결과를 index.ts가 모두 다시 내보낸다. */
 export const GENERATED_API_IMPORT = '@/shared/api/generated'
@@ -247,7 +249,7 @@ export class StarterProject {
     )
     if (existing.length > 0) {
       throw new SchematicError(
-        `같은 이름의 파일이 이미 있어 덮어쓰지 않았습니다. 파일은 만들지 않았습니다.\n${existing.map((path) => `  ${path}`).join('\n')}`,
+        `같은 이름의 파일이 이미 있어 덮어쓰지 않았습니다. 파일은 만들지 않았습니다.\n${indentLines(existing)}`,
       )
     }
     for (const { stem, source } of files) this.module(`${stem}.tsx`, source)
@@ -308,7 +310,7 @@ export class StarterProject {
     try {
       return createRequire(join(this.root, 'package.json'))('prettier') as Prettier
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
+      if (hasErrorCode(error, 'MODULE_NOT_FOUND')) {
         throw new SchematicError(`${this.root}에서 Prettier를 찾지 못해 파일을 쓰지 않았습니다. npm install을 먼저 실행하세요.`)
       }
       throw error

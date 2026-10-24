@@ -1,9 +1,11 @@
 import type { OpenAPIV3 } from 'openapi-types'
 import type { RenderingMode } from '../rendering-mode.js'
+import { jsxText, kebabCase, pascalCase, propertyAccess, splitWords, upperFirst } from '../utils/names.js'
+import { nonBlank } from '../utils/text.js'
+import { isOneOf } from '../utils/type-guards.js'
 import { type Feature, FEATURES_DIR, featureNamed } from './feature.js'
 import { formComponentOf, formPropsOf } from './form.js'
 import { mutationHookName } from './mutation.js'
-import { jsxText, kebabCase, pascalCase, propertyAccess, splitWords, upperFirst } from './names.js'
 import { queryDomainOf, queryOptionsName } from './query-domain.js'
 import {
   type ChangedFile,
@@ -199,7 +201,37 @@ export async function generatePage(
   routeArgument: string,
   options: PageSchematicOptions,
 ): Promise<GeneratedPage> {
-  const route = parseRoute(routeArgument)
+  // 라우트 인자(products/new, /products/[productId]/ 등)를 세그먼트로 나눠 검사한다.
+  const segments = routeArgument.split('/').filter((segment) => segment !== '')
+  if (segments.length === 0) {
+    throw new SchematicError('만들 라우트를 적으세요(예: products/new). 루트 페이지(src/app/page.tsx)는 Base에 있습니다.')
+  }
+  const invalid = segments.filter(
+    (segment) => !STATIC_SEGMENT.test(segment) && !DYNAMIC_SEGMENT.test(segment) && !GROUP_SEGMENT.test(segment),
+  )
+  if (invalid.length > 0) {
+    throw new SchematicError(
+      `쓸 수 없는 라우트입니다: '${routeArgument}'(${invalid.join(', ')}). 세그먼트는 kebab-case(products, order-items), 동적 세그먼트([productId]), 경로 그룹((admin))만 씁니다. catch-all([...slug])이나 병렬·가로채기 라우트는 직접 만드세요.`,
+    )
+  }
+  const params = segments.flatMap((segment) => DYNAMIC_SEGMENT.exec(segment)?.[1] ?? [])
+  const repeated = params.filter((param, index) => params.indexOf(param) !== index)
+  if (repeated.length > 0) {
+    throw new SchematicError(`라우트에 같은 이름의 동적 세그먼트가 여러 번 있습니다: [${repeated.join('], [')}].`)
+  }
+  const urlSegments = segments.filter((segment) => !GROUP_SEGMENT.test(segment))
+  if (urlSegments.length === 0) {
+    throw new SchematicError(
+      `경로 그룹만 있는 라우트(${routeArgument})는 루트 페이지(/, src/app/page.tsx)와 주소가 겹칩니다. 그룹 아래에 세그먼트를 더하세요.`,
+    )
+  }
+  const route: Route = {
+    directory: `${APP_DIR}/${segments.join('/')}`,
+    path: `/${urlSegments.join('/')}`,
+    params,
+    componentPrefix: pascalCase(urlSegments.flatMap((segment) => splitWords(segment))),
+  }
+
   if (options.feature !== undefined && options.query === undefined && options.form === undefined) {
     throw new SchematicError(
       '--feature는 --query(결과를 보여 줄 컴포넌트를 둘 Feature)나 --form(폼이 있는 Feature)과 함께 씁니다.',
@@ -212,13 +244,162 @@ export async function generatePage(
     )
   }
 
+  // --mode의 값을 검사하고, 없으면 Starter의 Rendering Mode에 맞는 기본값을 고른다.
   const starter = StarterProject.open(cwd)
-  const mode = pageMode(starter.renderingMode(), options.mode, route)
-  const query =
-    options.query === undefined || feature === undefined
-      ? undefined
-      : await pageQuery(starter, options.query, feature, route)
-  const form = options.form === undefined ? undefined : await pageForm(starter, options.form, feature, route)
+  const starterMode = starter.renderingMode()
+  const mode = options.mode ?? DEFAULT_MODES[starterMode]
+  if (!isOneOf(PAGE_MODES, mode)) {
+    throw new SchematicError(`쓸 수 없는 Rendering Mode입니다: '${mode}'. ${PAGE_MODES.join(', ')} 가운데 하나를 고르세요.`)
+  }
+  if (starterMode === 'static-export') {
+    const { label, serverOnlyReason } = MODES[mode]
+    if (serverOnlyReason !== undefined) {
+      const allowed = PAGE_MODES.filter((candidate) => MODES[candidate].serverOnlyReason === undefined)
+      throw new SchematicError(
+        `static-export Starter에서는 ${label} 페이지를 만들 수 없습니다. ${serverOnlyReason} 요청을 받는 서버 없이 동작하는 ${allowed.join(', ')} 가운데 하나를 고르세요.`,
+      )
+    }
+    if (route.params.length > 0) {
+      throw new SchematicError(
+        `static-export Starter에서는 동적 세그먼트([${route.params.join('], [')}])가 있는 라우트를 만들지 않습니다. 빌드할 때 만들 경로를 generateStaticParams로 모두 정해야 하므로 직접 작성하세요.`,
+      )
+    }
+  }
+
+  // --query의 operation과 그 queryOptions를 찾고, 결과를 보여 줄 컴포넌트를 정한다.
+  let query: PageQuery | undefined
+  if (options.query !== undefined && feature !== undefined) {
+    const operationId = options.query
+    const operation = await starter.findOperation(operationId)
+    if (operation.method !== 'get') {
+      throw new SchematicError(
+        `--query에는 데이터를 가져올 GET operation을 지정합니다. ${operationId}는 ${operation.method.toUpperCase()} operation입니다.`,
+      )
+    }
+    const domain = queryDomainOf(operation)
+    const fetcher = starter.generatedFunction(operation)
+    const optionsName = queryOptionsName(fetcher, 'query')
+    const queries = starter.existingModule(domain.queriesPath)
+    if (queries === undefined || !hasDeclaration(queries, optionsName)) {
+      const infinite = queryOptionsName(fetcher, 'infinite')
+      const onlyInfinite =
+        queries !== undefined && hasDeclaration(queries, infinite)
+          ? ` ${infinite}(npm run g -- query ${operationId} --infinite)는 끼워 넣지 않으니 페이지를 만든 뒤 직접 바꾸세요.`
+          : ''
+      throw new SchematicError(
+        `${domain.queriesPath}에 ${optionsName}가 없습니다. 페이지는 이 queryOptions로 데이터를 가져오므로 먼저 npm run g -- query ${operationId}로 만드세요.${onlyInfinite}`,
+      )
+    }
+    const pathCount = pathParameters(operation).length
+    const required = fetcher.parameters.slice(pathCount).filter((parameter) => !parameter.optional)
+    if (required.length > 0) {
+      throw new SchematicError(
+        `--query는 경로 파라미터 말고는 필수 인자가 없는 operation만 끼워 넣습니다. ${fetcher.name}의 ${required.map(({ name }) => name).join(', ')}는 필수 인자입니다. 페이지에서 값을 정해 넘기려면 직접 고치세요.`,
+      )
+    }
+    const queryArgs = pathArguments('--query', operation, fetcher.parameters.slice(0, pathCount), route)
+
+    const name = `${upperFirst(fetcher.name)}View`
+    const fileName = `${kebabCase(splitWords(operationId))}-view`
+    const stem = `${feature.directory}/${fileName}`
+    const existing = starter.existingModule(`${stem}.tsx`)
+    const { mockHandler: handler, responseMock: response } = generatedNamesOf(fetcher)
+    const mockModule = starter.generatedModuleOf(handler)
+    if (mockModule === undefined) {
+      throw new SchematicError(
+        `재생성 계층에 ${operationId}의 MSW 핸들러(${handler})가 없습니다. openapi.yaml을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
+      )
+    }
+    // 결과를 그리는 방법은 응답 본문의 스키마로 정한다. 배열은 목록, 객체는 이름과 값의 목록, 그 밖은 값 그대로다.
+    const schema = successSchema(operation)
+    let shape: ViewShape = { kind: 'value' }
+    if (schema?.type === 'array') {
+      const items = schema.items as OpenAPIV3.SchemaObject
+      const requiredProperties = new Set(items.required ?? [])
+      const properties = Object.entries(items.properties ?? {}) as [string, OpenAPIV3.SchemaObject][]
+      const requiredOf = (types: readonly string[]) =>
+        properties.filter(([property, { type }]) => requiredProperties.has(property) && types.includes(String(type)))
+      const strings = requiredOf(['string']).map(([property]) => property)
+      shape = {
+        kind: 'list',
+        key: requiredOf(['integer', 'number', 'string']).some(([property]) => property === KEY_PROPERTY)
+          ? KEY_PROPERTY
+          : undefined,
+        label: LABEL_PROPERTIES.find((property) => strings.includes(property)) ?? strings[0],
+        scalarItems: ['string', 'integer', 'number'].includes(String(items.type)),
+      }
+    } else if (schema?.type === 'object' || schema?.properties !== undefined) {
+      shape = { kind: 'object' }
+    }
+    query = {
+      operationId,
+      summary: nonBlank(operation.definition.summary),
+      domainName: domain.name,
+      optionsName,
+      optionsModule: starter.importPath(domain.queriesPath),
+      args: queryArgs,
+      view: {
+        name,
+        fileName,
+        feature,
+        stem,
+        importPath: starter.importPath(stem),
+        // Feature에 같은 컴포넌트가 있으면(같은 쿼리를 보여 주는 다른 페이지가 만들었다) 새로 만들지 않고 쓴다.
+        // 같은 파일에 그 컴포넌트가 없으면 손으로 쓴 코드일 수 있으므로 새로 만들려다 겹친다고 알린다.
+        reused: existing !== undefined && hasExport(existing, name),
+        shape,
+      },
+      mocks: {
+        handler,
+        response: starter.generatedModuleOf(response) === undefined ? undefined : response,
+        module: mockModule,
+      },
+      mockPath: `*${operation.path.replace(/\{([^}]+)\}/g, ':$1')}`,
+    }
+  }
+
+  // --form의 폼을 Feature에서 찾는다. --feature가 있고 그 Feature에 폼이 있으면 그것을 쓴다.
+  let form: PageForm | undefined
+  if (options.form !== undefined) {
+    const operationId = options.form
+    const operation = await starter.findOperation(operationId)
+    const fetcher = starter.generatedFunction(operation)
+    const { componentName, fileName } = formComponentOf(operationId, fetcher)
+    const found = starter.subdirectories(FEATURES_DIR).filter((name) => {
+      const module = starter.existingModule(`${FEATURES_DIR}/${name}/${fileName}.tsx`)
+      return module !== undefined && hasExport(module, componentName)
+    })
+    const chosen = feature !== undefined && found.includes(feature.name) ? [feature.name] : found
+    const [only] = chosen
+    if (only === undefined) {
+      throw new SchematicError(
+        `src/features/*/${fileName}.tsx에 ${componentName}가 없습니다. 페이지에 넣을 폼을 먼저 npm run g -- form ${operationId} --feature <feature>로 만드세요.`,
+      )
+    }
+    if (chosen.length > 1) {
+      // --feature는 --query의 컴포넌트를 둘 곳이기도 하므로, 그 Feature에 폼이 없으면 어느 폼인지 고를 수 없다.
+      const elsewhere =
+        feature === undefined ? '' : ` --feature의 ${feature.name}에는 이 폼이 없습니다. 넣을 폼 하나만 남기거나 직접 고치세요.`
+      throw new SchematicError(
+        `${componentName}가 여러 Feature에 있습니다: ${chosen.join(', ')}. 페이지에 넣을 폼이 있는 Feature를 --feature로 고르세요.${elsewhere}`,
+      )
+    }
+    const props = formPropsOf(starter, operation, fetcher)
+    // 뮤테이션 훅에만 넘기는 props(--optimistic 훅이 응답 전에 고칠 쿼리의 인자)도 경로 파라미터처럼 동적 세그먼트에서 읽어 넘긴다.
+    const missing = props.filter((prop) => prop.hookOnly && !route.params.includes(prop.name)).map(({ name }) => name)
+    if (missing.length > 0) {
+      throw new SchematicError(
+        `${componentName}는 경로 파라미터 말고도 ${mutationHookName(fetcher)}에 넘길 인자(${missing.join(', ')})를 props로 받습니다. 페이지가 넘기려면 라우트에 같은 이름의 동적 세그먼트(${missing.map((name) => `[${name}]`).join(', ')})가 있어야 합니다. 값을 다른 곳에서 받는다면 --form 없이 페이지를 만들고 폼을 직접 넣으세요.`,
+      )
+    }
+    form = {
+      summary: nonBlank(operation.definition.summary),
+      componentName,
+      importPath: starter.importPath(`${FEATURES_DIR}/${only}/${fileName}`),
+      args: pathArguments('--form', operation, props, route),
+    }
+  }
+
   const args = [...(query?.args ?? []), ...(form?.args ?? [])].filter(
     (arg, index, all) => all.findIndex((other) => other.name === arg.name) === index,
   )
@@ -232,10 +413,49 @@ export async function generatePage(
   }
 
   const routeStem = (name: string) => `${route.directory}/${name}`
+  const errorName = `${route.componentPrefix}Error`
   starter.newModules([
     { stem: routeStem('page'), source: pageSource(page) },
-    { stem: routeStem('loading'), source: loadingSource(page) },
-    { stem: routeStem('error'), source: errorSource(page) },
+    {
+      // 로딩 상태(loading.tsx)
+      stem: routeStem('loading'),
+      source: `// ${route.path} 페이지의 로딩 상태. 페이지가 서버에서 데이터를 기다리는 동안과 이 페이지로 옮겨 가는 동안 페이지 대신 보인다.
+export default function ${route.componentPrefix}Loading() {
+  return (
+    <main className="flex flex-col gap-4 p-4">
+      <p role="status">${LOADING_MESSAGE}</p>
+    </main>
+  )
+}
+`,
+    },
+    {
+      // 오류 상태(error.tsx). Next.js의 오류 경계는 클라이언트 컴포넌트다.
+      stem: routeStem('error'),
+      source: `'use client'
+
+import { Button } from '@/shared/ui/button'
+
+interface ${errorName}Props {
+  /** 던져진 값. 서버 컴포넌트의 오류는 배포한 앱에서 메시지 대신 서버 로그와 맞춰 볼 식별자(digest)만 담긴다. */
+  error: unknown
+  /** 이 라우트를 서버에서 다시 가져와 렌더링한다. */
+  retry: () => void
+}
+
+// ${route.path} 페이지의 오류 상태. 페이지를 렌더링하다 오류가 나면(서버에서 데이터를 가져오지 못했을 때 등) 페이지 대신 보인다.
+// 문구는 화면에 맞게 고친다.
+export default function ${errorName}({ retry }: ${errorName}Props) {
+  return (
+    <main className="flex flex-col items-start gap-4 p-4">
+      <h1 className="text-lg font-semibold">${jsxText(page.title)}</h1>
+      <p role="alert">페이지를 불러오지 못했습니다. 잠시 뒤에 다시 시도해 주세요.</p>
+      <Button onClick={retry}>다시 시도</Button>
+    </main>
+  )
+}
+`,
+    },
     ...(query === undefined || query.view.reused
       ? []
       : [
@@ -253,184 +473,6 @@ export async function generatePage(
         : { name: query.view.name, path: `${query.view.stem}.tsx`, reused: query.view.reused },
     fetchesAtBuild: fetchesAtBuild(page),
     changed: await starter.save(),
-  }
-}
-
-/** 라우트 인자(products/new, /products/[productId]/ 등)를 세그먼트로 나눠 검사한다. */
-function parseRoute(argument: string): Route {
-  const segments = argument.split('/').filter((segment) => segment !== '')
-  if (segments.length === 0) {
-    throw new SchematicError('만들 라우트를 적으세요(예: products/new). 루트 페이지(src/app/page.tsx)는 Base에 있습니다.')
-  }
-  const invalid = segments.filter(
-    (segment) => !STATIC_SEGMENT.test(segment) && !DYNAMIC_SEGMENT.test(segment) && !GROUP_SEGMENT.test(segment),
-  )
-  if (invalid.length > 0) {
-    throw new SchematicError(
-      `쓸 수 없는 라우트입니다: '${argument}'(${invalid.join(', ')}). 세그먼트는 kebab-case(products, order-items), 동적 세그먼트([productId]), 경로 그룹((admin))만 씁니다. catch-all([...slug])이나 병렬·가로채기 라우트는 직접 만드세요.`,
-    )
-  }
-  const params = segments.flatMap((segment) => DYNAMIC_SEGMENT.exec(segment)?.[1] ?? [])
-  const repeated = params.filter((param, index) => params.indexOf(param) !== index)
-  if (repeated.length > 0) {
-    throw new SchematicError(`라우트에 같은 이름의 동적 세그먼트가 여러 번 있습니다: [${repeated.join('], [')}].`)
-  }
-  const urlSegments = segments.filter((segment) => !GROUP_SEGMENT.test(segment))
-  if (urlSegments.length === 0) {
-    throw new SchematicError(
-      `경로 그룹만 있는 라우트(${argument})는 루트 페이지(/, src/app/page.tsx)와 주소가 겹칩니다. 그룹 아래에 세그먼트를 더하세요.`,
-    )
-  }
-  return {
-    directory: `${APP_DIR}/${segments.join('/')}`,
-    path: `/${urlSegments.join('/')}`,
-    params,
-    componentPrefix: pascalCase(urlSegments.flatMap((segment) => splitWords(segment))),
-  }
-}
-
-/** --mode의 값을 검사하고, 없으면 Starter의 Rendering Mode에 맞는 기본값을 고른다. */
-function pageMode(starterMode: RenderingMode, option: string | undefined, route: Route): PageMode {
-  const mode = option ?? DEFAULT_MODES[starterMode]
-  if (!isPageMode(mode)) {
-    throw new SchematicError(`쓸 수 없는 Rendering Mode입니다: '${mode}'. ${PAGE_MODES.join(', ')} 가운데 하나를 고르세요.`)
-  }
-  if (starterMode !== 'static-export') return mode
-  const { label, serverOnlyReason } = MODES[mode]
-  if (serverOnlyReason !== undefined) {
-    const allowed = PAGE_MODES.filter((candidate) => MODES[candidate].serverOnlyReason === undefined)
-    throw new SchematicError(
-      `static-export Starter에서는 ${label} 페이지를 만들 수 없습니다. ${serverOnlyReason} 요청을 받는 서버 없이 동작하는 ${allowed.join(', ')} 가운데 하나를 고르세요.`,
-    )
-  }
-  if (route.params.length > 0) {
-    throw new SchematicError(
-      `static-export Starter에서는 동적 세그먼트([${route.params.join('], [')}])가 있는 라우트를 만들지 않습니다. 빌드할 때 만들 경로를 generateStaticParams로 모두 정해야 하므로 직접 작성하세요.`,
-    )
-  }
-  return mode
-}
-
-function isPageMode(value: string): value is PageMode {
-  return PAGE_MODES.some((mode) => mode === value)
-}
-
-/** --query의 operation과 그 queryOptions를 찾고, 결과를 보여 줄 컴포넌트를 정한다. */
-async function pageQuery(
-  starter: StarterProject,
-  operationId: string,
-  feature: Feature,
-  route: Route,
-): Promise<PageQuery> {
-  const operation = await starter.findOperation(operationId)
-  if (operation.method !== 'get') {
-    throw new SchematicError(
-      `--query에는 데이터를 가져올 GET operation을 지정합니다. ${operationId}는 ${operation.method.toUpperCase()} operation입니다.`,
-    )
-  }
-  const domain = queryDomainOf(operation)
-  const fetcher = starter.generatedFunction(operation)
-  const optionsName = queryOptionsName(fetcher, 'query')
-  const queries = starter.existingModule(domain.queriesPath)
-  if (queries === undefined || !hasDeclaration(queries, optionsName)) {
-    const infinite = queryOptionsName(fetcher, 'infinite')
-    const onlyInfinite =
-      queries !== undefined && hasDeclaration(queries, infinite)
-        ? ` ${infinite}(npm run g -- query ${operationId} --infinite)는 끼워 넣지 않으니 페이지를 만든 뒤 직접 바꾸세요.`
-        : ''
-    throw new SchematicError(
-      `${domain.queriesPath}에 ${optionsName}가 없습니다. 페이지는 이 queryOptions로 데이터를 가져오므로 먼저 npm run g -- query ${operationId}로 만드세요.${onlyInfinite}`,
-    )
-  }
-  const pathCount = pathParameters(operation).length
-  const required = fetcher.parameters.slice(pathCount).filter((parameter) => !parameter.optional)
-  if (required.length > 0) {
-    throw new SchematicError(
-      `--query는 경로 파라미터 말고는 필수 인자가 없는 operation만 끼워 넣습니다. ${fetcher.name}의 ${required.map(({ name }) => name).join(', ')}는 필수 인자입니다. 페이지에서 값을 정해 넘기려면 직접 고치세요.`,
-    )
-  }
-  const args = pathArguments('--query', operation, fetcher.parameters.slice(0, pathCount), route)
-
-  const name = `${upperFirst(fetcher.name)}View`
-  const fileName = `${kebabCase(splitWords(operationId))}-view`
-  const stem = `${feature.directory}/${fileName}`
-  const existing = starter.existingModule(`${stem}.tsx`)
-  const { mockHandler: handler, responseMock: response } = generatedNamesOf(fetcher)
-  const mockModule = starter.generatedModuleOf(handler)
-  if (mockModule === undefined) {
-    throw new SchematicError(
-      `재생성 계층에 ${operationId}의 MSW 핸들러(${handler})가 없습니다. openapi.yaml을 고쳤다면 npm run api:gen으로 API 계층을 다시 만드세요.`,
-    )
-  }
-  return {
-    operationId,
-    summary: summaryOf(operation),
-    domainName: domain.name,
-    optionsName,
-    optionsModule: starter.importPath(domain.queriesPath),
-    args,
-    view: {
-      name,
-      fileName,
-      feature,
-      stem,
-      importPath: starter.importPath(stem),
-      // Feature에 같은 컴포넌트가 있으면(같은 쿼리를 보여 주는 다른 페이지가 만들었다) 새로 만들지 않고 쓴다.
-      // 같은 파일에 그 컴포넌트가 없으면 손으로 쓴 코드일 수 있으므로 새로 만들려다 겹친다고 알린다.
-      reused: existing !== undefined && hasExport(existing, name),
-      shape: viewShape(successSchema(operation)),
-    },
-    mocks: {
-      handler,
-      response: starter.generatedModuleOf(response) === undefined ? undefined : response,
-      module: mockModule,
-    },
-    mockPath: `*${operation.path.replace(/\{([^}]+)\}/g, ':$1')}`,
-  }
-}
-
-/** --form의 폼을 Feature에서 찾는다. --feature가 있고 그 Feature에 폼이 있으면 그것을 쓴다. */
-async function pageForm(
-  starter: StarterProject,
-  operationId: string,
-  feature: Feature | undefined,
-  route: Route,
-): Promise<PageForm> {
-  const operation = await starter.findOperation(operationId)
-  const fetcher = starter.generatedFunction(operation)
-  const { componentName, fileName } = formComponentOf(operationId, fetcher)
-  const found = starter.subdirectories(FEATURES_DIR).filter((name) => {
-    const module = starter.existingModule(`${FEATURES_DIR}/${name}/${fileName}.tsx`)
-    return module !== undefined && hasExport(module, componentName)
-  })
-  const chosen = feature !== undefined && found.includes(feature.name) ? [feature.name] : found
-  const [only] = chosen
-  if (only === undefined) {
-    throw new SchematicError(
-      `src/features/*/${fileName}.tsx에 ${componentName}가 없습니다. 페이지에 넣을 폼을 먼저 npm run g -- form ${operationId} --feature <feature>로 만드세요.`,
-    )
-  }
-  if (chosen.length > 1) {
-    // --feature는 --query의 컴포넌트를 둘 곳이기도 하므로, 그 Feature에 폼이 없으면 어느 폼인지 고를 수 없다.
-    const elsewhere =
-      feature === undefined ? '' : ` --feature의 ${feature.name}에는 이 폼이 없습니다. 넣을 폼 하나만 남기거나 직접 고치세요.`
-    throw new SchematicError(
-      `${componentName}가 여러 Feature에 있습니다: ${chosen.join(', ')}. 페이지에 넣을 폼이 있는 Feature를 --feature로 고르세요.${elsewhere}`,
-    )
-  }
-  const props = formPropsOf(starter, operation, fetcher)
-  // 뮤테이션 훅에만 넘기는 props(--optimistic 훅이 응답 전에 고칠 쿼리의 인자)도 경로 파라미터처럼 동적 세그먼트에서 읽어 넘긴다.
-  const missing = props.filter((prop) => prop.hookOnly && !route.params.includes(prop.name)).map(({ name }) => name)
-  if (missing.length > 0) {
-    throw new SchematicError(
-      `${componentName}는 경로 파라미터 말고도 ${mutationHookName(fetcher)}에 넘길 인자(${missing.join(', ')})를 props로 받습니다. 페이지가 넘기려면 라우트에 같은 이름의 동적 세그먼트(${missing.map((name) => `[${name}]`).join(', ')})가 있어야 합니다. 값을 다른 곳에서 받는다면 --form 없이 페이지를 만들고 폼을 직접 넣으세요.`,
-    )
-  }
-  return {
-    summary: summaryOf(operation),
-    componentName,
-    importPath: starter.importPath(`${FEATURES_DIR}/${only}/${fileName}`),
-    args: pathArguments('--form', operation, props, route),
   }
 }
 
@@ -470,31 +512,6 @@ function pathArguments(
       | undefined
     return { name, type, integer: schema?.type === 'integer' }
   })
-}
-
-function summaryOf(operation: Operation): string | undefined {
-  const summary = operation.definition.summary?.trim()
-  return summary === '' ? undefined : summary
-}
-
-/** 응답 본문의 스키마로 결과를 그리는 방법을 정한다. 배열은 목록, 객체는 이름과 값의 목록, 그 밖은 값 그대로다. */
-function viewShape(schema: OpenAPIV3.SchemaObject | undefined): ViewShape {
-  if (schema?.type === 'array') {
-    const items = schema.items as OpenAPIV3.SchemaObject
-    const required = new Set(items.required ?? [])
-    const properties = Object.entries(items.properties ?? {}) as [string, OpenAPIV3.SchemaObject][]
-    const requiredOf = (types: readonly string[]) =>
-      properties.filter(([name, property]) => required.has(name) && types.includes(String(property.type)))
-    const strings = requiredOf(['string']).map(([name]) => name)
-    return {
-      kind: 'list',
-      key: requiredOf(['integer', 'number', 'string']).some(([name]) => name === KEY_PROPERTY) ? KEY_PROPERTY : undefined,
-      label: LABEL_PROPERTIES.find((name) => strings.includes(name)) ?? strings[0],
-      scalarItems: ['string', 'integer', 'number'].includes(String(items.type)),
-    }
-  }
-  if (schema?.type === 'object' || schema?.properties !== undefined) return { kind: 'object' }
-  return { kind: 'value' }
 }
 
 /** 페이지(page.tsx). 메타데이터와 라우트의 Rendering Mode 설정, 데이터를 가져오는 코드, 폼을 담는다. */
@@ -588,7 +605,20 @@ export function generateStaticParams(): ${paramsType(route)}[] {
 }
 
 `
-  const readParams = args.length === 0 ? [] : paramsStatements(args)
+  // 페이지가 경로의 동적 세그먼트를 읽어 쿼리나 폼에 넘길 값으로 바꾸는 문장
+  const readParams =
+    args.length === 0
+      ? []
+      : [
+          `  const { ${args.map(({ name, type }) => (type === 'number' ? `${name}: ${name}Param` : name)).join(', ')} } = await params`,
+          ...args
+            .filter((arg) => arg.type === 'number')
+            .flatMap(({ name, integer }) => [
+              `  const ${name} = Number(${name}Param)`,
+              `  // 경로의 ${name}가 ${integer ? '정수' : '숫자'}가 아니면 없는 페이지로 본다.`,
+              `  if (!Number.${integer ? 'isInteger' : 'isFinite'}(${name})) notFound()`,
+            ]),
+        ]
   const prefetch = (indent: string) =>
     query === undefined
       ? []
@@ -628,6 +658,10 @@ export function generateStaticParams(): ${paramsType(route)}[] {
     ]
   })()
 
+  const prefetchedParameters =
+    query === undefined || query.args.length === 0
+      ? ''
+      : `{ ${argumentList(query.args)} }: { ${query.args.map(({ name, type }) => `${name}: ${type}`).join('; ')} }`
   const prefetchedComponent =
     query === undefined || mode !== 'streaming'
       ? ''
@@ -635,7 +669,7 @@ export function generateStaticParams(): ${paramsType(route)}[] {
 
 // ${query.operationId}의 데이터를 서버에서 가져와(prefetch) ${query.view.name}에 hydration으로 넘긴다. 이 컴포넌트가 데이터를 기다리는
 // 동안 페이지는 <Suspense>의 대체 UI를 먼저 보낸다.
-async function ${prefetchedName}(${componentParameters(query.args)}) {
+async function ${prefetchedName}(${prefetchedParameters}) {
 ${prefetch('  ').join('\n')}
 
   return (
@@ -682,68 +716,8 @@ function argumentList(args: readonly PathArgument[]): string {
   return args.map(({ name }) => name).join(', ')
 }
 
-/** 페이지가 경로의 동적 세그먼트를 읽어 쿼리나 폼에 넘길 값으로 바꾸는 문장 */
-function paramsStatements(args: readonly PathArgument[]): string[] {
-  const numbers = args.filter((arg) => arg.type === 'number')
-  const destructured = args.map(({ name, type }) => (type === 'number' ? `${name}: ${name}Param` : name))
-  return [
-    `  const { ${destructured.join(', ')} } = await params`,
-    ...numbers.flatMap(({ name, integer }) => [
-      `  const ${name} = Number(${name}Param)`,
-      `  // 경로의 ${name}가 ${integer ? '정수' : '숫자'}가 아니면 없는 페이지로 본다.`,
-      `  if (!Number.${integer ? 'isInteger' : 'isFinite'}(${name})) notFound()`,
-    ]),
-  ]
-}
-
 function elementProps(args: readonly PathArgument[]): string {
   return args.map(({ name }) => ` ${name}={${name}}`).join('')
-}
-
-function componentParameters(args: readonly PathArgument[]): string {
-  if (args.length === 0) return ''
-  return `{ ${argumentList(args)} }: { ${args.map(({ name, type }) => `${name}: ${type}`).join('; ')} }`
-}
-
-/** 로딩 상태(loading.tsx) */
-function loadingSource({ route }: PageModel): string {
-  return `// ${route.path} 페이지의 로딩 상태. 페이지가 서버에서 데이터를 기다리는 동안과 이 페이지로 옮겨 가는 동안 페이지 대신 보인다.
-export default function ${route.componentPrefix}Loading() {
-  return (
-    <main className="flex flex-col gap-4 p-4">
-      <p role="status">${LOADING_MESSAGE}</p>
-    </main>
-  )
-}
-`
-}
-
-/** 오류 상태(error.tsx). Next.js의 오류 경계는 클라이언트 컴포넌트다. */
-function errorSource({ route, title }: PageModel): string {
-  const name = `${route.componentPrefix}Error`
-  return `'use client'
-
-import { Button } from '@/shared/ui/button'
-
-interface ${name}Props {
-  /** 던져진 값. 서버 컴포넌트의 오류는 배포한 앱에서 메시지 대신 서버 로그와 맞춰 볼 식별자(digest)만 담긴다. */
-  error: unknown
-  /** 이 라우트를 서버에서 다시 가져와 렌더링한다. */
-  retry: () => void
-}
-
-// ${route.path} 페이지의 오류 상태. 페이지를 렌더링하다 오류가 나면(서버에서 데이터를 가져오지 못했을 때 등) 페이지 대신 보인다.
-// 문구는 화면에 맞게 고친다.
-export default function ${name}({ retry }: ${name}Props) {
-  return (
-    <main className="flex flex-col items-start gap-4 p-4">
-      <h1 className="text-lg font-semibold">${jsxText(title)}</h1>
-      <p role="alert">페이지를 불러오지 못했습니다. 잠시 뒤에 다시 시도해 주세요.</p>
-      <Button onClick={retry}>다시 시도</Button>
-    </main>
-  )
-}
-`
 }
 
 /** --query의 결과를 보여 주는 Feature의 클라이언트 컴포넌트 */

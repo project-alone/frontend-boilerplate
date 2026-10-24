@@ -42,3 +42,8 @@ export function propertyAccess(object: string, property: string): string {
 export function jsxText(text: string): string {
   return /[{}<>&\n]/.test(text) ? `{${JSON.stringify(text)}}` : text
 }
+
+/** JSX 속성 값. 큰따옴표나 줄바꿈이 있으면 문자열 식으로 넣는다. */
+export function jsxAttribute(text: string): string {
+  return /["\n]/.test(text) ? `{${JSON.stringify(text)}}` : `"${text}"`
+}

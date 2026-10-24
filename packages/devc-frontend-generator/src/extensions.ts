@@ -2,10 +2,13 @@ import { writeFile } from 'node:fs/promises'
 import { join, posix } from 'node:path'
 import { Project } from 'ts-morph'
 import { formatForStarter } from './format.js'
-import { isRecord } from './manifest.js'
-import { exists, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
+import { type Overlay, OverlayError } from './overlay.js'
 import type { RenderingMode } from './rendering-mode.js'
-import { isIdentifier } from './schematics/names.js'
+import { groupBy } from './utils/collections.js'
+import { exists, readOptionalFile } from './utils/fs.js'
+import { isIdentifier } from './utils/names.js'
+import { compareText } from './utils/text.js'
+import { isOneOf, isRecord } from './utils/type-guards.js'
 
 // 확장 지점: 여러 Recipe가 같은 Base 파일(루트 레이아웃, proxy, next.config, instrumentation, 서버가 백엔드로 보내는 요청,
 // MSW 핸들러 목록)이나 sitemap의 규칙에 끼어들어야 하는 곳.
@@ -57,7 +60,7 @@ export async function readExtensions({ dir, label }: Overlay): Promise<Extension
     throw fail(`를 읽지 못했습니다(${String(error)}).`)
   }
   if (!isRecord(manifest)) throw fail('의 최상위는 객체여야 합니다.')
-  const unknownPoints = Object.keys(manifest).filter((key) => !isExtensionPoint(key))
+  const unknownPoints = Object.keys(manifest).filter((key) => !isOneOf(EXTENSION_POINTS, key))
   if (unknownPoints.length > 0) {
     throw fail(`에 알 수 없는 확장 지점이 있습니다: ${unknownPoints.join(', ')}. 확장 지점: ${EXTENSION_POINTS.join(', ')}`)
   }
@@ -104,7 +107,7 @@ export interface AssembledFile<P extends ExtensionPoint = ExtensionPoint> {
   imports?: readonly string[]
   /** 이 Starter에 만드는지. 없으면 늘 만든다. */
   when?: (pieces: PiecesAt<P>, starter: StarterState) => boolean
-  /** import 문과 생성 안내 뒤에 오는 내용(줄의 배열). 조각이 없어도 만들 수 있어야 한다(reservedNames). */
+  /** import 문과 생성 안내 뒤에 오는 내용(줄의 배열). 조각이 없어도 만들 수 있어야 한다(checkExtensions가 조각 없이 만들어 본다). */
   render: (pieces: PiecesAt<P>) => string[]
 }
 
@@ -334,11 +337,29 @@ export const ASSEMBLED_FILES: readonly AssembledFile[] = [
 
 /**
  * 조각을 Starter에 쓰기 전에 검사한다. 한 조립 파일에서 두 조각이 같은 이름을 내보내거나(같은 모듈의 같은 값을 다른
- * 지점에 쓰는 것은 된다), 조립 파일이 스스로 쓰는 이름(reservedNames)을 내보내면 OverlayError를 던진다.
+ * 지점에 쓰는 것은 된다), 조립 파일이 스스로 쓰는 이름을 내보내면 OverlayError를 던진다.
  */
 export function checkExtensions(pieces: readonly ExtensionPiece[]): void {
   for (const file of ASSEMBLED_FILES) {
-    const reserved = reservedNames(file)
+    // 조립 파일이 스스로 쓰는 이름: 조각 없이 만든 내용이 최상위에서 import하거나 선언하는 이름. 조각을 같은 이름으로
+    // import하면 겹치므로 조각은 이 이름을 내보낼 수 없다. 조립 파일의 내용에서 읽으므로 내용을 고쳐도 따로 맞출 목록이 없다.
+    const source = new Project({ useInMemoryFileSystem: true }).createSourceFile(file.path, assemble(file, piecesAt([])))
+    const imported = source
+      .getImportDeclarations()
+      .flatMap((declaration) => [
+        declaration.getDefaultImport(),
+        declaration.getNamespaceImport(),
+        ...declaration.getNamedImports().map((specifier) => specifier.getAliasNode() ?? specifier.getNameNode()),
+      ])
+      .flatMap((name) => (name === undefined ? [] : [name.getText()]))
+    const declared = [
+      ...source.getFunctions(),
+      ...source.getInterfaces(),
+      ...source.getTypeAliases(),
+      ...source.getVariableDeclarations(),
+    ].flatMap((declaration) => declaration.getName() ?? [])
+    const reserved = [...imported, ...declared]
+
     const seen = new Map<string, ExtensionPiece>()
     for (const piece of pieces.filter(({ point }) => file.points.includes(point))) {
       const where = `${piece.label}: ${EXTENSIONS_MANIFEST}의 ${piece.point}에 적힌 이름 ${piece.export}`
@@ -401,65 +422,29 @@ function piecesAt(pieces: readonly ExtensionPiece[]): PiecesAt {
 
 /** 조립 파일의 내용: 조립 파일의 import, 조각의 import, 생성 안내, 그 뒤의 내용 */
 function assemble(file: AssembledFile, pieces: PiecesAt): string {
-  return [
-    ...(file.imports ?? []),
-    ...imports(file.path, file.points.flatMap((point) => pieces[point])),
-    '',
-    GENERATED_NOTICE,
-    ...file.render(pieces),
-  ].join('\n')
-}
-
-/**
- * 조립 파일이 스스로 쓰는 이름: 조각 없이 만든 내용이 최상위에서 import하거나 선언하는 이름. 조각을 같은 이름으로 import하면
- * 겹치므로 조각은 이 이름을 내보낼 수 없다. 조립 파일의 내용에서 읽으므로 내용을 고쳐도 따로 맞출 목록이 없다.
- */
-function reservedNames(file: AssembledFile): string[] {
-  const source = new Project({ useInMemoryFileSystem: true }).createSourceFile(file.path, assemble(file, piecesAt([])))
-  const imported = source
-    .getImportDeclarations()
-    .flatMap((declaration) => [
-      declaration.getDefaultImport(),
-      declaration.getNamespaceImport(),
-      ...declaration.getNamedImports().map((specifier) => specifier.getAliasNode() ?? specifier.getNameNode()),
-    ])
-    .flatMap((name) => (name === undefined ? [] : [name.getText()]))
-  const declared = [
-    ...source.getFunctions(),
-    ...source.getInterfaces(),
-    ...source.getTypeAliases(),
-    ...source.getVariableDeclarations(),
-  ].flatMap((declaration) => declaration.getName() ?? [])
-  return [...imported, ...declared]
+  // 조각의 모듈을 가져오는 import 문. src 아래의 모듈은 `@/` 경로로, 그 밖은 상대 경로로 가져온다. 같은 모듈의 이름은
+  // 한 문장으로 묶고, 모듈 경로 순으로 늘어놓는다. 이름이 겹치지 않는 것은 checkExtensions가 확인했다.
+  const byModule = groupBy(
+    file.points.flatMap((point) => pieces[point]),
+    ({ path }) => {
+      const withoutExtension = path.replace(/\.tsx?$/, '')
+      if (file.path.startsWith('src/') && withoutExtension.startsWith('src/')) {
+        return `@/${withoutExtension.slice('src/'.length)}`
+      }
+      const relative = posix.relative(posix.dirname(file.path), withoutExtension)
+      return relative.startsWith('.') ? relative : `./${relative}`
+    },
+  )
+  const pieceImports = [...byModule]
+    .sort(([a], [b]) => compareText(a, b))
+    .map(([specifier, modulePieces]) => {
+      const names = [...new Set(modulePieces.map((piece) => piece.export))].sort()
+      return `import { ${names.join(', ')} } from '${specifier}'`
+    })
+  return [...(file.imports ?? []), ...pieceImports, '', GENERATED_NOTICE, ...file.render(pieces)].join('\n')
 }
 
 /** 조립 파일의 배열에 늘어놓을 조각의 이름 */
 function pieceNames(pieces: readonly ExtensionPiece[]): string {
   return pieces.map((piece) => piece.export).join(', ')
-}
-
-/**
- * 조립 파일(file)에서 조각의 모듈을 가져오는 import 문. src 아래의 모듈은 `@/` 경로로, 그 밖은 상대 경로로 가져온다.
- * 같은 모듈의 이름은 한 문장으로 묶고, 모듈 경로 순으로 늘어놓는다. 이름이 겹치지 않는 것은 checkExtensions가 확인했다.
- */
-function imports(file: string, pieces: readonly ExtensionPiece[]): string[] {
-  const byModule = new Map<string, Set<string>>()
-  for (const piece of pieces) {
-    const specifier = moduleSpecifier(file, piece.path)
-    byModule.set(specifier, (byModule.get(specifier) ?? new Set()).add(piece.export))
-  }
-  return [...byModule]
-    .sort(([a], [b]) => a.localeCompare(b, 'en'))
-    .map(([specifier, names]) => `import { ${[...names].sort().join(', ')} } from '${specifier}'`)
-}
-
-function moduleSpecifier(file: string, modulePath: string): string {
-  const withoutExtension = modulePath.replace(/\.tsx?$/, '')
-  if (file.startsWith('src/') && withoutExtension.startsWith('src/')) return `@/${withoutExtension.slice('src/'.length)}`
-  const relative = posix.relative(posix.dirname(file), withoutExtension)
-  return relative.startsWith('.') ? relative : `./${relative}`
-}
-
-function isExtensionPoint(value: string): value is ExtensionPoint {
-  return EXTENSION_POINTS.some((point) => point === value)
 }

@@ -1,9 +1,10 @@
-import { access, cp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
-import { dirname, join, relative } from 'node:path'
+import { cp, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { applyPatch } from 'diff'
 import { isDotenvFile, mergeDotenv } from './dotenv.js'
 import { mergeMarkdownSections } from './markdown-sections.js'
 import { mergePackageJson, type PackageJson, updatePackageJson } from './package-json.js'
+import { isNotFound, listFiles, readOptionalFile, removeEmptyDirectories } from './utils/fs.js'
 
 // Base와 달라지는 부분을 담아 Starter에 덧입히는 디렉터리를 overlay라 부른다. Rendering Mode(`rendering-modes/<mode>/`),
 // Recipe(`recipes/<name>/`), Archetype(`archetypes/<name>/`)이 같은 형식을 쓴다. overlay 안의 경로는 Starter 최상위 기준이다.
@@ -63,11 +64,23 @@ export async function applyOverlay(
   { dir: overlay, label }: Overlay,
   skip: readonly string[],
 ): Promise<void> {
-  const paths = (await overlayFiles(overlay)).filter(
+  const paths = (await listFiles(overlay)).filter(
     (path) => !MANIFESTS.includes(path) && !skip.includes(path) && !path.startsWith(`${STORYBOOK_OVERLAY_DIR}/`),
   )
   if (paths.includes(REMOVE_LIST)) {
-    await removePaths(target, await readFile(join(overlay, REMOVE_LIST), 'utf8'), label)
+    const removed = (await readFile(join(overlay, REMOVE_LIST), 'utf8'))
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('#'))
+    for (const path of removed) {
+      const absolute = join(target, path)
+      // force 없이 지워서, 목록에 적힌 경로가 Starter에 없으면 실패한다.
+      await rm(absolute, { recursive: true }).catch((error: unknown) => {
+        if (isNotFound(error)) throw new OverlayError(`${label}: ${REMOVE_LIST}에 적힌 ${path}가 Starter에 없습니다.`)
+        throw error
+      })
+      await removeEmptyDirectories(target, dirname(absolute))
+    }
   }
 
   for (const path of paths.filter((candidate) => candidate !== REMOVE_LIST)) {
@@ -79,7 +92,26 @@ export async function applyOverlay(
       const readme = join(target, path)
       await writeFile(readme, mergeMarkdownSections(await readFile(readme, 'utf8'), await readFile(source, 'utf8')))
     } else if (path.endsWith(PATCH_SUFFIX)) {
-      await patchFile(target, overlayTarget(path), await readFile(source, 'utf8'), label)
+      const patched = overlayTarget(path)
+      const file = join(target, patched)
+      const original = await readFile(file, 'utf8').catch((error: unknown) => {
+        if (isNotFound(error)) throw new OverlayError(`${label}: ${path}를 적용할 ${patched}가 Starter에 없습니다.`)
+        throw error
+      })
+      let result: string | false
+      try {
+        result = applyPatch(original, await readFile(source, 'utf8'))
+      } catch (error) {
+        // 여러 파일을 고치는 패치처럼 형식이 잘못된 경우
+        throw new OverlayError(`${label}: ${path}를 읽지 못했습니다(${String(error)}). 패치 하나는 파일 하나만 고칩니다.`)
+      }
+      if (result === false) {
+        throw new OverlayError(
+          `${label}: ${path}의 맥락 줄이 Starter의 ${patched}와 맞지 않아 적용하지 못했습니다. ` +
+            'Base나 먼저 덧입힌 Rendering Mode·Recipe가 그 부분을 바꿨는지 확인하고 패치를 다시 만드세요.',
+        )
+      }
+      await writeFile(file, result)
     } else if (isDotenvFile(path)) {
       const file = join(target, path)
       await writeFile(file, mergeDotenv((await readOptionalFile(file)) ?? '', await readFile(source, 'utf8')))
@@ -89,88 +121,7 @@ export async function applyOverlay(
   }
 }
 
-/** overlay 디렉터리 안의 모든 파일. 경로는 overlay 기준이고 이름순이다. */
-export async function overlayFiles(overlay: string): Promise<string[]> {
-  const entries = await readdir(overlay, { recursive: true, withFileTypes: true })
-  return entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(overlay, join(entry.parentPath, entry.name)))
-    .sort()
-}
-
 /** overlay의 파일 path가 Starter에서 바꾸는 파일. 패치(`<경로>.patch`)는 `<경로>`를 바꾼다. */
 export function overlayTarget(path: string): string {
   return path.endsWith(PATCH_SUFFIX) ? path.slice(0, -PATCH_SUFFIX.length) : path
-}
-
-async function patchFile(target: string, path: string, patch: string, label: string): Promise<void> {
-  const file = join(target, path)
-  const original = await readFile(file, 'utf8').catch((error: unknown) => {
-    if (isNotFound(error)) throw new OverlayError(`${label}: ${path}.patch를 적용할 ${path}가 Starter에 없습니다.`)
-    throw error
-  })
-  const patched = (() => {
-    try {
-      return applyPatch(original, patch)
-    } catch (error) {
-      // 여러 파일을 고치는 패치처럼 형식이 잘못된 경우
-      throw new OverlayError(`${label}: ${path}.patch를 읽지 못했습니다(${String(error)}). 패치 하나는 파일 하나만 고칩니다.`)
-    }
-  })()
-  if (patched === false) {
-    throw new OverlayError(
-      `${label}: ${path}.patch의 맥락 줄이 Starter의 ${path}와 맞지 않아 적용하지 못했습니다. ` +
-        'Base나 먼저 덧입힌 Rendering Mode·Recipe가 그 부분을 바꿨는지 확인하고 패치를 다시 만드세요.',
-    )
-  }
-  await writeFile(file, patched)
-}
-
-async function removePaths(target: string, list: string, label: string): Promise<void> {
-  const paths = list
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '' && !line.startsWith('#'))
-  for (const path of paths) {
-    const absolute = join(target, path)
-    // force 없이 지워서, 목록에 적힌 경로가 Starter에 없으면 실패한다.
-    await rm(absolute, { recursive: true }).catch((error: unknown) => {
-      if (isNotFound(error)) throw new OverlayError(`${label}: ${REMOVE_LIST}에 적힌 ${path}가 Starter에 없습니다.`)
-      throw error
-    })
-    await removeEmptyDirectories(target, dirname(absolute))
-  }
-}
-
-/** directory부터 target 바로 아래까지 올라가며 비게 된 디렉터리를 지운다. */
-async function removeEmptyDirectories(target: string, directory: string): Promise<void> {
-  let current = directory
-  while (current !== target && current.startsWith(target) && (await readdir(current)).length === 0) {
-    await rmdir(current)
-    current = dirname(current)
-  }
-}
-
-export function isNotFound(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
-}
-
-/** 파일의 내용. 파일이 없으면 undefined다. */
-export async function readOptionalFile(path: string): Promise<string | undefined> {
-  try {
-    return await readFile(path, 'utf8')
-  } catch (error) {
-    if (isNotFound(error)) return undefined
-    throw error
-  }
-}
-
-export async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch (error) {
-    if (isNotFound(error)) return false
-    throw error
-  }
 }

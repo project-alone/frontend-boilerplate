@@ -3,7 +3,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { Node, Project, ts, type Type } from 'ts-morph'
 import { installDependencies } from '../new-command.js'
 import { addStorybook, hasStorybook } from '../storybook.js'
-import { isIdentifier, kebabCase, pascalCase, splitWords } from './names.js'
+import { isIdentifier, kebabCase, pascalCase, splitWords } from '../utils/names.js'
 import { type ChangedFile, PROP_SAMPLES, SchematicError, StarterProject } from './starter-project.js'
 
 // 컴포넌트 이름(PascalCase). 소문자가 하나는 있어야 상수(THEME_LABELS 등)와 나뉜다.

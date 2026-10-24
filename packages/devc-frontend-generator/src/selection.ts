@@ -2,6 +2,7 @@ import type { Archetype } from './archetypes.js'
 import { DefinitionError } from './manifest.js'
 import type { Recipe } from './recipes.js'
 import type { RenderingMode } from './rendering-mode.js'
+import { bulletList } from './utils/text.js'
 
 /** Generator에 담긴 Recipe와 Archetype(loadRecipes, loadArchetypes의 결과) */
 export interface Catalog {
@@ -22,7 +23,7 @@ export class SelectionError extends Error {
   readonly reasons: readonly string[]
 
   constructor(summary: string, reasons: readonly string[]) {
-    super([summary, ...reasons.map((reason) => `- ${reason}`)].join('\n'))
+    super(bulletList(summary, reasons))
     this.name = 'SelectionError'
     this.reasons = reasons
   }
