@@ -296,15 +296,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
     test('상태별 사용자 수 차트의 막대가 배경 위에서 읽힌다', async ({ page }) => {
       await login(page, USER.email)
 
-      // 대시보드에는 다른 차트도 있을 수 있으므로(chart Recipe의 통계 등) 상태별 사용자 수 차트 안의 막대만 본다.
-      const bars = page.getByRole('figure', { name: '상태별 사용자 수' }).locator('.recharts-bar .recharts-rectangle')
-      await expect(bars).toHaveCount(3)
-      const background = await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)
-      const fills = await bars.evaluateAll((rectangles) =>
-        rectangles.map((rectangle) => getComputedStyle(rectangle).fill),
-      )
-      for (const fill of fills)
+      // 대시보드에는 다른 차트도 있을 수 있으므로(chart Recipe의 통계 등) 상태별 사용자 수 차트 안의 막대만 본다. 차트는 데이터를
+      // 다시 받으면 막대를 다시 그리므로, 세 막대의 색을 한 번에 읽고 다 그려질 때까지 다시 읽는다.
+      const chart = page.getByRole('figure', { name: '상태별 사용자 수' })
+      const colors = () =>
+        chart.evaluate((figure) => ({
+          background: getComputedStyle(document.body).backgroundColor,
+          fills: [...figure.querySelectorAll('.recharts-bar .recharts-rectangle')].map(
+            (rectangle) => getComputedStyle(rectangle).fill,
+          ),
+        }))
+      await expect.poll(async () => (await colors()).fills.filter((fill) => fill.startsWith('rgb'))).toHaveLength(3)
+
+      const { background, fills } = await colors()
+      for (const fill of fills) {
         expect(contrastRatio(fill, background), fill).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
+      }
     })
   })
 }
