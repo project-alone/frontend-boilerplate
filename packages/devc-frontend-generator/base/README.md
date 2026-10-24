@@ -212,7 +212,7 @@ MSW가 쓰는 핸들러 목록은 `src/shared/mocks/handlers.ts`이고, 명세�
 목 백엔드는 앱과 다른 출처의 주소(`src/shared/api/base-url.ts`의 `MOCK_API_BASE_URL`, `https://mock.api.test`)에 둡니다. MSW를 켜고 `API_BASE_URL`을 넣지 않으면 서버가 이 주소로 요청하고, 생성된 핸들러는 이 주소로 가는 요청만 받습니다(`config/orval.config.ts`). 그래서 핸들러가 `/products` 같은 페이지 주소와 겹치지 않고, 목록 맨 앞의 `src/shared/mocks/page-navigation.ts`는 페이지를 열거나 새로 고치는 요청을 목 응답 없이 그대로 보냅니다. 직접 만든 핸들러도 ``http.get(`${MOCK_API_BASE_URL}/<경로>`, ...)``처럼 이 주소만 받게 씁니다. 테스트 하나에서 응답을 바꾸는 `server.use`에는 `*/<경로>`를 써도 됩니다. MSW를 켜 둬도 `API_BASE_URL`을 넣으면 그 백엔드를 부르고, MSW는 그 요청을 받지 않습니다.
 
 - Vitest: 모든 테스트에서 켜져 있고, 핸들러가 없는 요청은 테스트를 실패시킵니다. 브라우저 코드(jsdom)의 요청도 BFF 프록시 대신 목 백엔드로 갑니다. 테스트에는 프록시를 받을 Next.js 서버가 없으므로, `src/shared/api/base-url.ts`가 Vitest가 넣는 `VITEST=true`를 보고 목 백엔드를 고릅니다. 테스트 하나에서만 응답을 바꾸려면 `@/shared/mocks/node`의 `server.use(...)`에 생성된 핸들러(예: `getListProductsMockHandler([])`)나 직접 만든 핸들러를 넘깁니다.
-- 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다. 코드를 고쳐 개발 서버가 라우트의 서버 번들을 다시 쓰면 Next.js가 `fetch`를 MSW를 켜기 전의 것으로 되돌리는데, `src/shared/api/api-mocking.ts`가 그 자리에 MSW가 씌운 `fetch`를 넣어 개발 서버를 다시 띄우지 않아도 MSW가 요청을 계속 받습니다.
+- 개발 서버: `.env.development`의 `API_MOCKING=enabled`로 켭니다. 개발 서버는 `generateStaticParams`를 instrumentation이 돌지 않는 다른 프로세스에서 실행하므로, 그 프로세스에서는 서버의 `apiFetch`가 요청을 보내기 전에 MSW를 켭니다(`src/shared/api/api-mocking.ts`). 코드를 고쳐 개발 서버가 라우트의 서버 번들을 다시 쓰면 Next.js가 `fetch`를 MSW를 켜기 전의 것으로 되돌리는데, `src/shared/api/api-mocking.ts`가 그 자리에 MSW가 씌운 `fetch`를 넣어 개발 서버를 다시 띄우지 않아도 MSW가 요청을 계속 받습니다.
 - E2E: `config/playwright.config.ts`가 서버를 `API_MOCKING=enabled`로 띄웁니다.
 - 빌드: `API_MOCKING=enabled`로 빌드하면(목 빌드) 빌드할 때 서버 컴포넌트가 보내는 요청을 MSW가 받습니다. 목 빌드의 결과는 배포하지 않습니다(위 "배포용 빌드와 목 빌드").
 

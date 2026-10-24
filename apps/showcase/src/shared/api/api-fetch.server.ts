@@ -3,7 +3,7 @@
 
 import 'server-only'
 import { nonEmpty, withoutTrailingSlash } from '@/shared/lib/text'
-import { startBuildApiMocking } from './api-mocking'
+import { startApiMockingIfEnabled } from './api-mocking'
 import { backendFetch } from './backend-fetch'
 import { MOCK_API_BASE_URL } from './base-url'
 
@@ -30,10 +30,11 @@ export function backendBaseUrl(): string {
 }
 
 /**
- * 서버에서 부른 apiFetch의 요청을 백엔드로 보낸다(api-fetch.ts). 목 빌드(API_MOCKING=enabled로 실행한 next build)이면 보내기
- * 전에 MSW를 켜고(api-mocking.ts), Recipe가 더한 처리기(backend-fetch.ts, 예: auth의 토큰 첨부)를 거쳐 보낸다.
+ * 서버에서 부른 apiFetch의 요청을 백엔드로 보낸다(api-fetch.ts). API_MOCKING=enabled이면 보내기 전에 MSW를 켜(api-mocking.ts)
+ * instrumentation이 돌지 않는 프로세스(next build의 빌드 워커, 개발 서버의 정적 경로 워커)의 요청도 MSW가 받게 하고, Recipe가
+ * 더한 처리기(backend-fetch.ts, 예: auth의 토큰 첨부)를 거쳐 보낸다.
  */
 export async function fetchFromServer(path: string, init: RequestInit): Promise<Response> {
-  await startBuildApiMocking()
+  await startApiMockingIfEnabled()
   return backendFetch(`${backendBaseUrl()}${path}`, init)
 }

@@ -8,7 +8,8 @@ import 'server-only'
  * API_MOCKING=enabled이면 서버 컴포넌트와 Route Handler가 보내는 요청을 MSW가 받는다.
  * 개발 서버는 .env.development에서, E2E 대상 서버는 config/playwright.config.ts에서 이 값을 켠다.
  * 실제로 배포하는 서버에서는 켜지 않는다(msw는 devDependency다).
- * next build에서는 Next.js가 instrumentation을 실행하지 않으므로, 목 빌드에서는 apiFetch가 MSW를 켠다(api-mocking.ts).
+ * Next.js가 instrumentation을 실행하지 않는 프로세스(next build의 빌드 워커, 개발 서버가 generateStaticParams를 실행하는
+ * 정적 경로 워커)에서는 서버의 apiFetch가 요청을 보내기 전에 MSW를 켠다(api-mocking.ts).
  */
 export const apiInstrumentation = {
   async register() {

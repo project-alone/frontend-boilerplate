@@ -10,8 +10,9 @@ declare namespace NodeJS {
     /** Next.js가 넣는 단계 이름. next build 중(빌드 워커 포함)에는 phase-production-build다(src/shared/api/api-mocking.ts). */
     readonly NEXT_PHASE?: string
     /**
-     * enabled이면 Next.js 서버(src/shared/api/api-instrumentation.ts)와 next build(src/shared/api/api-mocking.ts)가 보내는
-     * API 요청을 MSW가 받는다. 이 값으로 만든 빌드 결과는 배포하지 않는다.
+     * enabled이면 Next.js 서버(src/shared/api/api-instrumentation.ts)와, instrumentation이 돌지 않는 next build의 빌드 워커와
+     * 개발 서버의 정적 경로 워커(src/shared/api/api-mocking.ts)가 보내는 API 요청을 MSW가 받는다. 이 값으로 만든 빌드 결과는
+     * 배포하지 않는다.
      */
     readonly API_MOCKING?: 'enabled' | 'disabled'
     /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/api-fetch.server.ts). API_MOCKING이 enabled가 아니면 꼭 넣는다. */
@@ -22,7 +23,10 @@ declare namespace NodeJS {
     readonly E2E_PORT?: string
     /** CI 서비스가 넣는다. 있으면 E2E에서 test.only를 막고 서버를 매번 새로 띄운다. */
     readonly CI?: string
-    /** Vitest가 테스트를 실행할 때 true로 넣는다. 그동안 브라우저 코드는 BFF 프록시 대신 목 백엔드를 부른다(src/shared/api/base-url.ts). */
+    /**
+     * Vitest가 테스트를 실행할 때 true로 넣는다. 그동안 브라우저 코드는 BFF 프록시 대신 목 백엔드를 부르고(src/shared/api/base-url.ts),
+     * 서버의 apiFetch는 config/vitest.setup.ts가 켠 MSW를 쓴다(src/shared/api/api-mocking.ts).
+     */
     readonly VITEST?: string
   }
 }

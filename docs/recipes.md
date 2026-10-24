@@ -203,7 +203,7 @@ export const someInstrumentation = {
 
 Node.js 전용 코드는 `process.env.NEXT_RUNTIME === 'nodejs'`를 확인한 뒤 동적 import로 불러온다(Base의 `src/shared/api/api-instrumentation.ts` 참고). `static-export` Starter에서는 개발 서버에서만 실행된다. 예: Sentry의 서버 초기화와 `captureRequestError`.
 
-Next.js는 `next build`에서 instrumentation을 실행하지 않는다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 코드에도 필요한 준비는 그 코드가 처음 쓰일 때 한다. 예를 들어 Base의 서버 조각이 켜는 MSW는 빌드할 때 켜지지 않으므로, 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`)에서는 서버의 `apiFetch`가 요청을 보내기 전에 켠다(`src/shared/api/api-mocking.ts`). 두 곳이 켜는 MSW는 같은 핸들러 목록(`src/shared/mocks/handlers.ts`)을 쓰므로, Recipe가 [MSW 핸들러](#msw-핸들러mockhandlers) 확장 지점에 더한 핸들러는 빌드할 때도 응답한다.
+Next.js는 `next build`에서 instrumentation을 실행하지 않고, 개발 서버도 `generateStaticParams`를 instrumentation이 돌지 않는 다른 프로세스(정적 경로 워커)에서 실행한다. 이런 프로세스에서 실행되는 서버 코드(빌드할 때 SSG·ISR 페이지를 렌더링하는 코드, `generateStaticParams`)에도 필요한 준비는 그 코드가 처음 쓰일 때 한다. 예를 들어 Base의 서버 조각이 켜는 MSW는 이런 프로세스에서 켜지지 않으므로, `API_MOCKING=enabled`이면 서버의 `apiFetch`가 요청을 보내기 전에 켠다(`src/shared/api/api-mocking.ts`). 목 빌드(`API_MOCKING=enabled`로 실행한 `next build`)는 이때 빌드 출력에 경고를 남긴다. 두 곳이 켜는 MSW는 같은 핸들러 목록(`src/shared/mocks/handlers.ts`)을 쓰므로, Recipe가 [MSW 핸들러](#msw-핸들러mockhandlers) 확장 지점에 더한 핸들러는 빌드할 때도 응답한다.
 
 #### instrumentation-client(`instrumentationClient`)
 

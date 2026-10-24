@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, inject, test } from 'vitest'
-import { freePort, run } from './run.ts'
+import { freePort, run, start, waitForServer } from './run.ts'
 import { buildRouteLine, expectFileToPass, readTree, runVitestScript, useStarter } from './starter.ts'
 
 test('커머스 Archetype은 ISR 화면이 있어 server만 지원하므로, static-export Starter에는 archetype.json에 적은 이유와 함께 넣지 않는다', () => {
@@ -35,6 +35,9 @@ function withoutApplyDeclarations(source: string | undefined): string {
 // 배포용 빌드(목을 끄고 백엔드 주소가 없음)와 목 빌드(Starter의 GitLab CI의 build 잡과 E2E)의 환경 변수(ADR-0011)
 const DEPLOY_BUILD_ENV = { API_MOCKING: undefined, API_BASE_URL: '' }
 const MOCK_BUILD_ENV = { API_MOCKING: 'enabled', API_BASE_URL: '' }
+
+// 목 빌드가 빌드 출력에 남기는 경고(src/shared/api/api-mocking.ts)
+const MOCK_BUILD_WARNING = 'API_MOCKING=enabled로 빌드합니다'
 
 // 하네스 매트릭스: Base에 커머스 Archetype을 넣은 server Starter를 만들어, Starter 자신의 스크립트와 Archetype이 함께 넣은
 // 테스트(장바구니·주문을 기억하는 목 백엔드, 낙관적 업데이트와 되돌리기, 다단계 주문서, 가짜 결제, e2e/commerce.spec.ts)가
@@ -129,6 +132,24 @@ describe('Rendering Mode server에 커머스 Archetype을 넣은 Starter', () =>
     }
   })
 
+  // #132: 개발 서버는 상세의 generateStaticParams(상품 목록을 가져온다)를 서버와 다른 프로세스(정적 경로 워커)에서 실행하고,
+  // 그 프로세스에서는 instrumentation이 돌지 않는다. 그 프로세스가 보내는 요청도 MSW가 받아야 상세가 열린다. 목 빌드의 경고는
+  // next build에서만 남긴다.
+  test('개발 서버(npm run dev)에서 상품 상세가 상품 이름과 함께 200으로 열린다', async () => {
+    const port = await freePort()
+    const devServer = start('npm', ['run', 'dev', '--', '--port', String(port)], starter.dir)
+
+    try {
+      const detail = await waitForServer(`http://localhost:${String(port)}/shop/products/6`, devServer)
+
+      expect(detail.status, devServer.output()).toBe(200)
+      expect(await detail.text()).toContain('한정판 세라믹 머그')
+      expect(devServer.output()).not.toContain(MOCK_BUILD_WARNING)
+    } finally {
+      await devServer.stop()
+    }
+  })
+
   test('배포용 빌드는 백엔드 주소 없이 실패하고, 목 빌드는 상품 목록과 상세를 ISR로 미리 렌더링한다', () => {
     // 상품 목록과 상세는 빌드할 때 백엔드를 부르므로 배포용 빌드에는 API_BASE_URL이 있어야 한다(ADR-0011).
     const deploy = starter.npm(['run', 'build'], DEPLOY_BUILD_ENV)
@@ -136,6 +157,7 @@ describe('Rendering Mode server에 커머스 Archetype을 넣은 Starter', () =>
     expect(deploy.output).toContain('API_BASE_URL 환경 변수가 없습니다. 빌드할 때 데이터를 가져오는 페이지')
 
     const { output } = starter.expectNpmSuccess(['run', 'build'], MOCK_BUILD_ENV)
+    expect(output).toContain(MOCK_BUILD_WARNING)
 
     // 목록은 5분, 상세는 1분마다 다시 렌더링하고(Revalidate), 상세는 빌드할 때 모든 상품을 렌더링한다(●).
     expect(buildRouteLine(output, '/shop'), output).toMatch(/○.*5m/)
