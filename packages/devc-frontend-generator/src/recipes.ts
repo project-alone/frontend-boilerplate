@@ -1,6 +1,7 @@
-import { DefinitionError, isStringArray, loadManifests, type Manifest, parseRenderingModes } from './manifest.js'
+import { DefinitionError, loadManifests, parseRenderingModes } from './manifest.js'
 import { type Overlay, RECIPE_MANIFEST } from './overlay.js'
 import type { RenderingMode } from './rendering-mode.js'
+import { isStringArray } from './utils/type-guards.js'
 
 // Recipe는 `recipes/<이름>/`에 담긴 overlay(overlay.ts)와 그 최상위의 선언 파일 recipe.json이다.
 // 작성 방법은 docs/recipes.md에 있다.
@@ -23,7 +24,23 @@ const MANIFEST_KEYS = ['description', 'requires', 'renderingModes', 'renderingMo
 
 /** Generator에 담긴 Recipe를 이름순으로 읽는다. 선언이 잘못되었으면 DefinitionError를 던진다. */
 export async function loadRecipes(): Promise<Recipe[]> {
-  const recipes = await loadManifests('recipes', RECIPE_MANIFEST, MANIFEST_KEYS, parseManifest)
+  const recipes = await loadManifests('recipes', RECIPE_MANIFEST, MANIFEST_KEYS, ({ name, dir, description, fields, fail }): Recipe => {
+    const { requires = [], renderingModes, renderingModesReason } = fields
+    if (!isStringArray(requires)) throw fail('requires는 Recipe 이름의 배열이어야 합니다.')
+    const modes = parseRenderingModes(renderingModes, fail)
+    if (renderingModesReason !== undefined && typeof renderingModesReason !== 'string') {
+      throw fail('renderingModesReason은 문자열이어야 합니다.')
+    }
+
+    return {
+      name,
+      description,
+      requires,
+      renderingModes: modes,
+      ...(renderingModesReason === undefined ? {} : { renderingModesReason }),
+      dir,
+    }
+  })
   const names = new Set(recipes.map(({ name }) => name))
   for (const recipe of recipes) {
     const unknown = recipe.requires.filter((name) => !names.has(name))
@@ -32,24 +49,6 @@ export async function loadRecipes(): Promise<Recipe[]> {
     }
   }
   return recipes
-}
-
-function parseManifest({ name, dir, description, fields, fail }: Manifest): Recipe {
-  const { requires = [], renderingModes, renderingModesReason } = fields
-  if (!isStringArray(requires)) throw fail('requires는 Recipe 이름의 배열이어야 합니다.')
-  const modes = parseRenderingModes(renderingModes, fail)
-  if (renderingModesReason !== undefined && typeof renderingModesReason !== 'string') {
-    throw fail('renderingModesReason은 문자열이어야 합니다.')
-  }
-
-  return {
-    name,
-    description,
-    requires,
-    renderingModes: modes,
-    ...(renderingModesReason === undefined ? {} : { renderingModesReason }),
-    dir,
-  }
 }
 
 /** Starter에 덧입힐 Recipe의 overlay */

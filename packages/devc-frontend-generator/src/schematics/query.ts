@@ -12,7 +12,6 @@ import {
   GENERATED_API_IMPORT,
   type GeneratedFunction,
   hasDeclaration,
-  type Operation,
   QUERY_PARAMS_ARGUMENT,
   SchematicError,
   StarterProject,
@@ -54,9 +53,71 @@ export async function generateQuery(
   const domain = queryDomainOf(operation)
   const fetcher = starter.generatedFunction(operation)
   const { keysName } = domain
-  const query = options.infinite
-    ? infiniteQuery(keysName, fetcher, pageParameter(operation, options.pageParam))
-    : regularQuery(keysName, fetcher)
+  const { name } = fetcher
+  let query: Query
+  if (!options.infinite) {
+    const args = fetcher.parameters.map((parameter) => parameter.name)
+    const optionsName = queryOptionsName(fetcher, 'query')
+    query = {
+      keyName: name,
+      keyInitializer: `(${keyParameters(fetcher.parameters)}) => [...${keysName}.all, ${[`'${name}'`, ...args].join(', ')}] as const`,
+      optionsFactory: 'queryOptions',
+      optionsName,
+      optionsDeclaration: `export function ${optionsName}(${queryOptionsParameters(fetcher.parameters)}) {
+  return queryOptions({
+    queryKey: ${keysName}.${name}(${args.join(', ')}),
+    queryFn: ({ signal }) => ${name}(${[...args, '{ signal }'].join(', ')}),
+  })
+}`,
+    }
+  } else {
+    // infiniteQueryOptions를 만들 수 있는 목록형 operation인지 보고, 페이지 번호로 쓸 쿼리 파라미터를 찾는다.
+    const pageParam = options.pageParam
+    if (successSchema(operation)?.type !== 'array') {
+      throw new SchematicError(
+        `--infinite는 배열을 돌려주는 목록형 operation에만 쓸 수 있습니다. ${operationId}의 응답은 배열이 아닙니다.`,
+      )
+    }
+    const parameter = operation.parameters.findLast((candidate) => candidate.in === 'query' && candidate.name === pageParam)
+    if (parameter === undefined) {
+      throw new SchematicError(
+        `${operationId}에 '${pageParam}' 쿼리 파라미터가 없습니다. 페이지 번호로 쓸 쿼리 파라미터를 --page-param으로 지정하세요.`,
+      )
+    }
+    const schema = parameter.schema as OpenAPIV3.SchemaObject | undefined
+    if (schema?.type !== 'integer' && schema?.type !== 'number') {
+      throw new SchematicError(`${operationId}의 '${pageParam}' 쿼리 파라미터는 숫자가 아니어서 페이지 번호로 쓸 수 없습니다.`)
+    }
+    // 첫 페이지 번호는 명세의 기본값, 없으면 최솟값을 따르고, 둘 다 없으면 1이다.
+    const initialPage = ([schema.default, schema.minimum].find((value) => typeof value === 'number') as number | undefined) ?? 1
+
+    // 페이지 번호를 하나씩 늘려 다음 페이지를 가져온다. 페이지 번호는 fetch 함수의 쿼리 파라미터 객체 인자에 담는다.
+    // 같은 operation의 queryOptions와 캐시가 섞이지 않도록 키에 'infinite' 단계를 더한다.
+    const parameters = fetcher.parameters.map((candidate) =>
+      candidate.name === QUERY_PARAMS_ARGUMENT
+        ? { ...candidate, type: `Omit<${candidate.type}, '${pageParam}'>` }
+        : candidate,
+    )
+    const args = parameters.map((candidate) => candidate.name)
+    const fetchArgs = args.map((arg) => (arg === QUERY_PARAMS_ARGUMENT ? `{ ...${arg}, ${pageParam}: pageParam }` : arg))
+    const keyName = `${name}Infinite`
+    const optionsName = queryOptionsName(fetcher, 'infinite')
+    query = {
+      keyName,
+      keyInitializer: `(${keyParameters(parameters)}) => [...${keysName}.all, ${[`'${name}'`, `'infinite'`, ...args].join(', ')}] as const`,
+      optionsFactory: 'infiniteQueryOptions',
+      optionsName,
+      optionsDeclaration: `export function ${optionsName}(${queryOptionsParameters(parameters)}) {
+  return infiniteQueryOptions({
+    queryKey: ${keysName}.${keyName}(${args.join(', ')}),
+    queryFn: ({ pageParam, signal }) => ${name}(${[...fetchArgs, '{ signal }'].join(', ')}),
+    initialPageParam: ${String(initialPage)},
+    // 빈 페이지를 받으면 다음 페이지가 없다고 본다. 백엔드가 다음 페이지 정보를 함께 주면 그 값을 쓰도록 고친다.
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => (lastPage.length === 0 ? undefined : lastPageParam + 1),
+  })
+}`,
+    }
+  }
 
   const { keysModule, keys, queriesModule } = openQueryDomain(starter, domain)
   rejectConflicts([
@@ -75,82 +136,6 @@ export async function generateQuery(
   queriesModule.addStatements(`\n${query.optionsDeclaration}`)
 
   return starter.save()
-}
-
-function regularQuery(keysName: string, fetcher: GeneratedFunction): Query {
-  const { name, parameters } = fetcher
-  const args = parameters.map((parameter) => parameter.name)
-  const optionsName = queryOptionsName(fetcher, 'query')
-  return {
-    keyName: name,
-    keyInitializer: `(${keyParameters(parameters)}) => [...${keysName}.all, ${[`'${name}'`, ...args].join(', ')}] as const`,
-    optionsFactory: 'queryOptions',
-    optionsName,
-    optionsDeclaration: `export function ${optionsName}(${queryOptionsParameters(parameters)}) {
-  return queryOptions({
-    queryKey: ${keysName}.${name}(${args.join(', ')}),
-    queryFn: ({ signal }) => ${name}(${[...args, '{ signal }'].join(', ')}),
-  })
-}`,
-  }
-}
-
-interface PageParameter {
-  name: string
-  initial: number
-}
-
-// 페이지 번호를 하나씩 늘려 다음 페이지를 가져온다. 페이지 번호는 fetch 함수의 쿼리 파라미터 객체 인자에 담는다.
-// 같은 operation의 queryOptions와 캐시가 섞이지 않도록 키에 'infinite' 단계를 더한다.
-function infiniteQuery(keysName: string, fetcher: GeneratedFunction, page: PageParameter): Query {
-  const { name } = fetcher
-  const parameters = fetcher.parameters.map((parameter) =>
-    parameter.name === QUERY_PARAMS_ARGUMENT
-      ? { ...parameter, type: `Omit<${parameter.type}, '${page.name}'>` }
-      : parameter,
-  )
-  const args = parameters.map((parameter) => parameter.name)
-  const fetchArgs = args.map((arg) => (arg === QUERY_PARAMS_ARGUMENT ? `{ ...${arg}, ${page.name}: pageParam }` : arg))
-  const keyName = `${name}Infinite`
-  const optionsName = queryOptionsName(fetcher, 'infinite')
-  return {
-    keyName,
-    keyInitializer: `(${keyParameters(parameters)}) => [...${keysName}.all, ${[`'${name}'`, `'infinite'`, ...args].join(', ')}] as const`,
-    optionsFactory: 'infiniteQueryOptions',
-    optionsName,
-    optionsDeclaration: `export function ${optionsName}(${queryOptionsParameters(parameters)}) {
-  return infiniteQueryOptions({
-    queryKey: ${keysName}.${keyName}(${args.join(', ')}),
-    queryFn: ({ pageParam, signal }) => ${name}(${[...fetchArgs, '{ signal }'].join(', ')}),
-    initialPageParam: ${String(page.initial)},
-    // 빈 페이지를 받으면 다음 페이지가 없다고 본다. 백엔드가 다음 페이지 정보를 함께 주면 그 값을 쓰도록 고친다.
-    getNextPageParam: (lastPage, _allPages, lastPageParam) => (lastPage.length === 0 ? undefined : lastPageParam + 1),
-  })
-}`,
-  }
-}
-
-/** infiniteQueryOptions를 만들 수 있는 목록형 operation인지 보고, 페이지 번호로 쓸 쿼리 파라미터를 찾는다. */
-function pageParameter(operation: Operation, name: string): PageParameter {
-  const { operationId } = operation
-  if (successSchema(operation)?.type !== 'array') {
-    throw new SchematicError(
-      `--infinite는 배열을 돌려주는 목록형 operation에만 쓸 수 있습니다. ${operationId}의 응답은 배열이 아닙니다.`,
-    )
-  }
-  const parameter = operation.parameters.findLast((candidate) => candidate.in === 'query' && candidate.name === name)
-  if (parameter === undefined) {
-    throw new SchematicError(
-      `${operationId}에 '${name}' 쿼리 파라미터가 없습니다. 페이지 번호로 쓸 쿼리 파라미터를 --page-param으로 지정하세요.`,
-    )
-  }
-  const schema = parameter.schema as OpenAPIV3.SchemaObject | undefined
-  if (schema?.type !== 'integer' && schema?.type !== 'number') {
-    throw new SchematicError(`${operationId}의 '${name}' 쿼리 파라미터는 숫자가 아니어서 페이지 번호로 쓸 수 없습니다.`)
-  }
-  // 첫 페이지 번호는 명세의 기본값, 없으면 최솟값을 따르고, 둘 다 없으면 1이다.
-  const initial = [schema.default, schema.minimum].find((value) => typeof value === 'number') as number | undefined
-  return { name, initial: initial ?? 1 }
 }
 
 // 키는 인자를 모두 받는다. 인자가 빠지면 서로 다른 요청이 같은 키를 쓰게 된다.

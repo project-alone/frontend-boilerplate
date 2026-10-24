@@ -1,10 +1,5 @@
 import { cancel, intro, isCancel, log, multiselect, select } from '@clack/prompts'
-import {
-  DEFAULT_RENDERING_MODE,
-  RENDERING_MODE_DESCRIPTIONS,
-  RENDERING_MODES,
-  type RenderingMode,
-} from './rendering-mode.js'
+import { DEFAULT_RENDERING_MODE, RENDERING_MODE_DESCRIPTIONS, RENDERING_MODES } from './rendering-mode.js'
 import { type Catalog, resolveSelection, SelectionError, type UserChoices } from './selection.js'
 
 /**
@@ -22,8 +17,36 @@ export async function promptChoices(name: string, catalog: Catalog): Promise<Use
   })
   if (isCancel(renderingMode)) return cancelled()
 
-  const archetypes = await promptArchetypes(catalog, renderingMode)
-  if (archetypes === undefined) return cancelled()
+  // Archetype을 묻는다. 담긴 Archetype이 없으면 묻지 않는다.
+  let archetypes: string[] = []
+  if (catalog.archetypes.length > 0) {
+    const options = catalog.archetypes.map((archetype) => {
+      const reason = unusableReason(catalog, { renderingMode, archetypes: [archetype.name], recipes: [] })
+      return {
+        value: archetype.name,
+        label: archetype.name,
+        hint: reason ?? `${archetype.description} (Recipe: ${archetype.recipes.join(', ')})`,
+        disabled: reason !== undefined,
+      }
+    })
+    // 고를 수 있는 Archetype이 없으면 묻지 않고 이유만 알린다(선택지가 모두 막힌 목록에서는 막힌 항목이 골라진다).
+    if (options.every(({ disabled }) => disabled)) {
+      log.info(
+        [
+          `Rendering Mode ${renderingMode}에서 쓸 수 있는 Archetype이 없어 Archetype 없이 만듭니다.`,
+          ...options.map(({ label, hint }) => `${label}: ${hint}`),
+        ].join('\n'),
+      )
+    } else {
+      const picked = await multiselect({
+        message: 'Archetype(완성된 앱 유형)을 고르세요(스페이스로 선택, 엔터로 확인. 필요한 Recipe가 함께 들어갑니다)',
+        options,
+        required: false,
+      })
+      if (isCancel(picked)) return cancelled()
+      archetypes = picked
+    }
+  }
   if (catalog.recipes.length === 0) return { renderingMode, archetypes, recipes: [] }
 
   // 고른 Archetype이 쓰는 Recipe(그 Recipe가 필요로 하는 Recipe 포함)는 고르지 않아도 들어간다.
@@ -52,36 +75,6 @@ export async function promptChoices(name: string, catalog: Catalog): Promise<Use
   })
   if (isCancel(recipes)) return cancelled()
   return { renderingMode, archetypes, recipes }
-}
-
-/** Archetype을 묻는다. 담긴 Archetype이 없으면 묻지 않는다. 취소하면 undefined다. */
-async function promptArchetypes(catalog: Catalog, renderingMode: RenderingMode): Promise<string[] | undefined> {
-  if (catalog.archetypes.length === 0) return []
-  const options = catalog.archetypes.map((archetype) => {
-    const reason = unusableReason(catalog, { renderingMode, archetypes: [archetype.name], recipes: [] })
-    return {
-      value: archetype.name,
-      label: archetype.name,
-      hint: reason ?? `${archetype.description} (Recipe: ${archetype.recipes.join(', ')})`,
-      disabled: reason !== undefined,
-    }
-  })
-  // 고를 수 있는 Archetype이 없으면 묻지 않고 이유만 알린다(선택지가 모두 막힌 목록에서는 막힌 항목이 골라진다).
-  if (options.every(({ disabled }) => disabled)) {
-    log.info(
-      [
-        `Rendering Mode ${renderingMode}에서 쓸 수 있는 Archetype이 없어 Archetype 없이 만듭니다.`,
-        ...options.map(({ label, hint }) => `${label}: ${hint}`),
-      ].join('\n'),
-    )
-    return []
-  }
-  const archetypes = await multiselect({
-    message: 'Archetype(완성된 앱 유형)을 고르세요(스페이스로 선택, 엔터로 확인. 필요한 Recipe가 함께 들어갑니다)',
-    options,
-    required: false,
-  })
-  return isCancel(archetypes) ? undefined : archetypes
 }
 
 // 필요한 Recipe까지 함께 넣어 그 Rendering Mode에서 쓸 수 있는지 본다. 쓸 수 없으면 그 이유를 돌려준다.

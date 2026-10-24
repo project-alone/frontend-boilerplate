@@ -11,7 +11,3 @@ export const GENERATED_API_DIR = 'src/shared/api/generated'
 export const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const
 
 export type HttpMethod = (typeof HTTP_METHODS)[number]
-
-export function isHttpMethod(value: string): value is HttpMethod {
-  return HTTP_METHODS.some((method) => method === value)
-}

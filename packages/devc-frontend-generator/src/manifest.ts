@@ -2,7 +2,9 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isRenderingMode, RENDERING_MODES, type RenderingMode } from './rendering-mode.js'
+import { RENDERING_MODES, type RenderingMode } from './rendering-mode.js'
+import { compareText } from './utils/text.js'
+import { isOneOf, isRecord } from './utils/type-guards.js'
 
 // Generator가 읽는 JSON 선언 파일(recipe.json, archetype.json, extensions.json, package.json)의 값을 검사할 때 함께 쓰는 것.
 // Recipe와 Archetype의 선언 파일은 같은 방법으로 읽는다(docs/recipes.md, docs/archetypes.md).
@@ -58,22 +60,13 @@ export async function loadManifests<T extends { name: string }>(
         return parse({ name, dir, description, fields, fail })
       }),
   )
-  return parsed.sort((a, b) => a.name.localeCompare(b.name, 'en'))
+  return parsed.sort((a, b) => compareText(a.name, b.name))
 }
 
 /** 선언 파일의 renderingModes. 지원하는 Rendering Mode의 비지 않은 배열이 아니면 fail로 DefinitionError를 던진다. */
 export function parseRenderingModes(value: unknown, fail: Manifest['fail']): RenderingMode[] {
-  if (!Array.isArray(value) || value.length === 0 || !value.every(isRenderingMode)) {
+  if (!Array.isArray(value) || value.length === 0 || !value.every((mode) => isOneOf(RENDERING_MODES, mode))) {
     throw fail(`renderingModes는 지원하는 Rendering Mode(${RENDERING_MODES.join(', ')})의 배열이어야 합니다.`)
   }
   return value
-}
-
-/** JSON의 객체인지 본다(배열과 null은 아니다). */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
