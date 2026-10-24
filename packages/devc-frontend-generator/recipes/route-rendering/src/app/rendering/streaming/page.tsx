@@ -6,6 +6,7 @@ import { ProductList } from '@/features/product-list/product-list'
 import { DemoPage } from '@/features/rendering-demo/demo-page'
 import { RenderedAt } from '@/features/rendering-demo/rendered-at'
 import { listProductsQueryOptions } from '@/queries/products/products.queries'
+import { delay } from '@/shared/lib/async'
 import { getQueryClient } from '@/shared/query-client/get-query-client'
 
 export const metadata: Metadata = {
@@ -35,9 +36,10 @@ export default async function StreamingPage() {
   )
 }
 
-// 서버에서 상품 목록을 가져와(prefetch) 클라이언트 컴포넌트에 hydration으로 넘긴다(/products와 같은 방식).
+// 서버에서 상품 목록을 가져와(prefetch) 클라이언트 컴포넌트에 hydration으로 넘긴다(/products와 같은 방식). <Suspense>가 이
+// 부분만 기다리도록 따로 렌더링하는 async 컴포넌트로 둔다.
 async function SlowProducts() {
-  await new Promise((resolve) => setTimeout(resolve, SLOW_BACKEND_DELAY_MS))
+  await delay(SLOW_BACKEND_DELAY_MS)
   const queryClient = getQueryClient()
   await queryClient.query(listProductsQueryOptions())
 

@@ -48,9 +48,18 @@ export function findPageRoutes(appDir: string, { exclude = [], locales }: FindPa
 
   for (const entry of readdirSync(appDir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile() || !PAGE_FILE.test(entry.name)) continue
-    const segments = routeSegments(relative(appDir, entry.parentPath))
-    if (!segments.every((segment) => segment === localeSegment || hasFixedUrl(segment))) continue
-    const urlSegments = segments.filter((segment) => !isRouteGroup(segment))
+    // app 디렉터리 기준의 폴더 경로를 라우트 세그먼트로 나눈다. app 디렉터리 자신(홈)은 빈 경로다.
+    const directory = relative(appDir, entry.parentPath)
+    const segments = directory === '' ? [] : directory.split(sep)
+    // 모든 세그먼트가 빌드할 때 정해지는 주소 하나를 갖는 페이지만 넣는다. 동적 세그먼트, private 폴더, 병렬·가로채기 라우트는
+    // 아니다. 경로 그룹은 주소에서 빠질 뿐 주소를 바꾸지 않으므로 갖는 것으로 본다.
+    const hasFixedUrl = segments.every(
+      (segment) =>
+        segment === localeSegment ||
+        (!segment.startsWith('[') && !segment.startsWith('_') && !segment.startsWith('@') && !segment.startsWith('(.')),
+    )
+    if (!hasFixedUrl) continue
+    const urlSegments = segments.filter((segment) => !(segment.startsWith('(') && segment.endsWith(')')))
 
     // locale 세그먼트가 없는 페이지는 주소 하나, 있는 페이지는 locale마다 주소 하나다.
     const variants =
@@ -75,21 +84,6 @@ export function findPageRoutes(appDir: string, { exclude = [], locales }: FindPa
   return [...routes.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
 }
 
-// app 디렉터리 기준의 폴더 경로를 라우트 세그먼트로 나눈다. app 디렉터리 자신(홈)은 빈 경로다.
-function routeSegments(directory: string): string[] {
-  return directory === '' ? [] : directory.split(sep)
-}
-
 function toPath(segments: readonly string[]): string {
   return `/${segments.join('/')}`
-}
-
-// 이 세그먼트 아래의 페이지가 빌드할 때 정해지는 주소 하나를 갖는가. 동적 세그먼트, private 폴더, 병렬·가로채기 라우트는 아니다.
-// 경로 그룹은 주소에서 빠질 뿐 주소를 바꾸지 않으므로 갖는 것으로 본다.
-function hasFixedUrl(segment: string): boolean {
-  return !segment.startsWith('[') && !segment.startsWith('_') && !segment.startsWith('@') && !segment.startsWith('(.')
-}
-
-function isRouteGroup(segment: string): boolean {
-  return segment.startsWith('(') && segment.endsWith(')')
 }

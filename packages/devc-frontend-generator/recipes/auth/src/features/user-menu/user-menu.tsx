@@ -6,17 +6,17 @@ import { sessionQueryOptions, useLogoutMutation } from '@/queries/auth/auth.quer
 import { ACCOUNT_PATH, LOGIN_PATH } from '@/shared/auth/access-rules'
 import { Button, buttonVariants } from '@/shared/ui/button'
 
-/** 로그아웃한 뒤 로그인 페이지로 새로 들어간다. 이전 사용자로 받아 둔 화면과 캐시를 남기지 않는다. */
-function goToLoginPage() {
-  window.location.assign(LOGIN_PATH)
-}
-
 /**
  * 모든 페이지 위의 머리글에 놓이는 사용자 메뉴. 로그인했으면 이름(내 정보로 가는 링크)과 로그아웃 버튼을, 아니면 로그인 링크를
  * 보여 준다. 로그인 여부는 브라우저가 BFF에 물어본다(sessionQueryOptions). 서버가 쿠키를 읽으면 모든 페이지가 요청마다
  * 렌더링되어(SSR) SSG·ISR 페이지를 미리 만들 수 없기 때문이다.
  */
-export function UserMenu({ onLoggedOut = goToLoginPage }: Readonly<{ onLoggedOut?: () => void }>) {
+export function UserMenu({
+  // 로그아웃한 뒤 로그인 페이지로 새로 들어간다. 이전 사용자로 받아 둔 화면과 캐시를 남기지 않는다.
+  onLoggedOut = () => {
+    window.location.assign(LOGIN_PATH)
+  },
+}: Readonly<{ onLoggedOut?: () => void }>) {
   const { data: user, isPending } = useQuery(sessionQueryOptions())
   const logout = useLogoutMutation()
 

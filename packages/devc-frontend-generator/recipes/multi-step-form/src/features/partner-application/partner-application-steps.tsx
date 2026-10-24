@@ -4,7 +4,8 @@ import type { ReactNode } from 'react'
 import { Controller } from 'react-hook-form'
 import { PartnerCategory, SubmitPartnerApplicationBody } from '@/shared/api/generated/model'
 import type { FormDraft } from '@/shared/form/form-resolver'
-import { StepForm, type StepFormProps, type StepFormReturn } from '@/shared/multi-step-form/step-form'
+import { displayValue, NOT_ENTERED } from '@/shared/multi-step-form/draft-summary'
+import { StepForm, type StepFormProps } from '@/shared/multi-step-form/step-form'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
@@ -54,25 +55,48 @@ const categoryOptions = PartnerCategory.options.map((category) => ({
   label: CATEGORY_LABELS[category],
 }))
 
-const NOT_ENTERED = '입력하지 않음'
-
-/** 확인 단계에 보일 값. 비워 둔 입력(빈 문자열, 비운 숫자 입력의 NaN)은 입력하지 않은 것으로 보인다. */
-function displayValue(value: string | number | undefined, format: (value: number) => string = String): string {
-  if (value === undefined || value === '' || Number.isNaN(value)) return NOT_ENTERED
-  return typeof value === 'number' ? format(value) : value
-}
-
 function formatNumber(value: number): string {
   return value.toLocaleString('ko-KR')
 }
 
+// 단계마다의 입력 요소와 오류 표시는 `npm run g -- form`이 만드는 폼과 같다(Base README의 "폼"). 레이블은 명세의 title이다.
 export const PARTNER_APPLICATION_STEPS: readonly PartnerApplicationStep[] = [
   {
     title: '사업자 정보',
     fields: Object.keys(businessStep.shape),
     render: (props) => (
       <StepForm schema={businessStep} {...props}>
-        {(form) => <BusinessFields form={form} />}
+        {({ control, register, formState: { errors } }) => (
+          <>
+            <Field invalid={errors.companyName !== undefined}>
+              <FieldLabel>상호</FieldLabel>
+              <Input {...register('companyName')} />
+              <FieldError match={errors.companyName !== undefined}>{errors.companyName?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.businessNumber !== undefined}>
+              <FieldLabel>사업자등록번호</FieldLabel>
+              <Input inputMode="numeric" {...register('businessNumber')} />
+              <FieldDescription>000-00-00000 형식으로 적습니다.</FieldDescription>
+              <FieldError match={errors.businessNumber !== undefined}>{errors.businessNumber?.message}</FieldError>
+            </Field>
+            <Controller
+              control={control}
+              name="category"
+              render={({ field }) => (
+                <Field invalid={errors.category !== undefined}>
+                  <Select
+                    label="판매 분야"
+                    options={categoryOptions}
+                    value={field.value ?? null}
+                    onValueChange={field.onChange}
+                    inputRef={field.ref}
+                  />
+                  <FieldError match={errors.category !== undefined}>{errors.category?.message}</FieldError>
+                </Field>
+              )}
+            />
+          </>
+        )}
       </StepForm>
     ),
     summary: (draft) => [
@@ -86,7 +110,26 @@ export const PARTNER_APPLICATION_STEPS: readonly PartnerApplicationStep[] = [
     fields: Object.keys(contactStep.shape),
     render: (props) => (
       <StepForm schema={contactStep} {...props}>
-        {(form) => <ContactFields form={form} />}
+        {({ register, formState: { errors } }) => (
+          <>
+            <Field invalid={errors.contactName !== undefined}>
+              <FieldLabel>담당자 이름</FieldLabel>
+              <Input autoComplete="name" {...register('contactName')} />
+              <FieldError match={errors.contactName !== undefined}>{errors.contactName?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.email !== undefined}>
+              <FieldLabel>이메일</FieldLabel>
+              <Input type="email" autoComplete="email" {...register('email')} />
+              <FieldError match={errors.email !== undefined}>{errors.email?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.phone !== undefined}>
+              <FieldLabel>연락처</FieldLabel>
+              <Input type="tel" autoComplete="tel" {...register('phone')} />
+              <FieldDescription>010-0000-0000 형식으로 적습니다.</FieldDescription>
+              <FieldError match={errors.phone !== undefined}>{errors.phone?.message}</FieldError>
+            </Field>
+          </>
+        )}
       </StepForm>
     ),
     summary: (draft) => [
@@ -100,7 +143,39 @@ export const PARTNER_APPLICATION_STEPS: readonly PartnerApplicationStep[] = [
     fields: Object.keys(planStep.shape),
     render: (props) => (
       <StepForm schema={planStep} {...props}>
-        {(form) => <PlanFields form={form} />}
+        {({ control, register, formState: { errors } }) => (
+          <>
+            <Field invalid={errors.productCount !== undefined}>
+              <FieldLabel>판매할 상품 수</FieldLabel>
+              <Input type="number" {...register('productCount', { valueAsNumber: true })} />
+              <FieldError match={errors.productCount !== undefined}>{errors.productCount?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.monthlySales !== undefined}>
+              <FieldLabel>월 예상 매출(만 원)</FieldLabel>
+              <Input type="number" {...register('monthlySales', { valueAsNumber: true })} />
+              <FieldError match={errors.monthlySales !== undefined}>{errors.monthlySales?.message}</FieldError>
+            </Field>
+            <Field invalid={errors.introduction !== undefined}>
+              <FieldLabel>회사 소개</FieldLabel>
+              <Input {...register('introduction')} />
+              <FieldError match={errors.introduction !== undefined}>{errors.introduction?.message}</FieldError>
+            </Field>
+            <Controller
+              control={control}
+              name="agreedToTerms"
+              render={({ field }) => (
+                <Field invalid={errors.agreedToTerms !== undefined}>
+                  <FieldLabel>
+                    <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />
+                    입점 약관에 동의합니다
+                  </FieldLabel>
+                  {/* 명세의 const: true라 체크하지 않으면 formResolver가 MUST_CHECK_MESSAGE("반드시 체크해야 합니다.")로 알린다. */}
+                  <FieldError match={errors.agreedToTerms !== undefined}>{errors.agreedToTerms?.message}</FieldError>
+                </Field>
+              )}
+            />
+          </>
+        )}
       </StepForm>
     ),
     summary: (draft) => [
@@ -111,112 +186,3 @@ export const PARTNER_APPLICATION_STEPS: readonly PartnerApplicationStep[] = [
     ],
   },
 ]
-
-// 입력 요소와 오류 표시는 `npm run g -- form`이 만드는 폼과 같다(Base README의 "폼"). 레이블은 명세의 title이다.
-
-function BusinessFields({ form }: Readonly<{ form: StepFormReturn<typeof businessStep> }>) {
-  const {
-    control,
-    register,
-    formState: { errors },
-  } = form
-  return (
-    <>
-      <Field invalid={errors.companyName !== undefined}>
-        <FieldLabel>상호</FieldLabel>
-        <Input {...register('companyName')} />
-        <FieldError match={errors.companyName !== undefined}>{errors.companyName?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.businessNumber !== undefined}>
-        <FieldLabel>사업자등록번호</FieldLabel>
-        <Input inputMode="numeric" {...register('businessNumber')} />
-        <FieldDescription>000-00-00000 형식으로 적습니다.</FieldDescription>
-        <FieldError match={errors.businessNumber !== undefined}>{errors.businessNumber?.message}</FieldError>
-      </Field>
-      <Controller
-        control={control}
-        name="category"
-        render={({ field }) => (
-          <Field invalid={errors.category !== undefined}>
-            <Select
-              label="판매 분야"
-              options={categoryOptions}
-              value={field.value ?? null}
-              onValueChange={field.onChange}
-              inputRef={field.ref}
-            />
-            <FieldError match={errors.category !== undefined}>{errors.category?.message}</FieldError>
-          </Field>
-        )}
-      />
-    </>
-  )
-}
-
-function ContactFields({ form }: Readonly<{ form: StepFormReturn<typeof contactStep> }>) {
-  const {
-    register,
-    formState: { errors },
-  } = form
-  return (
-    <>
-      <Field invalid={errors.contactName !== undefined}>
-        <FieldLabel>담당자 이름</FieldLabel>
-        <Input autoComplete="name" {...register('contactName')} />
-        <FieldError match={errors.contactName !== undefined}>{errors.contactName?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.email !== undefined}>
-        <FieldLabel>이메일</FieldLabel>
-        <Input type="email" autoComplete="email" {...register('email')} />
-        <FieldError match={errors.email !== undefined}>{errors.email?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.phone !== undefined}>
-        <FieldLabel>연락처</FieldLabel>
-        <Input type="tel" autoComplete="tel" {...register('phone')} />
-        <FieldDescription>010-0000-0000 형식으로 적습니다.</FieldDescription>
-        <FieldError match={errors.phone !== undefined}>{errors.phone?.message}</FieldError>
-      </Field>
-    </>
-  )
-}
-
-function PlanFields({ form }: Readonly<{ form: StepFormReturn<typeof planStep> }>) {
-  const {
-    control,
-    register,
-    formState: { errors },
-  } = form
-  return (
-    <>
-      <Field invalid={errors.productCount !== undefined}>
-        <FieldLabel>판매할 상품 수</FieldLabel>
-        <Input type="number" {...register('productCount', { valueAsNumber: true })} />
-        <FieldError match={errors.productCount !== undefined}>{errors.productCount?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.monthlySales !== undefined}>
-        <FieldLabel>월 예상 매출(만 원)</FieldLabel>
-        <Input type="number" {...register('monthlySales', { valueAsNumber: true })} />
-        <FieldError match={errors.monthlySales !== undefined}>{errors.monthlySales?.message}</FieldError>
-      </Field>
-      <Field invalid={errors.introduction !== undefined}>
-        <FieldLabel>회사 소개</FieldLabel>
-        <Input {...register('introduction')} />
-        <FieldError match={errors.introduction !== undefined}>{errors.introduction?.message}</FieldError>
-      </Field>
-      <Controller
-        control={control}
-        name="agreedToTerms"
-        render={({ field }) => (
-          <Field invalid={errors.agreedToTerms !== undefined}>
-            <FieldLabel>
-              <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} inputRef={field.ref} />
-              입점 약관에 동의합니다
-            </FieldLabel>
-            {/* 명세의 const: true라 체크하지 않으면 formResolver가 MUST_CHECK_MESSAGE("반드시 체크해야 합니다.")로 알린다. */}
-            <FieldError match={errors.agreedToTerms !== undefined}>{errors.agreedToTerms?.message}</FieldError>
-          </Field>
-        )}
-      />
-    </>
-  )
-}

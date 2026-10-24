@@ -22,7 +22,17 @@ let memoryCartId: string | null = null
  * undefined(아직 모름)이고, hydration이 끝나면 저장한 값으로 다시 그린다. 그래서 서버가 보낸 HTML과 첫 렌더링이 어긋나지 않는다.
  */
 export function useCartId(): string | null | undefined {
-  return useSyncExternalStore(subscribe, readCartId, () => undefined)
+  return useSyncExternalStore(
+    subscribe,
+    () => {
+      try {
+        return localStorage.getItem(STORAGE_KEY)
+      } catch {
+        return memoryCartId
+      }
+    },
+    () => undefined,
+  )
 }
 
 /** 백엔드가 만든 장바구니의 id를 저장한다(createCart가 성공했을 때). */
@@ -61,14 +71,6 @@ export function useForgetMissingCart(error: Error | null): void {
   }, [missing])
 }
 
-function readCartId(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return memoryCartId
-  }
-}
-
 function writeCartId(cartId: string | null): void {
   try {
     if (cartId === null) localStorage.removeItem(STORAGE_KEY)
@@ -79,6 +81,7 @@ function writeCartId(cartId: string | null): void {
   for (const listener of listeners) listener()
 }
 
+// useSyncExternalStore가 렌더링할 때마다 다시 구독하지 않도록 모듈에 하나만 둔다.
 function subscribe(listener: () => void): () => void {
   // 다른 탭이 장바구니 id를 바꾸면(예: 다른 탭에서 주문을 마침) 이 탭도 따라 바꾼다. 같은 탭의 변경은 storage 이벤트가 오지 않는다.
   const onStorage = (event: StorageEvent) => {

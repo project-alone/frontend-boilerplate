@@ -42,7 +42,12 @@ export async function ogImage({ title, description }: OgImageContent): Promise<I
     readFile(join(process.cwd(), 'src/shared/seo/pretendard-bold.woff')),
     readFile(join(process.cwd(), 'src/shared/ui/tokens.css'), 'utf8'),
   ])
-  const color = (name: string) => colorToken(tokens, name)
+  // tokens.css에서 `--color-<name>: <값>;`의 값을 찾는다.
+  const color = (name: string) => {
+    const value = new RegExp(`(?<![\\w-])--color-${name}:\\s*([^;]+);`).exec(tokens)?.[1]?.trim()
+    if (value === undefined) throw new Error(`src/shared/ui/tokens.css에 --color-${name} 토큰이 없습니다.`)
+    return value
+  }
 
   return new ImageResponse(
     <div
@@ -82,11 +87,4 @@ export async function ogImage({ title, description }: OgImageContent): Promise<I
     </div>,
     { ...OG_IMAGE_SIZE, fonts: [{ name: 'Pretendard', data: font, weight: 700, style: 'normal' }] },
   )
-}
-
-// tokens.css에서 `--color-<name>: <값>;`의 값을 찾는다.
-function colorToken(tokens: string, name: string): string {
-  const value = new RegExp(`(?<![\\w-])--color-${name}:\\s*([^;]+);`).exec(tokens)?.[1]?.trim()
-  if (value === undefined) throw new Error(`src/shared/ui/tokens.css에 --color-${name} 토큰이 없습니다.`)
-  return value
 }

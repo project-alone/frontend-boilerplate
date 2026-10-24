@@ -1,7 +1,7 @@
 --- a/src/shared/api/api-fetch.test.ts
 +++ b/src/shared/api/api-fetch.test.ts
 @@ -5,7 +5,8 @@
- import { ApiError, apiFetch } from './api-fetch'
+ import { ApiError, apiErrorMessage, apiFetch, isApiError } from './api-fetch'
  import { MOCK_API_BASE_URL } from './base-url'
  
 -// 이 파일은 브라우저(jsdom)에서 실행된다. 서버에서의 동작은 api-fetch.server.test.ts가 확인한다.

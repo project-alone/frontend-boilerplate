@@ -6,25 +6,25 @@ import { ChartFigure } from '@/shared/chart/chart-figure'
 import { CHART_COLORS, CHART_GRID_PROPS, CHART_PROPS, CHART_TOOLTIP_STYLE } from '@/shared/chart/chart-theme'
 import { formatCount, formatLongDate, formatShortDate, formatVisits } from './stats-format'
 
-/** 하루 방문 수가 가장 많은 날과 가장 적은 날을 한 문장으로 알린다. */
-function summarize(visits: readonly DailyVisits[]): string {
-  const [first, ...rest] = visits
-  if (first === undefined) return '방문 기록이 없습니다.'
-  let highest = first
-  let lowest = first
-  for (const day of rest) {
-    if (day.visits > highest.visits) highest = day
-    if (day.visits < lowest.visits) lowest = day
-  }
-  return `가장 많은 날 ${formatLongDate(highest.date)} ${formatVisits(highest.visits)}, 가장 적은 날 ${formatLongDate(lowest.date)} ${formatVisits(lowest.visits)}`
-}
-
 /** 일별 방문 수를 시간 순서의 선 차트(시계열)로 그린다. */
 export function DailyVisitsChart({ visits }: Readonly<{ visits: readonly DailyVisits[] }>) {
+  // 하루 방문 수가 가장 많은 날과 가장 적은 날을 한 문장으로 알린다.
+  let summary = '방문 기록이 없습니다.'
+  const [first, ...rest] = visits
+  if (first !== undefined) {
+    let highest = first
+    let lowest = first
+    for (const day of rest) {
+      if (day.visits > highest.visits) highest = day
+      if (day.visits < lowest.visits) lowest = day
+    }
+    summary = `가장 많은 날 ${formatLongDate(highest.date)} ${formatVisits(highest.visits)}, 가장 적은 날 ${formatLongDate(lowest.date)} ${formatVisits(lowest.visits)}`
+  }
+
   return (
     <ChartFigure
       title="일별 방문 수"
-      summary={summarize(visits)}
+      summary={summary}
       rows={visits}
       rowKey={(day) => day.date}
       columns={[

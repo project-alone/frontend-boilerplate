@@ -1,4 +1,4 @@
-import { ApiError } from '@/shared/api/api-fetch'
+import { type ApiError, isApiError } from '@/shared/api/api-fetch'
 
 /**
  * 사용자 추가·수정을 백엔드가 지금 로그인 세션으로는 할 수 없다고 거절했는가. 로그인 세션이 끝났거나(401: BFF 프록시가
@@ -8,7 +8,7 @@ import { ApiError } from '@/shared/api/api-fetch'
  * 페이지로 보낸다.
  */
 export function isAccessDenied(error: unknown): error is ApiError {
-  return error instanceof ApiError && (error.status === 401 || error.status === 403)
+  return isApiError(error, 401, 403)
 }
 
 /** isAccessDenied인 오류를 알릴 때의 설명 */
