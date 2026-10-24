@@ -19,24 +19,24 @@ import { server } from '@/shared/mocks/node'
 const mockApiHost = new URL(MOCK_API_BASE_URL).hostname
 const systemLookup = dns.lookup
 
-function lookupWithoutMockApi(hostname: string, ...rest: unknown[]): void {
-  const callback = rest.at(-1)
-  if (hostname !== mockApiHost || typeof callback !== 'function') {
-    Reflect.apply(systemLookup, dns, [hostname, ...rest])
-    return
-  }
-  const notFound = Object.assign(new Error(`getaddrinfo ${dns.NOTFOUND} ${hostname}`), {
-    code: dns.NOTFOUND,
-    syscall: 'getaddrinfo',
-    hostname,
-  })
-  process.nextTick(callback, notFound)
-}
-
 // 핸들러가 없는 요청은 실제 네트워크로 나가지 않고 테스트를 실패시킨다. DNS 조회는 테스트 파일마다 바꾸고 되돌린다.
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' })
-  Object.assign(dns, { lookup: lookupWithoutMockApi })
+  Object.assign(dns, {
+    lookup: (hostname: string, ...rest: unknown[]): void => {
+      const callback = rest.at(-1)
+      if (hostname !== mockApiHost || typeof callback !== 'function') {
+        Reflect.apply(systemLookup, dns, [hostname, ...rest])
+        return
+      }
+      const notFound = Object.assign(new Error(`getaddrinfo ${dns.NOTFOUND} ${hostname}`), {
+        code: dns.NOTFOUND,
+        syscall: 'getaddrinfo',
+        hostname,
+      })
+      process.nextTick(callback, notFound)
+    },
+  })
 })
 
 afterEach(() => {

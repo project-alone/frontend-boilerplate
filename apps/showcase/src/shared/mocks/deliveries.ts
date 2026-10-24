@@ -194,34 +194,29 @@ const DEMO_SCENARIO: readonly { after: number; run: (backend: MockDeliveryBacken
   },
 ]
 
-/**
- * 개발 서버와 E2E가 쓰는 목 백엔드. Last-Event-ID 없이 새로 연결하면(새로 연 화면) 처음 목록으로 되돌리고, 그 뒤 처음 목록을
- * 받으면 DEMO_SCENARIO를 처음부터 보낸다. 다시 연결한 연결(Last-Event-ID가 있음)에는 이어서 보낼 이벤트가 없다. server에서는
- * Next.js 서버 하나가 모든 화면의 요청을 받으므로, 다른 화면이 새로 연결하면 앞 화면의 순서는 멈추고 열린 화면 모두가 새 순서의
- * 이벤트를 받는다.
- */
-function createDemoDeliveryBackend(): MockDeliveryBackend {
-  let timers: ReturnType<typeof setTimeout>[] = []
-  let waitingForList = false
-  const backend = createMockDeliveryBackend({
-    onConnect: ({ lastEventId }) => {
-      if (lastEventId !== null) return
-      for (const timer of timers) clearTimeout(timer)
-      timers = []
-      backend.reset()
-      waitingForList = true
-    },
-    onListResponse: () => {
-      if (!waitingForList) return
-      waitingForList = false
-      timers = DEMO_SCENARIO.map(({ after, run }) =>
-        setTimeout(() => {
-          run(backend)
-        }, after),
-      )
-    },
-  })
-  return backend
-}
+// 개발 서버와 E2E가 쓰는 목 백엔드. Last-Event-ID 없이 새로 연결하면(새로 연 화면) 처음 목록으로 되돌리고, 그 뒤 처음 목록을
+// 받으면 DEMO_SCENARIO를 처음부터 보낸다. 다시 연결한 연결(Last-Event-ID가 있음)에는 이어서 보낼 이벤트가 없다. server에서는
+// Next.js 서버 하나가 모든 화면의 요청을 받으므로, 다른 화면이 새로 연결하면 앞 화면의 순서는 멈추고 열린 화면 모두가 새 순서의
+// 이벤트를 받는다.
+let demoTimers: ReturnType<typeof setTimeout>[] = []
+let demoWaitingForList = false
+const demoBackend: MockDeliveryBackend = createMockDeliveryBackend({
+  onConnect: ({ lastEventId }) => {
+    if (lastEventId !== null) return
+    for (const timer of demoTimers) clearTimeout(timer)
+    demoTimers = []
+    demoBackend.reset()
+    demoWaitingForList = true
+  },
+  onListResponse: () => {
+    if (!demoWaitingForList) return
+    demoWaitingForList = false
+    demoTimers = DEMO_SCENARIO.map(({ after, run }) =>
+      setTimeout(() => {
+        run(demoBackend)
+      }, after),
+    )
+  },
+})
 
-export const deliveriesHandlers = createDemoDeliveryBackend().handlers
+export const deliveriesHandlers = demoBackend.handlers

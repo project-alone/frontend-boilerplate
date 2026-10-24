@@ -1,6 +1,8 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): recipes/sentry/src/shared/sentry/sentry-options.ts
 
+import { nonEmpty } from '@/shared/lib/text'
+
 // 브라우저와 서버의 Sentry SDK가 함께 쓰는 초기화 조건과 설정(README의 "오류 보고(Sentry)").
 
 /**
@@ -12,7 +14,7 @@
  */
 export function enabledSentryDsn(dsn: string | undefined): string | undefined {
   if (process.env.NODE_ENV !== 'production' || process.env.SENTRY_MOCK_BUILD === 'true') return undefined
-  return dsn === '' ? undefined : dsn
+  return nonEmpty(dsn)
 }
 
 /** 브라우저와 서버가 함께 쓰는 SDK 설정. 성능 추적(tracesSampleRate)과 Session Replay는 켜지 않는다. */

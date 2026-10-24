@@ -4,6 +4,7 @@
 import { delay, http, HttpResponse, type JsonBodyType } from 'msw'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'
 import type { UploadedFile, UploadError } from '@/shared/api/generated/model'
+import { readMultipartFile } from '@/shared/lib/multipart'
 import { findUploadProblem, type UploadProblem } from '@/shared/upload/upload-policy'
 
 // file-upload Recipe: 업로드 operation(uploadFile, POST /files)을 흉내 내는 MSW 핸들러. 명세에서 생성한 핸들러는 example을
@@ -52,7 +53,7 @@ export const filesHandlers = [
       }),
   ),
   http.post(`${MOCK_API_BASE_URL}/files`, async ({ request }) => {
-    const file = await readFileField(request)
+    const file = await readMultipartFile(request, 'file')
     if (file === undefined) return refuse(400, 'multipart/form-data의 file 필드에 파일을 담아 보내 주세요.')
     const problem = findUploadProblem(file)
     if (problem !== undefined) return refuse(PROBLEM_STATUS[problem.reason], problem.message)
@@ -74,41 +75,3 @@ export const filesHandlers = [
     )
   }),
 ]
-
-/** multipart/form-data 본문의 file 필드에 담긴 파일 */
-interface FileField {
-  name: string
-  type: string
-  size: number
-}
-
-/**
- * multipart/form-data 본문에서 file 필드의 파일 이름, 형식, 크기를 읽는다. request.formData()는 Vitest의 jsdom 환경에서 파일
- * 필드를 읽지 못하므로(jsdom의 File과 Node.js의 File이 달라 실패한다) 본문을 직접 나눈다.
- */
-async function readFileField(request: Request): Promise<FileField | undefined> {
-  const boundary = /boundary=(?:"([^"]+)"|([^;]+))/.exec(request.headers.get('content-type') ?? '')
-  const delimiter = boundary?.[1] ?? boundary?.[2]
-  if (delimiter === undefined) return undefined
-  const bytes = new Uint8Array(await request.arrayBuffer())
-  // 바이트 하나를 글자 하나로 읽어, 글자의 위치가 바이트의 위치와 같게 한다.
-  const text = new TextDecoder('latin1').decode(bytes)
-  // 필드마다 `--<경계>\r\n<머리글>\r\n\r\n<내용>`이 이어지고, 내용 뒤의 `\r\n--<경계>`에서 다음 필드가 시작한다.
-  let start = text.indexOf(`--${delimiter}\r\n`)
-  while (start !== -1) {
-    const contentEnd = text.indexOf(`\r\n--${delimiter}`, start)
-    if (contentEnd === -1) return undefined
-    const headerEnd = text.indexOf('\r\n\r\n', start)
-    const headers = text.slice(start, headerEnd)
-    const filename = /filename="([^"]*)"/.exec(headers)
-    if (headerEnd !== -1 && headerEnd < contentEnd && /\bname="file"/.test(headers) && filename !== null) {
-      // 파일 이름은 UTF-8로 온다.
-      const nameStart = start + filename.index + 'filename="'.length
-      const name = new TextDecoder().decode(bytes.slice(nameStart, nameStart + (filename[1] ?? '').length))
-      const type = /content-type:\s*([^\r\n]+)/i.exec(headers)?.[1]?.trim() ?? ''
-      return { name, type, size: contentEnd - (headerEnd + '\r\n\r\n'.length) }
-    }
-    start = text.indexOf(`--${delimiter}\r\n`, contentEnd)
-  }
-  return undefined
-}

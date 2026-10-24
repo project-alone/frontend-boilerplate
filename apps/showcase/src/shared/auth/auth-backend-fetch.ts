@@ -37,22 +37,16 @@ export async function authBackendFetch(url: string, init: RequestInit, next: Nex
   }
   const forwarded = { ...init, headers }
   if (headers.has('authorization')) return next(url, forwarded)
-  if (sealed !== undefined) return forwardBrowserRequest(url, forwarded, await unsealSession(sealed), next)
+  if (sealed === undefined) {
+    const renderSession = sessionOfRender()
+    return next(url, renderSession === undefined ? forwarded : withAccessToken(forwarded, renderSession))
+  }
 
-  const session = sessionOfRender()
-  return next(url, session === undefined ? forwarded : withAccessToken(forwarded, session))
-}
+  // BFF 프록시가 전달하는 브라우저의 요청. 되읽지 못한 세션 쿠키(만료, 비밀 값을 바꿈 등)는 지운다.
+  const session = await unsealSession(sealed)
+  if (session === undefined) return withSetCookie(await next(url, forwarded), clearedSessionCookie())
 
-async function forwardBrowserRequest(
-  url: string,
-  init: RequestInit,
-  session: Session | undefined,
-  next: Next,
-): Promise<Response> {
-  // 되읽지 못한 세션 쿠키(만료, 비밀 값을 바꿈 등)는 지운다.
-  if (session === undefined) return withSetCookie(await next(url, init), clearedSessionCookie())
-
-  const response = await next(url, withAccessToken(init, session))
+  const response = await next(url, withAccessToken(forwarded, session))
   if (response.status !== 401) return response
 
   const refreshed = await refreshSession(session)
@@ -60,7 +54,7 @@ async function forwardBrowserRequest(
   // 다시 보내기 전에 쓰지 않을 401 응답의 본문을 끝까지 읽어 연결을 놓아준다. body.cancel()은 쓰지 않는다. Next.js의 fetch는
   // 응답 본문을 둘로 나눠(tee) 쓰므로, 한쪽만 cancel하면 다른 쪽이 끝날 때까지 기다리느라 멈춘다.
   await response.arrayBuffer()
-  const retried = await next(url, withAccessToken(init, refreshed))
+  const retried = await next(url, withAccessToken(forwarded, refreshed))
   return withSetCookie(
     retried,
     stringifySetCookie({ name: SESSION_COOKIE, value: await sealSession(refreshed), ...sessionCookieOptions() }),

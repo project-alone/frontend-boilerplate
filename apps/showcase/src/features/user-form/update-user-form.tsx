@@ -7,7 +7,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Controller } from 'react-hook-form'
 import { getUserQueryOptions, useUpdateUserMutation } from '@/queries/users/users.queries'
-import { UpdateUserBody, type UserAccount } from '@/shared/api/generated/model'
+import { UpdateUserBody } from '@/shared/api/generated/model'
 import { USERS_PATH } from '@/shared/dashboard/dashboard-routes'
 import { ROLE_OPTIONS, USER_STATUS_OPTIONS } from '@/shared/dashboard/user-labels'
 import { useSchemaForm } from '@/shared/form/use-schema-form'
@@ -22,11 +22,6 @@ import { DUPLICATE_EMAIL_MESSAGE, isDuplicateEmail } from './duplicate-email'
 export interface UpdateUserFormProps {
   /** 요청 경로의 userId */
   userId: number
-}
-
-/** 사용자의 지금 값으로 폼을 채운다. 부서가 없으면 비워 둔다. */
-function formValuesOf({ name, email, role, status, department }: UserAccount) {
-  return { name, email, role, status, ...(department === undefined ? {} : { department }) }
 }
 
 /**
@@ -44,7 +39,16 @@ export function UpdateUserForm({ userId }: UpdateUserFormProps) {
     handleSubmit,
     setError,
     formState: { errors },
-  } = useSchemaForm(UpdateUserBody, { defaultValues: formValuesOf(user) })
+  } = useSchemaForm(UpdateUserBody, {
+    // 사용자의 지금 값으로 폼을 채운다. 부서가 없으면 비워 둔다.
+    defaultValues: {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      ...(user.department === undefined ? {} : { department: user.department }),
+    },
+  })
   const mutation = useUpdateUserMutation()
   const toast = useToast()
   const router = useRouter()

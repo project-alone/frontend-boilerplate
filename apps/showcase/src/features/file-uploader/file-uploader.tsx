@@ -34,6 +34,26 @@ export function FileUploader() {
   const [isDragging, setIsDragging] = useState(false)
   const hintId = useId()
 
+  // 업로드가 끝나거나(올림, 실패, 취소) 거절될 때마다 "<파일 이름>: <상태 문구>"를 보조 기술에 읽어 준다. 알림 영역은 내용이
+  // 바뀌어야 읽히므로 항목과 함께 생기지 않도록 처음부터 비워 둔다. 알림을 덧붙이고(aria-atomic="false") 새로 붙은 알림만 읽히게
+  // 한다. 진행률은 바뀔 때마다 읽으면 다른 내용을 들을 수 없으므로 알리지 않는다. 진행 막대의 값으로 언제든 읽을 수 있다.
+  // 업로드마다 마지막으로 본 상태. 올리는 중이 아닌 상태로 바뀐 업로드만 알린다.
+  const lastStatuses = useRef(new Map<number, UploadStatus>())
+  const nextAnnouncementKey = useRef(0)
+  const [announcements, setAnnouncements] = useState<readonly { key: number; text: string }[]>([])
+  useEffect(() => {
+    const settled = uploads.filter(
+      ({ id, status }) => status !== 'uploading' && lastStatuses.current.get(id) !== status,
+    )
+    lastStatuses.current = new Map(uploads.map(({ id, status }) => [id, status]))
+    if (settled.length === 0) return
+    const added = settled.map((upload) => {
+      nextAnnouncementKey.current += 1
+      return { key: nextAnnouncementKey.current, text: `${upload.file.name}: ${statusMessage(upload)}` }
+    })
+    setAnnouncements((current) => [...current, ...added].slice(-ANNOUNCEMENT_COUNT))
+  }, [uploads])
+
   return (
     <div className="flex flex-col gap-4">
       {/*
@@ -101,40 +121,11 @@ export function FileUploader() {
           ))}
         </ul>
       )}
-      <UploadAnnouncer uploads={uploads} />
-    </div>
-  )
-}
-
-/**
- * 업로드가 끝나거나(올림, 실패, 취소) 거절될 때마다 "<파일 이름>: <상태 문구>"를 보조 기술에 읽어 준다. 알림 영역은 내용이 바뀌어야
- * 읽히므로 항목과 함께 생기지 않도록 처음부터 비워 둔다. 알림을 덧붙이고(aria-atomic="false") 새로 붙은 알림만 읽히게 한다.
- * 진행률은 바뀔 때마다 읽으면 다른 내용을 들을 수 없으므로 알리지 않는다. 진행 막대의 값으로 언제든 읽을 수 있다.
- */
-function UploadAnnouncer({ uploads }: Readonly<{ uploads: readonly Upload[] }>) {
-  // 업로드마다 마지막으로 본 상태. 올리는 중이 아닌 상태로 바뀐 업로드만 알린다.
-  const lastStatuses = useRef(new Map<number, UploadStatus>())
-  const nextKey = useRef(0)
-  const [announcements, setAnnouncements] = useState<readonly { key: number; text: string }[]>([])
-
-  useEffect(() => {
-    const settled = uploads.filter(
-      ({ id, status }) => status !== 'uploading' && lastStatuses.current.get(id) !== status,
-    )
-    lastStatuses.current = new Map(uploads.map(({ id, status }) => [id, status]))
-    if (settled.length === 0) return
-    const added = settled.map((upload) => {
-      nextKey.current += 1
-      return { key: nextKey.current, text: `${upload.file.name}: ${statusMessage(upload)}` }
-    })
-    setAnnouncements((current) => [...current, ...added].slice(-ANNOUNCEMENT_COUNT))
-  }, [uploads])
-
-  return (
-    <div role="status" aria-atomic="false" className="sr-only">
-      {announcements.map(({ key, text }) => (
-        <p key={key}>{text}</p>
-      ))}
+      <div role="status" aria-atomic="false" className="sr-only">
+        {announcements.map(({ key, text }) => (
+          <p key={key}>{text}</p>
+        ))}
+      </div>
     </div>
   )
 }
@@ -146,9 +137,11 @@ interface UploadItemProps {
   onRemove: () => void
 }
 
+/** 업로드 하나. 항목마다 파일 이름과 진행 막대의 id(useId)를 따로 가지므로 컴포넌트로 둔다. */
 function UploadItem({ upload, onCancel, onRetry, onRemove }: Readonly<UploadItemProps>) {
   const { file, status } = upload
   const nameId = useId()
+  const progressLabelId = useId()
   // 취소와 다시 시도는 같은 자리의 같은 버튼이라, 누른 뒤 상태가 바뀌어도 포커스가 그 버튼에 남는다.
   const action =
     status === 'uploading'
@@ -165,7 +158,23 @@ function UploadItem({ upload, onCancel, onRetry, onRemove }: Readonly<UploadItem
         </span>
         <span className="text-sm text-muted-foreground">{formatFileSize(file.size)}</span>
       </div>
-      {status === 'uploading' && <UploadProgressBar nameId={nameId} progress={upload.progress} />}
+      {/* 요청 본문을 보낸 정도. 진행 막대의 이름은 "<파일 이름> 업로드 진행률"이다. */}
+      {status === 'uploading' && (
+        <Progress.Root
+          value={Math.floor(upload.progress * 100)}
+          locale="ko-KR"
+          aria-labelledby={`${nameId} ${progressLabelId}`}
+          className="flex flex-col gap-1"
+        >
+          <div className="flex justify-between text-sm">
+            <span id={progressLabelId}>업로드 진행률</span>
+            <Progress.Value />
+          </div>
+          <Progress.Track className="h-2 overflow-hidden rounded-sm border border-border bg-muted">
+            <Progress.Indicator className="h-full bg-primary transition-[width]" />
+          </Progress.Track>
+        </Progress.Root>
+      )}
       <p className={cx('text-sm', (status === 'failed' || status === 'rejected') && 'text-danger')}>
         {statusMessage(upload)}
       </p>
@@ -191,27 +200,6 @@ function UploadItem({ upload, onCancel, onRetry, onRemove }: Readonly<UploadItem
         )}
       </div>
     </li>
-  )
-}
-
-/** 요청 본문을 보낸 정도. 진행 막대의 이름은 "<파일 이름> 업로드 진행률"이다. */
-function UploadProgressBar({ nameId, progress }: Readonly<{ nameId: string; progress: number }>) {
-  const labelId = useId()
-  return (
-    <Progress.Root
-      value={Math.floor(progress * 100)}
-      locale="ko-KR"
-      aria-labelledby={`${nameId} ${labelId}`}
-      className="flex flex-col gap-1"
-    >
-      <div className="flex justify-between text-sm">
-        <span id={labelId}>업로드 진행률</span>
-        <Progress.Value />
-      </div>
-      <Progress.Track className="h-2 overflow-hidden rounded-sm border border-border bg-muted">
-        <Progress.Indicator className="h-full bg-primary transition-[width]" />
-      </Progress.Track>
-    </Progress.Root>
   )
 }
 

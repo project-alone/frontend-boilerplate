@@ -21,16 +21,17 @@ import {
 import Link from 'next/link'
 import { useState } from 'react'
 import { listUsersQueryOptions } from '@/queries/users/users.queries'
-import { ListUsersParams, Role, type UserAccount, type UserAccountPage, UserStatus } from '@/shared/api/generated/model'
+import { ListUsersParams, Role, type UserAccount, UserStatus } from '@/shared/api/generated/model'
 import { editUserPath } from '@/shared/dashboard/dashboard-routes'
 import { ROLE_LABELS, ROLE_OPTIONS, USER_STATUS_LABELS, USER_STATUS_OPTIONS } from '@/shared/dashboard/user-labels'
 import { Button } from '@/shared/ui/button'
 import { Field, FieldLabel } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { SortIcon } from '@/shared/ui/sort-icon'
 
 // 대시보드 Archetype: 사용자 목록(listUsers)을 TanStack Table로 보여 준다. table Recipe의 회원 테이블
-// (src/features/member-table)을 복사해 열 정의, 파라미터로 바꾸는 함수, queryOptions를 바꾼 것이다. 정렬·필터·페이지는
+// (src/features/member-table)을 복사해 열 정의, 쿼리 파라미터, queryOptions를 바꾼 것이다. 정렬·필터·페이지는
 // 백엔드가 처리하므로(manual*) 테이블은 그 상태만 들고, 상태를 쿼리 파라미터로 바꿔 쿼리 키와 요청에 함께 담는다.
 
 const PAGE_SIZE = 10
@@ -88,48 +89,6 @@ const NO_USERS: UserAccount[] = []
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const satisfies Record<SortDirection, string>
 
-interface UserTableState {
-  sorting: SortingState
-  columnFilters: ColumnFiltersState
-  globalFilter: string
-  pagination: PaginationState
-}
-
-/** 역할 열에 건 필터의 값. 걸지 않았으면 undefined다. */
-function roleFilterOf(columnFilters: ColumnFiltersState): Role | undefined {
-  return Role.safeParse(columnFilters.find(({ id }) => id === 'role')?.value).data
-}
-
-/** 상태 열에 건 필터의 값. 걸지 않았으면 undefined다. */
-function statusFilterOf(columnFilters: ColumnFiltersState): UserStatus | undefined {
-  return UserStatus.safeParse(columnFilters.find(({ id }) => id === 'status')?.value).data
-}
-
-/** 테이블의 상태를 listUsers의 쿼리 파라미터로 바꾼다. 쿼리 키(usersKeys.listUsers)도 이 값으로 정해진다. */
-function toListUsersParams({ sorting, columnFilters, globalFilter, pagination }: UserTableState): ListUsersParams {
-  const [sorted] = sorting
-  const sort = ListUsersParams.shape.sort.safeParse(sorted?.id).data
-  const role = roleFilterOf(columnFilters)
-  const status = statusFilterOf(columnFilters)
-  const q = globalFilter.trim()
-  return {
-    ...(q === '' ? {} : { q }),
-    ...(role === undefined ? {} : { role }),
-    ...(status === undefined ? {} : { status }),
-    ...(sort === undefined ? {} : { sort, order: sorted?.desc === true ? 'desc' : 'asc' }),
-    // 테이블은 페이지를 0부터, 명세는 1부터 센다.
-    page: pagination.pageIndex + 1,
-    pageSize: pagination.pageSize,
-  }
-}
-
-/** 받은 페이지가 거른 사용자 가운데 몇 번째부터 몇 번째까지인지 알린다. */
-function pageSummary({ items, total, page, pageSize }: UserAccountPage): string {
-  if (total === 0) return NO_MATCH_MESSAGE
-  const first = (page - 1) * pageSize + 1
-  return `사용자 ${String(total)}명 중 ${String(first)}–${String(first + items.length - 1)}번째`
-}
-
 /**
  * 사용자 목록 테이블. 정렬하지 않으면 최근에 추가한 사용자부터 보인다. 열 머리글의 버튼으로 정렬하고(오름차순 → 내림차순 →
  * 정렬 없음), 검색어와 역할·상태로 거르고, 페이지를 넘긴다. canEdit이면 줄마다 사용자 수정 링크를 둔다.
@@ -139,8 +98,24 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE })
+  // 테이블의 상태를 listUsers의 쿼리 파라미터로 바꾼다. 쿼리 키(usersKeys.listUsers)도 이 값으로 정해진다.
+  const [sorted] = sorting
+  const sort = ListUsersParams.shape.sort.safeParse(sorted?.id).data
+  // 역할·상태 열에 건 필터의 값. 걸지 않았으면 undefined다.
+  const role = Role.safeParse(columnFilters.find(({ id }) => id === 'role')?.value).data
+  const status = UserStatus.safeParse(columnFilters.find(({ id }) => id === 'status')?.value).data
+  const q = globalFilter.trim()
+  const params: ListUsersParams = {
+    ...(q === '' ? {} : { q }),
+    ...(role === undefined ? {} : { role }),
+    ...(status === undefined ? {} : { status }),
+    ...(sort === undefined ? {} : { sort, order: sorted?.desc === true ? 'desc' : 'asc' }),
+    // 테이블은 페이지를 0부터, 명세는 1부터 센다.
+    page: pagination.pageIndex + 1,
+    pageSize: pagination.pageSize,
+  }
   const { data, isError, isPlaceholderData } = useQuery({
-    ...listUsersQueryOptions(toListUsersParams({ sorting, columnFilters, globalFilter, pagination })),
+    ...listUsersQueryOptions(params),
     // 다음 결과를 받는 동안 지금 결과를 그대로 보여 준다.
     placeholderData: keepPreviousData,
   })
@@ -172,6 +147,15 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
     sortDescFirst: false,
   })
 
+  // 받은 페이지가 거른 사용자 가운데 몇 번째부터 몇 번째까지인지 알린다.
+  let summary: string
+  if (data === undefined) summary = isError ? '' : '사용자를 불러오는 중입니다.'
+  else if (data.total === 0) summary = NO_MATCH_MESSAGE
+  else {
+    const first = (data.page - 1) * data.pageSize + 1
+    summary = `사용자 ${String(data.total)}명 중 ${String(first)}–${String(first + data.items.length - 1)}번째`
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
@@ -195,7 +179,7 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
         <Select
           label="역할"
           options={ROLE_FILTER_OPTIONS}
-          value={roleFilterOf(columnFilters) ?? ALL}
+          value={role ?? ALL}
           className="w-40"
           onValueChange={(value) => {
             table.getColumn('role')?.setFilterValue(Role.safeParse(value).data)
@@ -204,14 +188,14 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
         <Select
           label="상태"
           options={STATUS_FILTER_OPTIONS}
-          value={statusFilterOf(columnFilters) ?? ALL}
+          value={status ?? ALL}
           className="w-40"
           onValueChange={(value) => {
             table.getColumn('status')?.setFilterValue(UserStatus.safeParse(value).data)
           }}
         />
       </div>
-      <p role="status">{data === undefined ? (isError ? '' : '사용자를 불러오는 중입니다.') : pageSummary(data)}</p>
+      <p role="status">{summary}</p>
       {isError && <p role="alert">사용자 목록을 불러오지 못했습니다.</p>}
       {data !== undefined && !isError && (
         <>
@@ -294,15 +278,5 @@ export function UserTable({ canEdit = false }: Readonly<{ canEdit?: boolean }>) 
         </>
       )}
     </div>
-  )
-}
-
-/** 정렬 방향을 보여 주는 장식용 아이콘. 스크린 리더는 열 머리글의 aria-sort로 정렬 방향을 듣는다. */
-function SortIcon({ direction }: Readonly<{ direction: SortDirection | false }>) {
-  const path = { asc: 'm4 10 4-4 4 4', desc: 'm4 6 4 4 4-4', none: 'm5 6 3-3 3 3M5 10l3 3 3-3' }[direction || 'none']
-  return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-4">
-      <path d={path} />
-    </svg>
   )
 }
