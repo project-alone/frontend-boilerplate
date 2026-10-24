@@ -378,10 +378,9 @@ function generateMutation(starter: Starter, operationId: string, { optimistic = 
 
 /**
  * CHECKED_FORMS를 뮤테이션 훅과 함께 만든 Starter가 생성 직후 그대로 타입 검사, lint, 포맷 검사를 통과하고, 생성된 테스트
- * (제출 성공, 검증 실패)와 스토리(접근성 검사)가 실제로 실행되어 통과하는지 본다. storybookRuns는 스토리 하나가 실행되는 횟수다
- * (dark-mode Recipe는 두 테마에서 한 번씩).
+ * (제출 성공, 처음 화면과 검증 오류 화면의 접근성, 검증 실패)가 실제로 실행되어 통과하는지 본다.
  */
-function expectGeneratedFormsToPassStarterChecks(starter: Starter, { storybookRuns }: { storybookRuns: number }): void {
+function expectGeneratedFormsToPassStarterChecks(starter: Starter): void {
   generate(starter, ['query', OPTIMISTIC_QUERY])
   for (const { operationId, feature, optimistic } of CHECKED_FORMS) {
     generateMutation(starter, operationId, { optimistic })
@@ -391,12 +390,10 @@ function expectGeneratedFormsToPassStarterChecks(starter: Starter, { storybookRu
   for (const script of ['typecheck', 'lint', 'format:check']) starter.expectNpmSuccess(['run', script])
   const unit = runVitestScript(starter, ['test'])
   for (const { stem } of CHECKED_FORMS) expectFileToPass(unit, `${stem}.test.tsx`, 1)
-  const storybook = runVitestScript(starter, ['run', 'test:storybook'])
-  for (const { stem } of CHECKED_FORMS) expectFileToPass(storybook, `${stem}.stories.tsx`, storybookRuns)
 }
 
 describe('server Starter', () => {
-  const starter = useStarter({ prefix: 'dcgen-g-form-', install: true, playwright: true })
+  const starter = useStarter({ prefix: 'dcgen-g-form-', install: true })
   const featuresTree = () => readTree(join(starter.dir, FEATURES_DIR))
 
   beforeAll(() => {
@@ -416,7 +413,7 @@ describe('server Starter', () => {
     expect(featuresTree()).toEqual(before)
   })
 
-  test('dcgen g form은 요청 본문 스키마로 검증하고 뮤테이션 훅으로 보내는 폼과 스토리, 테스트를 Feature에 만든다', async () => {
+  test('dcgen g form은 요청 본문 스키마로 검증하고 뮤테이션 훅으로 보내는 폼과 테스트를 Feature에 만들고, 스토리는 만들지 않는다', async () => {
     generate(starter, ['mutation', 'registerMember'])
 
     const result = dcgen(starter, ['g', 'form', 'registerMember', '--feature', 'members'])
@@ -426,13 +423,11 @@ describe('server Starter', () => {
     // 입력 요소로 만들 수 없는 선택 필드는 빼고 알린다.
     expect(result.output).toContain('입력 요소로 만들지 않은 선택 필드: interests(배열)')
     expect(Object.keys(readTree(join(starter.dir, FEATURES_DIR, 'members'))).sort()).toEqual([
-      'register-member-form.stories.tsx',
       'register-member-form.test.tsx',
       'register-member-form.tsx',
     ])
     await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, [
       'register-member-form.tsx',
-      'register-member-form.stories.tsx',
       'register-member-form.test.tsx',
     ])
   })
@@ -449,15 +444,12 @@ describe('server Starter', () => {
     ])
   })
 
-  test('비워 두면 실패하는 필수 입력이 없는 폼은 길이 규칙에 맞지 않는 값으로 검증 실패를 테스트하고 스토리로 보인다', async () => {
+  test('비워 두면 실패하는 필수 입력이 없는 폼은 길이 규칙에 맞지 않는 값으로 검증 실패를 테스트한다', async () => {
     generate(starter, ['mutation', 'updateMemberProfile'])
 
     generate(starter, ['form', 'updateMemberProfile', '--feature', 'members'])
 
-    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, [
-      'update-member-profile-form.test.tsx',
-      'update-member-profile-form.stories.tsx',
-    ])
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/members`, ['update-member-profile-form.test.tsx'])
   })
 
   test('null을 받는 필드는 같은 입력 요소로 받고, 비워 둔 필수 필드는 null로, 비워 둔 선택 필드는 빼고 보내는지 테스트한다', async () => {
@@ -489,14 +481,13 @@ describe('server Starter', () => {
     await expectFilesToMatchSnapshots(starter, SNAPSHOTS, `${FEATURES_DIR}/product-reviews`, [
       'create-product-review-form.tsx',
       'update-review-form.tsx',
-      'update-review-form.stories.tsx',
       'update-review-form.test.tsx',
     ])
   })
 
   test.each([
     {
-      problem: '생성한 테스트와 스토리가 넘길 값을 정할 수 없는 타입의 필수 인자를 받는 뮤테이션 훅',
+      problem: '생성한 테스트가 넘길 값을 정할 수 없는 타입의 필수 인자를 받는 뮤테이션 훅',
       operationId: 'createProduct',
       hook: 'useCreateProductMutation',
       parameters: 'filter: { q: string }',
@@ -570,28 +561,25 @@ describe('server Starter', () => {
     expect(featuresTree()).toEqual(before)
   })
 
-  test('form Schematic이 만든 코드로 Starter의 타입 검사, lint, 포맷 검사, 테스트, 스토리 접근성 검사가 모두 통과한다', () => {
-    expectGeneratedFormsToPassStarterChecks(starter, { storybookRuns: 1 })
+  test('form Schematic이 만든 코드로 Starter의 타입 검사, lint, 포맷 검사, 테스트(접근성 검사 포함)가 모두 통과한다', () => {
+    expectGeneratedFormsToPassStarterChecks(starter)
   })
 })
 
 // 폼은 Rendering Mode에 따라 요청이 가는 곳(static-export는 브라우저가 백엔드를 직접 부른다)이 다르므로 static-export Starter에서도
-// 생성한 테스트가 통과하는지 보고, dark-mode Recipe가 스토리를 라이트 모드와 다크 모드 브라우저에서 한 번씩 실행하므로
-// 오류가 보이는 폼의 접근성 검사(색 대비 등)를 두 테마에서 함께 본다.
-describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
+// 생성한 테스트가 통과하는지 본다.
+describe('static-export Starter', () => {
   const starter = useStarter({
-    prefix: 'dcgen-g-form-static-dark-',
+    prefix: 'dcgen-g-form-static-',
     renderingMode: 'static-export',
-    recipes: ['dark-mode'],
     install: true,
-    playwright: true,
   })
 
   beforeAll(() => {
     addOperations(starter, HARNESS_OPERATIONS)
   })
 
-  test('form Schematic이 만든 코드로 Starter의 검사가 모두 통과하고, 스토리가 두 테마에서 접근성 검사를 통과한다', () => {
-    expectGeneratedFormsToPassStarterChecks(starter, { storybookRuns: 2 })
+  test('form Schematic이 만든 코드로 Starter의 검사가 모두 통과한다', () => {
+    expectGeneratedFormsToPassStarterChecks(starter)
   })
 })

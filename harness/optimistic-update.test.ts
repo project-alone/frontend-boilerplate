@@ -76,10 +76,6 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
       if (!alone) expectFileToPass(report, 'theme.test.ts', 1)
     })
 
-    test.runIf(alone)('스토리 검사를 통과한다', () => {
-      starter.expectNpmSuccess(['run', 'test:storybook'])
-    })
-
     test('빌드하면 /todos는 할 일 없이 페이지 뼈대를 미리 만든다', () => {
       const result = starter.expectNpmSuccess(['run', 'build'])
 

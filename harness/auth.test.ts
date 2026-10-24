@@ -49,7 +49,7 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
     playwright: true,
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트(동시에 여러 요청이 401을 받아도 refresh는 한 번), 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(동시에 여러 요청이 401을 받아도 refresh는 한 번, 로그인 폼과 사용자 메뉴의 접근성)를 통과한다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
@@ -64,10 +64,10 @@ describe('Rendering Mode server에 auth Recipe를 넣은 Starter', () => {
       // 목 백엔드의 사용자 저장소: 바꾼 역할은 목 백엔드가 바로, 세션은 refresh하거나 다시 로그인할 때 받는다.
       'auth-mock-handlers.test.ts',
       'login-form.test.tsx',
+      'user-menu.test.tsx',
     ]) {
       expectFileToPass(report, file, 1)
     }
-    starter.expectNpmSuccess(['run', 'test:storybook'])
   })
 
   test('빌드를 통과하고, 빌드한 앱에서 E2E(로그인, 보호된 라우트와 역할, 토큰 만료 뒤 자동 refresh, 로그아웃)가 통과한다', async () => {

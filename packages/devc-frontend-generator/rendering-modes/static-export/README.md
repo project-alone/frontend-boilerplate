@@ -25,7 +25,7 @@ API_MOCKING=enabled npm run build  # 목 빌드: 빌드할 때의 요청에 MSW�
 
 `.gitlab-ci.yml`이 들어 있어 사내 GitLab에 저장소를 올리면 바로 파이프라인이 돕니다. 잡은 모두 위의 npm 스크립트를 부르므로 실패한 잡은 로컬에서 같은 명령으로 재현할 수 있습니다.
 
-- 단계: `check`(`lint`, `format:check`, `typecheck`, `test`, `test:storybook`) → `build` → `e2e`(`test:e2e`). `build` 잡은 `API_MOCKING=enabled`로 목 빌드를 만들어 실제 백엔드 없이 빌드가 깨지지 않는지 확인하고, 결과는 배포하지 않으므로 남기지 않습니다. 빌드 캐시에 목 응답이 남지 않도록 `.next/cache/fetch-cache`도 지웁니다. `e2e` 잡은 브라우저의 MSW까지 켜고 직접 다시 빌드한 결과로 돕니다(위 "실행과 배포").
+- 단계: `check`(`lint`, `format:check`, `typecheck`, `test`) → `build` → `e2e`(`test:e2e`). `build` 잡은 `API_MOCKING=enabled`로 목 빌드를 만들어 실제 백엔드 없이 빌드가 깨지지 않는지 확인하고, 결과는 배포하지 않으므로 남기지 않습니다. 빌드 캐시에 목 응답이 남지 않도록 `.next/cache/fetch-cache`도 지웁니다. `e2e` 잡은 브라우저의 MSW까지 켜고 직접 다시 빌드한 결과로 돕니다(위 "실행과 배포").
 - 배포 파이프라인을 더할 때는 `API_MOCKING`을 켜지 않고 `API_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`을 CI/CD 변수로 넣은 잡에서 배포용 빌드를 따로 만들고 `out/`을 올립니다(위 "배포용 빌드와 목 빌드").
 - 설치는 `npm ci`로 하므로 `package-lock.json`을 함께 커밋합니다. `dcgen new`가 Starter를 만들며 설치할 때 생기고, `--skip-install`로 만들었다면 처음 `npm install`할 때 생깁니다.
 - Node는 `.nvmrc`와 같은 버전의 `node` 이미지를 씁니다. `.nvmrc`를 바꾸면 `.gitlab-ci.yml`의 `image`도 함께 바꿉니다. 이미지를 쓰므로 Docker(또는 Kubernetes) executor 러너가 필요합니다.

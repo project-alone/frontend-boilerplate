@@ -14,6 +14,12 @@ export const RECIPE_MANIFEST = 'recipe.json'
 /** Archetype의 선언 파일. Recipe의 선언 파일처럼 Starter에 덧입히지 않는다. */
 export const ARCHETYPE_MANIFEST = 'archetype.json'
 
+/**
+ * overlay 최상위의 이 디렉터리에는 Storybook을 더할 때 덧입힐 overlay를 둔다(ADR-0014). Starter를 만들 때는 덧입히지 않고,
+ * `dcgen g story`가 Starter에 Storybook을 더할 때 덧입힌다(storybook.ts).
+ */
+export const STORYBOOK_OVERLAY_DIR = 'storybook'
+
 const MANIFESTS = [RECIPE_MANIFEST, ARCHETYPE_MANIFEST]
 // 지울 Base의 경로 목록. 덧입히는 파일이 아니라 지울 경로를 적는다.
 const REMOVE_LIST = 'remove.txt'
@@ -49,6 +55,7 @@ export class OverlayError extends Error {
  * - `<경로>.patch`: Starter의 `<경로>` 파일에 unified diff를 적용한다. 맥락 줄이 맞지 않으면 실패한다.
  * - 최상위의 skip에 적힌 파일: 덧입히지 않는다. 확장 지점의 선언과 명세 조각처럼 모든 overlay를 덧입힌 뒤에 한꺼번에
  *   조립하는 파일이다(create-starter.ts).
+ * - 최상위의 `storybook/` 아래 파일: 덧입히지 않는다. Storybook을 더할 때 덧입히는 overlay다(STORYBOOK_OVERLAY_DIR).
  * - 그 밖의 파일: Starter에 더한다. 같은 경로의 파일이 있으면 대신한다.
  */
 export async function applyOverlay(
@@ -56,12 +63,9 @@ export async function applyOverlay(
   { dir: overlay, label }: Overlay,
   skip: readonly string[],
 ): Promise<void> {
-  const entries = await readdir(overlay, { recursive: true, withFileTypes: true })
-  const paths = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(overlay, join(entry.parentPath, entry.name)))
-    .filter((path) => !MANIFESTS.includes(path) && !skip.includes(path))
-    .sort()
+  const paths = (await overlayFiles(overlay)).filter(
+    (path) => !MANIFESTS.includes(path) && !skip.includes(path) && !path.startsWith(`${STORYBOOK_OVERLAY_DIR}/`),
+  )
   if (paths.includes(REMOVE_LIST)) {
     await removePaths(target, await readFile(join(overlay, REMOVE_LIST), 'utf8'), label)
   }
@@ -75,7 +79,7 @@ export async function applyOverlay(
       const readme = join(target, path)
       await writeFile(readme, mergeMarkdownSections(await readFile(readme, 'utf8'), await readFile(source, 'utf8')))
     } else if (path.endsWith(PATCH_SUFFIX)) {
-      await patchFile(target, path.slice(0, -PATCH_SUFFIX.length), await readFile(source, 'utf8'), label)
+      await patchFile(target, overlayTarget(path), await readFile(source, 'utf8'), label)
     } else if (isDotenvFile(path)) {
       const file = join(target, path)
       await writeFile(file, mergeDotenv((await readOptionalFile(file)) ?? '', await readFile(source, 'utf8')))
@@ -83,6 +87,20 @@ export async function applyOverlay(
       await cp(source, join(target, path))
     }
   }
+}
+
+/** overlay 디렉터리 안의 모든 파일. 경로는 overlay 기준이고 이름순이다. */
+export async function overlayFiles(overlay: string): Promise<string[]> {
+  const entries = await readdir(overlay, { recursive: true, withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(overlay, join(entry.parentPath, entry.name)))
+    .sort()
+}
+
+/** overlay의 파일 path가 Starter에서 바꾸는 파일. 패치(`<경로>.patch`)는 `<경로>`를 바꾼다. */
+export function overlayTarget(path: string): string {
+  return path.endsWith(PATCH_SUFFIX) ? path.slice(0, -PATCH_SUFFIX.length) : path
 }
 
 async function patchFile(target: string, path: string, patch: string, label: string): Promise<void> {

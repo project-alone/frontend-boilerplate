@@ -5,7 +5,7 @@ import { freePort } from './run.ts'
 import { buildRouteLine, expectFileToPass, readTree, runVitestScript, useStarter } from './starter.ts'
 
 // 하네스 매트릭스: Base에 랜딩 Archetype을 넣은 Starter를 지원하는 Rendering Mode(server, static-export)마다 만들어, Starter 자신의
-// 스크립트와 Archetype이 함께 넣은 테스트(locale마다 콘텐츠를 돌려주는 목 백엔드, 랜딩 화면, 스토리, e2e/landing.spec.ts)가
+// 스크립트와 Archetype이 함께 넣은 테스트(locale마다 콘텐츠를 돌려주는 목 백엔드, 랜딩 화면과 그 접근성, e2e/landing.spec.ts)가
 // Archetype이 쓰는 Recipe(i18n, seo)의 테스트와 함께 통과하는지 본다. 모든 Recipe·Archetype을 켠 조합은 showcase-starter.test.ts가 본다.
 
 // 배포용 빌드에 넣는 사이트 주소(seo Recipe). 백엔드 주소(API_BASE_URL)는 넣지 않고, 하네스를 띄운 셸에 있어도 비운다.
@@ -48,7 +48,7 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 랜딩
     expect(readTree(landing)).toEqual(archetype)
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트(locale마다 다른 콘텐츠, 섹션과 자주 묻는 질문), 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(locale마다 다른 콘텐츠, 섹션과 자주 묻는 질문, 접근성)를 통과한다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
@@ -62,9 +62,6 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 랜딩
     ]) {
       expectFileToPass(report, file, 1)
     }
-
-    const stories = runVitestScript(starter, ['run', 'test:storybook'])
-    expectFileToPass(stories, 'src/features/landing/landing.stories.tsx', 1)
   })
 
   test('배포용 빌드는 빌드할 때 콘텐츠를 가져올 백엔드 주소(API_BASE_URL)가 없으면 알리며 실패한다', () => {

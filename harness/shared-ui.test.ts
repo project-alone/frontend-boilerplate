@@ -1,10 +1,10 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { freePort, start, waitForServer } from './run.ts'
-import { runPlaywrightAgainst, useStarter } from './starter.ts'
+import { runPlaywrightAgainst, runVitestScript, useStarter } from './starter.ts'
 
-// Base가 갖춘 공통 UI 컴포넌트. 컴포넌트마다 src/shared/ui/<이름>.stories.tsx 스토리가 있다.
+// Base가 갖춘 공통 UI 컴포넌트. 컴포넌트마다 src/shared/ui/<이름>.test.tsx 컴포넌트 테스트(상호작용, 접근성)가 있다.
 const COMPONENTS = ['button', 'field', 'input', 'select', 'checkbox', 'dialog', 'toast']
 
 // 디자이너가 넘겨준 새 토큰 값을 흉내 낸다. 이름공간마다 모든 토큰을 같은 값으로 바꿔서,
@@ -123,7 +123,7 @@ const VISIT_UI_STATES_SOURCE = `async function visitUiStates(page: Page, check: 
 }`
 
 // 브라우저에서 실행하는 검사. root와 그 안의 요소마다 계산된 스타일이 디자이너의 토큰 값만 쓰는지 보고,
-// 어긋난 것을 모아 돌려준다. E2E 테스트와 Storybook 스토리에 같은 코드를 넣는다.
+// 어긋난 것을 모아 돌려준다. 빌드된 앱과 개발 서버를 검사하는 E2E 테스트에 같은 코드를 넣는다.
 const OFF_TOKEN_STYLES_SOURCE = `function offTokenStyles(root: Element): string[] {
   const design = ${JSON.stringify(DESIGNER_STYLE)}
   const transparent = 'rgba(0, 0, 0, 0)'
@@ -165,24 +165,13 @@ beforeAll(() => {
 })
 
 describe('공통 UI 컴포넌트', () => {
-  test('컴포넌트마다 스토리가 있고, 모든 스토리가 접근성(axe)·상호작용 검사를 통과한다', () => {
-    const report = join(starter.workdir, 'storybook-report.json')
-    starter.expectNpmSuccess([
-      'run',
-      'test:storybook',
-      '--',
-      '--reporter=default',
-      '--reporter=json',
-      `--outputFile.json=${report}`,
-    ])
+  test('컴포넌트마다 컴포넌트 테스트가 있고, 모든 테스트가 상호작용·접근성(axe) 검사를 통과한다', () => {
+    const { testResults } = runVitestScript(starter, ['test'])
 
-    const { testResults } = JSON.parse(readFileSync(report, 'utf8')) as {
-      testResults: { name: string; status: string; assertionResults: unknown[] }[]
-    }
     for (const component of COMPONENTS) {
-      const file = testResults.find(({ name }) => name.endsWith(`/src/shared/ui/${component}.stories.tsx`))
-      expect.soft(file, `${component} 스토리`).toMatchObject({ status: 'passed' })
-      expect.soft(file?.assertionResults.length ?? 0, `${component} 스토리 수`).toBeGreaterThan(0)
+      const file = testResults.find(({ name }) => name.endsWith(`/src/shared/ui/${component}.test.tsx`))
+      expect.soft(file, `${component} 테스트`).toMatchObject({ status: 'passed' })
+      expect.soft(file?.assertionResults.length ?? 0, `${component} 테스트 수`).toBeGreaterThan(0)
     }
   })
 
@@ -297,39 +286,6 @@ test('공통 컴포넌트는 디자이너의 토큰 값만 쓴다', async ({ pag
       expect(result.status, `${result.output}\n${devServer.output()}`).toBe(0)
     } finally {
       await devServer.stop()
-    }
-  })
-
-  test('Storybook의 공통 컴포넌트가 바뀐 토큰 값을 따른다', () => {
-    const story = `src/app${UI_ROUTE}/page.stories.tsx`
-    starter.writeFile(
-      story,
-      `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect } from 'storybook/test'
-import HarnessUiPage from './page'
-
-${OFF_TOKEN_STYLES_SOURCE}
-
-const meta = {
-  component: HarnessUiPage,
-  // 모든 색을 한 값으로 바꿨으므로 명도 대비 검사는 이 스토리에서 끈다.
-  parameters: { a11y: { test: 'off' } },
-} satisfies Meta<typeof HarnessUiPage>
-
-export default meta
-
-export const Default: StoryObj<typeof meta> = {
-  play: async ({ canvasElement }) => {
-    await expect(offTokenStyles(canvasElement)).toEqual([])
-  },
-}
-`,
-    )
-
-    try {
-      starter.expectNpmSuccess(['run', 'test:storybook', '--', story])
-    } finally {
-      rmSync(join(starter.dir, story))
     }
   })
 })

@@ -32,7 +32,8 @@ recipes/<이름>/
 ├── README.md        Starter의 README.md에 덧입힐 절
 ├── remove.txt       Starter에서 지울 경로
 ├── <경로>.patch     Starter의 기존 파일 <경로>를 고치는 unified diff (설정 패치)
-└── <경로>           그 밖의 파일: Starter의 <경로>에 더한다 (Recipe의 코드, 스토리, 테스트)
+├── storybook/       Storybook을 더할 때(dcgen g story) 덧입힐 overlay. Starter를 만들 때는 덧입히지 않는다
+└── <경로>           그 밖의 파일: Starter의 <경로>에 더한다 (Recipe의 코드, 테스트)
 ```
 
 Starter의 도구 설정(Vitest, Playwright, orval)은 `config/`에, 환경 변수의 타입 선언은 `types/`에 있으므로, 그 파일을 고치는 패치와 Recipe의 선언 파일도 같은 경로에 둔다(예: `config/vitest.config.ts.patch`, `types/process-env.<이름>.d.ts`). Starter 최상위에는 도구가 최상위에서만 찾는 설정(`next.config.ts`, `postcss.config.mjs`, `eslint.config.ts`, `tsconfig.json`)만 둔다.
@@ -64,7 +65,7 @@ Recipe의 코드와 테스트는 Starter의 같은 경로에 새 파일로 더�
 
 ### 설정 패치(`<경로>.patch`)
 
-Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `.storybook/preview.tsx.patch`, `config/vitest.config.ts.patch`. 패치 하나는 파일 하나만 고친다. 사본 대신 패치를 쓰는 이유는 ADR-0007에 있다. 확장 지점이 있는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`의 래퍼, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수 파일)는 패치하지 않는다. 같은 자리를 패치하는 Recipe끼리는 Showcase에서 함께 켤 수 없다(ADR-0010).
+Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 unified diff를 `<경로>.patch`로 둔다. 예: `src/shared/ui/styles.css.patch`, `config/vitest.config.ts.patch`. 패치 하나는 파일 하나만 고친다. 사본 대신 패치를 쓰는 이유는 ADR-0007에 있다. 확장 지점이 있는 자리(루트 레이아웃의 Provider와 머리글, proxy, `next.config`의 래퍼, instrumentation, 서버가 백엔드로 보내는 요청, MSW 핸들러 목록, OpenAPI 명세, 환경 변수 파일)는 패치하지 않는다. 같은 자리를 패치하는 Recipe끼리는 Showcase에서 함께 켤 수 없다(ADR-0010).
 
 - 패치는 덧입히는 시점의 Starter 파일, 곧 Base에 Rendering Mode와 앞서 덧입힌 Recipe가 적용된 파일에 적용된다. 줄 번호가 달라도 맥락 줄이 맞는 곳을 찾아 적용하지만, 맥락 줄이 맞지 않으면 생성이 어느 패치인지 알리며 실패하고 만들던 Starter를 지운다.
 - Recipe가 지원하는 모든 Rendering Mode에서 맞아야 한다. Rendering Mode가 패치로 고치는 파일(`rendering-modes/<mode>/`의 `<경로>.patch`)은 Rendering Mode마다 내용이 다르므로 되도록 고치지 않는다.
@@ -76,8 +77,8 @@ Base의 기존 파일(설정 파일 등)을 고칠 때는 그 파일에 대한 u
 npm run build -w devc-frontend-generator
 node packages/devc-frontend-generator/dist/cli.js new /tmp/try --skip-install   # 필요하면 --rendering-mode, --recipe
 cd /tmp/try && git add -A && git commit -qm base   # dcgen new가 만든 git 저장소에 처음 상태를 커밋한다
-# /tmp/try/.storybook/preview.tsx를 고친 뒤
-git diff -- .storybook/preview.tsx > <레포>/packages/devc-frontend-generator/recipes/<이름>/.storybook/preview.tsx.patch
+# /tmp/try/src/shared/ui/styles.css를 고친 뒤
+git diff -- src/shared/ui/styles.css > <레포>/packages/devc-frontend-generator/recipes/<이름>/src/shared/ui/styles.css.patch
 ```
 
 `diff -u --label a/<경로> --label b/<경로> <원래 파일> <고친 파일>`로 만들어도 된다. 편집기가 맥락 줄의 끝 공백을 지워도 적용된다.
@@ -90,13 +91,22 @@ Starter의 `package.json`에 합친다. 객체(`dependencies`, `scripts` 등)는
 
 `## ` 제목으로 시작하는 절만 담는다. Starter의 README에 같은 제목의 절이 있으면 그 절을 바꾸고, 없으면 끝에 덧붙인다. Recipe가 무엇을 더했는지, 어떻게 쓰고 바꾸는지, 어떤 테스트가 들어 있는지 적는다.
 
+### Storybook 설정(`storybook/`)
+
+Starter에는 Storybook이 없고, 사용자가 `dcgen g story`로 처음 스토리를 만들 때 더해진다(ADR-0014). 그때 Recipe가 Storybook 설정에 끼어들어야 하면(예: dark-mode의 테마 툴바) overlay 최상위의 `storybook/` 아래에 같은 overlay 형식으로 둔다. `dcgen new`는 이 디렉터리를 덧입히지 않는다.
+
+- `g story`는 Base의 `base/storybook/`(`.storybook/`의 설정, `package.json`의 의존성과 스크립트, README의 "Storybook" 절)을 덧입힌 뒤, Starter에 들어 있는 Rendering Mode·Recipe·Archetype의 `storybook/`을 `dcgen new`와 같은 순서로 덧입힌다. 그래서 Recipe의 패치는 `base/storybook/`의 파일을 기준으로 만든다(예: `recipes/dark-mode/storybook/.storybook/preview.tsx.patch`).
+- Starter는 고른 Recipe를 기록하지 않으므로, Recipe의 `storybook/`은 그 안의 파일(패치는 더하는 줄)이 import하는 Starter 모듈(`@/...`)이 Starter에 모두 있을 때만 덧입힌다. Starter 모듈을 하나도 import하지 않으면 Generator가 잘못된 선언으로 보고 실패한다.
+- `config/vitest.config.ts`, `tsconfig.json`, `.gitlab-ci.yml` 같은 프로젝트가 고쳤을 수 있는 파일에는 패치를 두지 않는다. Storybook에 필요한 항목은 Generator가 구조를 읽어 더한다(`src/storybook.ts`).
+- 스토리는 Recipe에 두지 않는다. 컴포넌트의 상호작용과 상태마다의 접근성은 컴포넌트 테스트가, 실제 브라우저가 있어야 하는 검사는 E2E가 맡는다([테스트](#테스트)).
+
 ### remove.txt
 
 Starter에서 지울 경로를 한 줄에 하나씩 적는다. `#`으로 시작하는 줄은 주석이다. 적힌 경로가 Starter에 없으면 생성이 실패한다.
 
 ### dotfile
 
-npm은 패키지를 만들 때 `.gitignore`와 `.npmrc`를 뺀다. 특히 `.gitignore`는 그 디렉터리의 파일을 빼는 규칙으로 쓰이므로 Recipe에 두지 않는다. Starter의 `.gitignore`를 고치려면 `.gitignore.patch`를 쓴다. `.storybook/`, `.env.*`, `.gitlab-ci.yml` 같은 다른 dotfile은 그대로 담긴다. `.env.*`는 Starter의 같은 파일을 대신하지 않고 변수 단위로 병합된다([환경 변수](#환경-변수)).
+npm은 패키지를 만들 때 `.gitignore`와 `.npmrc`를 뺀다. 특히 `.gitignore`는 그 디렉터리의 파일을 빼는 규칙으로 쓰이므로 Recipe에 두지 않는다. Starter의 `.gitignore`를 고치려면 `.gitignore.patch`를 쓴다. `.env.*`, `.gitlab-ci.yml` 같은 다른 dotfile은 그대로 담긴다. `.env.*`는 Starter의 같은 파일을 대신하지 않고 변수 단위로 병합된다([환경 변수](#환경-변수)).
 
 ## 확장 지점
 
@@ -293,7 +303,7 @@ overlay의 dotenv 파일(`.env`, `.env.<이름>`)은 Starter의 같은 파일을
 
 ## 코드 규칙
 
-Recipe가 더한 파일은 Starter의 일부로 검사된다. 생성 직후의 Starter가 `typecheck`, `lint`, `format:check`, `test`, `test:storybook`, `build`, `test:e2e`를 모두 통과해야 한다. `build`는 Starter의 GitLab CI처럼 목 빌드(`API_MOCKING=enabled`, ADR-0011)를 말한다. 배포할 때만 정해지는 값(seo의 사이트 주소 등)이 없으면 배포용 빌드는 실패해도 되지만, 목 빌드는 그 값 없이도 통과해야 한다.
+Recipe가 더한 파일은 Starter의 일부로 검사된다. 생성 직후의 Starter가 `typecheck`, `lint`, `format:check`, `test`, `build`, `test:e2e`를 모두 통과해야 한다. dark-mode처럼 Storybook 설정에 끼어드는 Recipe는 `g story`로 Storybook을 더한 Starter의 `test:storybook`도 통과해야 한다. `build`는 Starter의 GitLab CI처럼 목 빌드(`API_MOCKING=enabled`, ADR-0011)를 말한다. 배포할 때만 정해지는 값(seo의 사이트 주소 등)이 없으면 배포용 빌드는 실패해도 되지만, 목 빌드는 그 값 없이도 통과해야 한다.
 
 - import 방향(`app → features → queries → shared`)과 폴더 깊이(`src/<계층>/<이름>/<파일>`)를 지킨다(ADR-0005). 예: 테마 적용은 `src/shared/theme/`, 전환 UI는 `src/features/theme-switcher/`.
 - 서버에서만 실행되는 모듈은 `import 'server-only'`로, 컴포넌트가 아니면서 브라우저에서만 실행되는 모듈(instrumentation-client 조각 등)은 `import 'client-only'`로 시작한다. 쿠키·`next/headers`, 세션 암호화, 서버 전용 환경 변수의 비밀 값, `msw/node`, Node.js 내장 모듈을 쓰거나 백엔드를 직접 부르는 모듈이 서버 전용이다. `src/app`의 파일, proxy·instrumentation 조립 파일은 Next.js가 위치로 구분하므로 표시하지 않는다. `'use server'`는 Server Function을 여는 지시어이므로 서버 전용 표시로 쓰지 않는다. 표시한 모듈은 Next.js 밖(E2E, `next.config` 래퍼, `config/`의 설정)에서 import할 수 없으므로, 그런 곳이 쓰는 값은 표시하지 않은 모듈에 둔다(예: auth의 `SESSION_COOKIE`는 `auth-client.ts`). `client-only`를 쓰는 Recipe는 `package.json`에 의존성으로 더한다(`server-only`는 Base에 있다). 하네스 `harness/server-only.test.ts`가 표시를 검사한다.
@@ -305,15 +315,16 @@ Recipe가 더한 파일은 Starter의 일부로 검사된다. 생성 직후의 S
 
 Recipe는 자기 테스트를 Starter에 함께 넣는다. Starter의 스크립트와 GitLab CI가 그대로 실행하므로, Recipe의 동작은 Starter 안에서 검증된다.
 
-| 종류                    | 위치                   | 실행                     |
-| ----------------------- | ---------------------- | ------------------------ |
-| 단위·컴포넌트 테스트    | `src/**/*.test.ts(x)`  | `npm test`               |
-| 스토리(접근성·상호작용) | `src/**/*.stories.tsx` | `npm run test:storybook` |
-| E2E                     | `e2e/*.spec.ts`        | `npm run test:e2e`       |
+| 종류                                                                 | 위치                  | 실행               |
+| -------------------------------------------------------------------- | --------------------- | ------------------ |
+| 단위·컴포넌트 테스트(상호작용, 상태마다의 접근성)                    | `src/**/*.test.ts(x)` | `npm test`         |
+| E2E(실제 브라우저: 페이지의 접근성과 명도 대비, 라이트·다크 모드 등) | `e2e/*.spec.ts`       | `npm run test:e2e` |
+
+컴포넌트가 보일 수 있는 상태(변형, 비활성, 검증 오류, 불러오는 중, 실패 등)마다 컴포넌트 테스트에서 `axeViolations`(`src/shared/a11y/axe-violations.ts`)로 접근성을 검사한다. jsdom은 화면을 그리지 않아 색을 계산하지 못하므로, 명도 대비(dark-mode의 토큰, chart의 선·막대 등)는 그 상태가 보이는 페이지를 E2E가 `@axe-core/playwright`와 직접 잰 값으로 검사한다. 실제 스크롤처럼 jsdom에 없는 브라우저 동작도 E2E가 본다. Recipe는 스토리를 두지 않는다(ADR-0014).
 
 E2E는 모든 Rendering Mode에서 같은 spec이 돌아야 한다. `server`는 빌드 결과를 `next start`로, `static-export`는 다시 빌드한 `out/`을 정적 파일 서버로 띄운다. 모든 Recipe·Archetype을 켠 Showcase에서도 다른 Recipe와 Archetype의 E2E와 함께 돌므로, 다른 Recipe가 더한 화면 요소(예: dark-mode의 머리글)가 있어도 통과하게 쓴다.
 
-레포의 하네스(`harness/`)에는 Recipe마다 조합 매트릭스 테스트를 더한다. 지원하는 Rendering Mode마다 Recipe를 넣은 Starter를 만들고 Starter의 스크립트를 실행한다. `harness/dark-mode.test.ts`처럼 `useStarter({ prefix: 'dcgen-<이름>-', renderingMode, recipes: ['<이름>'], install: true, playwright: true })`를 쓴다(`playwright`는 `test:storybook`과 `test:e2e`가 쓰는 Chromium을 받는다). 지원하지 않는 조합의 거부와 `requires`는 `recipe.json`만으로 동작하므로 Recipe마다 따로 시험하지 않아도 된다(`harness/recipes.test.ts`가 시험용 Recipe로 검증한다). 확장 지점의 조립과 병합도 마찬가지다(`harness/extension-points.test.ts`). Recipe의 하네스는 자기 조각이 Starter에서 동작하는지만 본다. Starter의 스크립트로 검사할 수 없는 조각(예: Docker가 있어야 만드는 `docker` Recipe의 이미지)은 Recipe의 하네스가 대신 검사하고, Starter의 README에 사람이 확인하는 방법을 적는다.
+레포의 하네스(`harness/`)에는 Recipe마다 조합 매트릭스 테스트를 더한다. 지원하는 Rendering Mode마다 Recipe를 넣은 Starter를 만들고 Starter의 스크립트를 실행한다. `harness/dark-mode.test.ts`처럼 `useStarter({ prefix: 'dcgen-<이름>-', renderingMode, recipes: ['<이름>'], install: true, playwright: true })`를 쓴다(`playwright`는 `test:e2e`가 쓰는 Chromium을 받는다). 지원하지 않는 조합의 거부와 `requires`는 `recipe.json`만으로 동작하므로 Recipe마다 따로 시험하지 않아도 된다(`harness/recipes.test.ts`가 시험용 Recipe로 검증한다). 확장 지점의 조립과 병합도 마찬가지다(`harness/extension-points.test.ts`). Recipe의 하네스는 자기 조각이 Starter에서 동작하는지만 본다. Starter의 스크립트로 검사할 수 없는 조각(예: Docker가 있어야 만드는 `docker` Recipe의 이미지)은 Recipe의 하네스가 대신 검사하고, Starter의 README에 사람이 확인하는 방법을 적는다.
 
 ```sh
 npx vitest run harness/<이름>.test.ts   # 하네스는 Generator를 npm pack으로 묶어 설치한 dcgen으로 Starter를 만든다
@@ -355,9 +366,10 @@ Recipe를 더하거나 고친 PR에는 changeset(`npm run changeset`)을 함께 
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | 추가 파일      | `src/shared/ui/tokens-dark.css`, `src/shared/theme/theme.ts`, `theme-script.tsx`, `theme-provider.tsx`, `src/features/theme-switcher/` |
 | 확장 지점      | `extensions.json`: Provider `ThemeProvider`(order 0, 테마 스크립트), 머리글 `ThemeSwitcher`(order 100)                                 |
-| 설정 패치      | `src/shared/ui/styles.css.patch`, `.storybook/preview.tsx.patch`, `config/vitest.config.ts.patch`                                      |
+| 설정 패치      | `src/shared/ui/styles.css.patch`                                                                                                       |
+| Storybook 조각 | `storybook/.storybook/preview.tsx.patch`(테마 툴바), `storybook/.storybook/vitest-project.ts.patch`(다크 모드 브라우저)                |
 | npm 의존성     | 없음(`package.json`을 두지 않는다)                                                                                                     |
-| 자기 테스트    | `src/shared/theme/theme.test.ts`, `theme-switcher.stories.tsx`, `e2e/dark-mode.spec.ts`                                                |
+| 자기 테스트    | `src/shared/theme/theme.test.ts`, `e2e/dark-mode.spec.ts`(전환 UI, 두 테마의 접근성)                                                   |
 | 필요한 Recipe  | 없음                                                                                                                                   |
 | Rendering Mode | `server`, `static-export`                                                                                                              |
 
@@ -394,17 +406,17 @@ TanStack Table로 정렬·필터·페이지를 백엔드가 처리하는 목록 
 
 Recharts로 대시보드용 시계열 차트(일별 방문 수)와 비교 차트(판매 채널별 이번 달·지난달 매출)를 `/charts`에 보여 주는 Recipe다. table처럼 명세 조각으로 통계 operation `listDailyVisits`, `listChannelSales`(tag `stats`)를 더하고, Query Domain(`src/queries/stats/`)은 `npm run g -- query`가 두 operation으로 만든 코드를 그대로 담는다. 차트는 브라우저에서 그리므로 데이터도 브라우저가 가져온다(`useQuery`). 그래서 두 Rendering Mode에서 같은 코드로 동작한다.
 
-차트의 색은 Base 토큰을 더하거나 고치지 않고, `src/shared/chart/chart-theme.ts`가 이미 있는 디자인 토큰(`var(--color-*)`)으로만 정한다. 그래서 `dark-mode`에 기대지 않으면서도 `dark-mode`와 함께 넣으면 고치지 않아도 어두운 테마의 토큰을 따른다. 새 차트도 감쌀 `ChartFigure`는 차트 그림을 보조 기술에서 숨기고(`aria-hidden`) 같은 값을 데이터 표(`sr-only`)로 둔다. axe는 SVG의 선을 보지 않으므로 스토리와 E2E가 선·막대·축 글자의 명도 대비를 직접 잰다.
+차트의 색은 Base 토큰을 더하거나 고치지 않고, `src/shared/chart/chart-theme.ts`가 이미 있는 디자인 토큰(`var(--color-*)`)으로만 정한다. 그래서 `dark-mode`에 기대지 않으면서도 `dark-mode`와 함께 넣으면 고치지 않아도 어두운 테마의 토큰을 따른다. 새 차트도 감쌀 `ChartFigure`는 차트 그림을 보조 기술에서 숨기고(`aria-hidden`) 같은 값을 데이터 표(`sr-only`)로 둔다. axe는 SVG의 선을 보지 않으므로 E2E가 선·막대·축 글자의 명도 대비를 라이트·다크 모드에서 직접 잰다.
 
-| 선언하는 것    | `recipes/chart/`                                                                                                                                                                       |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/charts/page.tsx`, `src/features/stats-charts/`, `src/queries/stats/`, `src/shared/chart/`                                                                                     |
-| 확장 지점      | `openapi.yaml`(명세 조각): `GET /stats/daily-visits`(`listDailyVisits`), `GET /stats/channel-sales`(`listChannelSales`), 스키마 `DailyVisits`, `ChannelSales`                          |
-| 설정 패치      | 없음                                                                                                                                                                                   |
-| npm 의존성     | `recharts`, 그 peer dependency인 `react-is`                                                                                                                                            |
-| 자기 테스트    | `src/features/stats-charts/stats-charts.test.tsx`, `src/shared/chart/chart-contrast.test.ts`, `daily-visits-chart.stories.tsx`, `channel-sales-chart.stories.tsx`, `e2e/chart.spec.ts` |
-| 필요한 Recipe  | 없음                                                                                                                                                                                   |
-| Rendering Mode | `server`, `static-export`                                                                                                                                                              |
+| 선언하는 것    | `recipes/chart/`                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/charts/page.tsx`, `src/features/stats-charts/`, `src/queries/stats/`, `src/shared/chart/`                                                            |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /stats/daily-visits`(`listDailyVisits`), `GET /stats/channel-sales`(`listChannelSales`), 스키마 `DailyVisits`, `ChannelSales` |
+| 설정 패치      | 없음                                                                                                                                                          |
+| npm 의존성     | `recharts`, 그 peer dependency인 `react-is`                                                                                                                   |
+| 자기 테스트    | `src/features/stats-charts/stats-charts.test.tsx`, `src/shared/chart/chart-contrast.test.ts`, `e2e/chart.spec.ts`                                             |
+| 필요한 Recipe  | 없음                                                                                                                                                          |
+| Rendering Mode | `server`, `static-export`                                                                                                                                     |
 
 ## 예: i18n
 
@@ -426,9 +438,9 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 | 추가 파일      | `src/shared/i18n/`(라우팅, 메시지 카탈로그 `ko.json`·`en.json`, next-intl 설정, Provider, proxy 처리기, navigation, locale별 주소), `src/app/[locale]/`(레이아웃, 홈, 다국어 예시 `/[locale]/i18n`), `src/features/home/`(홈 화면), `src/features/locale-switcher/`, `src/features/i18n-example/`, Base의 홈을 대신하는 `src/app/page.tsx` |
 | 확장 지점      | `extensions.json`: Provider `I18nProvider`(order 50), 머리글 `LocaleSwitcher`(order 200), proxy `i18nProxy`(order 200), next.config `withI18n`(order 200, next-intl 플러그인), sitemap 규칙 `i18nSitemapRules`(order 200, locale마다 넣고 기본 locale을 x-default로 알리며 홈 `/`는 뺌)                                                    |
 | 설정 패치      | `config/vitest.config.ts.patch`(next-intl의 proxy를 Vitest가 변환해 불러오게 한다)                                                                                                                                                                                                                                                         |
-| 지우는 경로    | Base 홈의 `src/app/page.test.tsx`, `page.stories.tsx`(`remove.txt`. 홈은 `[locale]` 아래로 옮겼다)                                                                                                                                                                                                                                         |
+| 지우는 경로    | Base 홈의 `src/app/page.test.tsx`(`remove.txt`. 홈은 `[locale]` 아래로 옮겼다)                                                                                                                                                                                                                                                             |
 | npm 의존성     | `next-intl`                                                                                                                                                                                                                                                                                                                                |
-| 자기 테스트    | `src/shared/i18n/messages.test.tsx`, `request.test.ts`, `i18n-proxy.test.ts`, `locale-alternates.test.ts`, `src/features/i18n-example/cart-counter.test.tsx`, `locale-switcher.stories.tsx`, `e2e/i18n.spec.ts`                                                                                                                            |
+| 자기 테스트    | `src/shared/i18n/messages.test.tsx`, `request.test.ts`, `i18n-proxy.test.ts`, `locale-alternates.test.ts`, `src/features/i18n-example/cart-counter.test.tsx`, `e2e/i18n.spec.ts`(locale 전환 UI 포함)                                                                                                                                      |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                                                                                       |
 | Rendering Mode | `server`, `static-export`(proxy가 없어 홈 `/`는 기본 locale의 홈)                                                                                                                                                                                                                                                                          |
 
@@ -445,7 +457,7 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 | 환경 변수      | `SESSION_SECRET`(`.env.example`, `.env.development`, `types/process-env.auth.d.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 설정 패치      | `config/playwright.config.ts.patch`(E2E 대상 서버의 `SESSION_SECRET`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | npm 의존성     | `iron-session`, `cookie`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 자기 테스트    | `src/shared/auth/*.test.ts`(테스트의 목 로그인 포함), `src/features/login-form/login-form.test.tsx`, 로그인 폼과 사용자 메뉴의 스토리, `e2e/auth.spec.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 자기 테스트    | `src/shared/auth/*.test.ts`(테스트의 목 로그인 포함), `src/features/login-form/login-form.test.tsx`, `src/features/user-menu/user-menu.test.tsx`, `e2e/auth.spec.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Rendering Mode | `server`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
@@ -455,15 +467,15 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 다른 다단계 폼에도 쓸 부품은 `src/shared/multi-step-form/`에 둔다. `useFormSteps`가 단계와 모든 단계의 값(검증하기 전의 값)을 들고 단계를 옮길 때 포커스를 단계 제목으로 옮기며, `StepForm`이 단계마다 React Hook Form 폼을 하나씩 만들어 "다음"은 그 단계의 스키마로 검증하고 "이전"은 검증 없이 값을 넘긴다. 단계와 값은 `sessionStorage`에 둬 새로 고쳐도 이어 가고, 그린 뒤에 읽으므로 hydration이 어긋나지 않는다. 페이지 뼈대는 미리 렌더링하고 값은 브라우저가 들고 있다가 신청할 때만 요청하므로 두 Rendering Mode에서 같은 코드로 동작한다. MSW 목은 명세의 `example`만으로 충분해 직접 만든 핸들러가 없다.
 
-| 선언하는 것    | `recipes/multi-step-form/`                                                                                                                                                                      |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/partners/apply/page.tsx`, `src/features/partner-application/`, `src/queries/partners/`, `src/shared/multi-step-form/`                                                                  |
-| 확장 지점      | `openapi.yaml`(명세 조각): `POST /partner-applications`(`submitPartnerApplication`), 스키마 `PartnerApplication`, `PartnerCategory`, `PartnerApplicationReceipt`                                |
-| 설정 패치      | 없음                                                                                                                                                                                            |
-| npm 의존성     | 없음(Base의 React Hook Form과 Zod를 쓴다)                                                                                                                                                       |
-| 자기 테스트    | `src/features/partner-application/partner-application-form.test.tsx`, `src/shared/multi-step-form/draft-storage.test.ts`, `partner-application-form.stories.tsx`, `e2e/multi-step-form.spec.ts` |
-| 필요한 Recipe  | 없음                                                                                                                                                                                            |
-| Rendering Mode | `server`, `static-export`                                                                                                                                                                       |
+| 선언하는 것    | `recipes/multi-step-form/`                                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/partners/apply/page.tsx`, `src/features/partner-application/`, `src/queries/partners/`, `src/shared/multi-step-form/`                                   |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /partner-applications`(`submitPartnerApplication`), 스키마 `PartnerApplication`, `PartnerCategory`, `PartnerApplicationReceipt` |
+| 설정 패치      | 없음                                                                                                                                                             |
+| npm 의존성     | 없음(Base의 React Hook Form과 Zod를 쓴다)                                                                                                                        |
+| 자기 테스트    | `src/features/partner-application/partner-application-form.test.tsx`, `src/shared/multi-step-form/draft-storage.test.ts`, `e2e/multi-step-form.spec.ts`          |
+| 필요한 Recipe  | 없음                                                                                                                                                             |
+| Rendering Mode | `server`, `static-export`                                                                                                                                        |
 
 ## 예: optimistic-update
 
@@ -485,19 +497,19 @@ next-intl로 한국어(기본 locale `ko`)와 영어(`en`)를 지원하는 Recip
 
 긴 목록을 나눠 불러오는 두 패턴을 같은 게시글로 보여 주는 Recipe다. `/articles`는 목록 끝이 화면에 들어오면(`IntersectionObserver`) 다음 페이지를 불러와 이어 붙이는 무한 스크롤 목록이고, `/articles/pagination`은 같은 게시글을 쪽 번호로 넘겨 보는 번호형 페이지네이션이다. 명세 조각으로 페이지 번호를 받아 게시글 한 페이지를 배열로 돌려주는 `listArticles`와 전체 개수를 돌려주는 `countArticles`(tag `articles`)를 더하고, Query Domain(`src/queries/articles/`)은 `npm run g -- query listArticles --infinite`, `npm run g -- query listArticles`, `npm run g -- query countArticles`가 만든 코드를 그대로 담는다. `query --infinite`는 배열을 돌려주는 operation에만 쓸 수 있고 빈 페이지를 받으면 멈추므로, `listArticles`는 마지막 페이지 뒤의 페이지에 빈 배열을 돌려준다. table, chart처럼 데이터는 브라우저가 가져오므로 두 Rendering Mode에서 같은 코드로 동작한다.
 
-스크롤하지 않는 키보드·스크린 리더 사용자를 위해 목록 끝에 더 보기 버튼을 둔다. 버튼으로 불러오면 새로 불러온 첫 항목으로 포커스를 옮기고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않는다. 무한 스크롤 목록과 쪽 번호의 틀(`src/shared/paging/`)은 쿼리를 직접 부르지 않고 불러온 항목과 상태(useInfiniteQuery의 `hasNextPage` 등, 지금 쪽과 쪽 수)만 props로 받으므로 다른 Query Domain의 목록에도 쓴다. jsdom에는 `IntersectionObserver`가 없어 컴포넌트 테스트는 가짜 observer로 스크롤을 흉내 내고, 실제 브라우저의 동작은 스토리와 E2E가 본다.
+스크롤하지 않는 키보드·스크린 리더 사용자를 위해 목록 끝에 더 보기 버튼을 둔다. 버튼으로 불러오면 새로 불러온 첫 항목으로 포커스를 옮기고, 버튼에 포커스가 있는 동안에는 스크롤로 불러오지 않는다. 무한 스크롤 목록과 쪽 번호의 틀(`src/shared/paging/`)은 쿼리를 직접 부르지 않고 불러온 항목과 상태(useInfiniteQuery의 `hasNextPage` 등, 지금 쪽과 쪽 수)만 props로 받으므로 다른 Query Domain의 목록에도 쓴다. jsdom에는 `IntersectionObserver`가 없어 컴포넌트 테스트는 가짜 observer로 스크롤을 흉내 내고, 실제 브라우저의 동작은 E2E가 본다.
 
 table처럼 페이지 번호대로 나눠 돌려주는 MSW 핸들러(`src/shared/mocks/articles.ts`)를 확장 지점 [MSW 핸들러](#msw-핸들러mockhandlers)로 생성된 핸들러 앞에 둔다. 다른 Recipe의 핸들러와 받는 경로(`/articles`, `/articles/count`)가 겹치지 않으므로 `order`는 같은 100이다.
 
-| 선언하는 것    | `recipes/infinite-list/`                                                                                                                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/articles/page.tsx`, `src/app/articles/pagination/page.tsx`, `src/features/article-list/`, `src/queries/articles/`, `src/shared/paging/`, `src/shared/mocks/articles.ts`                                       |
-| 확장 지점      | `openapi.yaml`(명세 조각): `GET /articles`(`listArticles`), `GET /articles/count`(`countArticles`), 스키마 `Article`, `ArticleCount`. `extensions.json`: MSW 핸들러 `articlesHandlers`(100)                            |
-| 설정 패치      | 없음                                                                                                                                                                                                                   |
-| npm 의존성     | 없음                                                                                                                                                                                                                   |
-| 자기 테스트    | `src/features/article-list/article-infinite-list.test.tsx`, `article-paged-list.test.tsx`, `src/shared/paging/pagination.test.tsx`, `infinite-list.stories.tsx`, `pagination.stories.tsx`, `e2e/infinite-list.spec.ts` |
-| 필요한 Recipe  | 없음                                                                                                                                                                                                                   |
-| Rendering Mode | `server`, `static-export`                                                                                                                                                                                              |
+| 선언하는 것    | `recipes/infinite-list/`                                                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/articles/page.tsx`, `src/app/articles/pagination/page.tsx`, `src/features/article-list/`, `src/queries/articles/`, `src/shared/paging/`, `src/shared/mocks/articles.ts`            |
+| 확장 지점      | `openapi.yaml`(명세 조각): `GET /articles`(`listArticles`), `GET /articles/count`(`countArticles`), 스키마 `Article`, `ArticleCount`. `extensions.json`: MSW 핸들러 `articlesHandlers`(100) |
+| 설정 패치      | 없음                                                                                                                                                                                        |
+| npm 의존성     | 없음                                                                                                                                                                                        |
+| 자기 테스트    | `src/features/article-list/article-infinite-list.test.tsx`, `article-paged-list.test.tsx`, `src/shared/paging/infinite-list.test.tsx`, `pagination.test.tsx`, `e2e/infinite-list.spec.ts`   |
+| 필요한 Recipe  | 없음                                                                                                                                                                                        |
+| Rendering Mode | `server`, `static-export`                                                                                                                                                                   |
 
 ## 예: docker
 
@@ -581,15 +593,15 @@ fetch는 보낸 본문의 양을 알려 주지 않으므로, 진행률이 필요
 
 `static-export`에서는 브라우저가 다른 출처의 백엔드를 직접 부르고, XMLHttpRequest에 `upload` 이벤트를 달면 브라우저가 CORS preflight를 먼저 보낸다. 그래서 목 백엔드는 preflight에 답하고 응답에 CORS 헤더를 붙인다(Vitest의 jsdom도 CORS를 검사한다). 브라우저의 MSW(서비스 워커)는 본문을 네트워크로 보내지 않고 받아 진행률이 중간값 없이 끝나므로, E2E는 Chromium의 네트워크 흉내로 업로드를 늦추고 중간값은 요청이 네트워크를 지나는 `server`에서만 본다.
 
-| 선언하는 것    | `recipes/file-upload/`                                                                                                                                                       |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`                                            |
-| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`. `extensions.json`: MSW 핸들러 `filesHandlers`(100)               |
-| 설정 패치      | 없음                                                                                                                                                                         |
-| npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                                                                         |
-| 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `upload-policy.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `file-uploader.stories.tsx`, `e2e/file-upload.spec.ts` |
-| 필요한 Recipe  | 없음                                                                                                                                                                         |
-| Rendering Mode | `server`, `static-export`                                                                                                                                                    |
+| 선언하는 것    | `recipes/file-upload/`                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 추가 파일      | `src/app/upload/page.tsx`, `src/features/file-uploader/`, `src/queries/files/`, `src/shared/upload/`, `src/shared/mocks/files.ts`                              |
+| 확장 지점      | `openapi.yaml`(명세 조각): `POST /files`(`uploadFile`), 스키마 `FileUpload`, `UploadedFile`, `UploadError`. `extensions.json`: MSW 핸들러 `filesHandlers`(100) |
+| 설정 패치      | 없음                                                                                                                                                           |
+| npm 의존성     | 없음(진행 막대는 Base의 `@base-ui/react`의 Progress)                                                                                                           |
+| 자기 테스트    | `src/shared/upload/api-upload.test.ts`, `upload-policy.test.ts`, `src/features/file-uploader/file-uploader.test.tsx`, `e2e/file-upload.spec.ts`                |
+| 필요한 Recipe  | 없음                                                                                                                                                           |
+| Rendering Mode | `server`, `static-export`                                                                                                                                      |
 
 ## 예: realtime
 
@@ -605,6 +617,6 @@ MSW의 `sse()`는 핸들러를 만들 때 전역 `EventSource`가 있어야 해�
 | 확장 지점      | `openapi.yaml`(명세 조각): `GET /deliveries`(`listDeliveries`), `GET /deliveries/events`(`streamDeliveryEvents`, `text/event-stream`), 스키마 `Delivery`, `DeliveryStatus`. `extensions.json`: MSW 핸들러 `deliveriesHandlers`(100) |
 | 설정 패치      | 없음                                                                                                                                                                                                                                |
 | npm 의존성     | 없음                                                                                                                                                                                                                                |
-| 자기 테스트    | `src/shared/realtime/event-stream.test.ts`, `src/features/delivery-board/delivery-board.test.tsx`, `src/shared/realtime/connection-status.stories.tsx`, `e2e/realtime.spec.ts`                                                      |
+| 자기 테스트    | `src/shared/realtime/event-stream.test.ts`, `src/features/delivery-board/delivery-board.test.tsx`, `src/shared/realtime/connection-status.test.tsx`, `e2e/realtime.spec.ts`                                                         |
 | 필요한 Recipe  | 없음                                                                                                                                                                                                                                |
 | Rendering Mode | `server`, `static-export`                                                                                                                                                                                                           |

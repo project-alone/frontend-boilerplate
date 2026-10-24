@@ -85,13 +85,12 @@ describe('Rendering Mode server에 docker Recipe를 넣은 Starter', () => {
     expect(dockerfile).not.toContain('NEXT_PUBLIC_API_BASE_URL')
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트를 통과한다', () => {
     for (const script of [
       ['run', 'typecheck'],
       ['run', 'lint'],
       ['run', 'format:check'],
       ['test'],
-      ['run', 'test:storybook'],
     ]) {
       starter.expectNpmSuccess(script)
     }

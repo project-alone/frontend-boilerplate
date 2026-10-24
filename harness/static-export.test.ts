@@ -15,7 +15,7 @@ import { freePort, run, start, waitForServer } from './run.ts'
 import { MSW_PROBE_ROUTE, runPlaywrightAgainst, SAMPLE_PRODUCTS, useStarter, writeMswProbePage } from './starter.ts'
 
 // static-export Starter 하나를 만들어 설치·빌드해 두고, 테스트마다 다시 설치하지 않도록 모든 테스트가 함께 쓴다.
-// server Starter(기본)의 빌드·E2E·Storybook은 test-tools.test.ts가 검증한다.
+// server Starter(기본)의 빌드·E2E는 test-tools.test.ts가, 나중에 더하는 Storybook은 g-story.test.ts가 검증한다.
 // 배포용 빌드(beforeAll의 npm run build)를 보는 테스트는 E2E보다 앞에 둔다. E2E가 MSW를 켜고 out/을 다시 빌드한다.
 const starter = useStarter({
   prefix: 'dcgen-static-export-',
@@ -88,10 +88,6 @@ test('public/mockServiceWorker.js는 Starter가 고정한 MSW로 다시 만들�
 
   expect(result.status, result.output).toBe(0)
   expect(readFileSync(worker, 'utf8')).toBe(packaged)
-})
-
-test('static-export Starter의 스토리도 axe 접근성 검사를 모두 통과한다', () => {
-  starter.expectNpmSuccess(['run', 'test:storybook'])
 })
 
 // Base의 서버 instrumentation(src/instrumentation.ts가 부르는 api-instrumentation.ts)을 static-export Starter에도 두는 이유다.

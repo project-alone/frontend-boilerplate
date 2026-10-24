@@ -4,6 +4,7 @@ import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getUpdateProductMockHandler, getUpdateProductResponseMock } from '@/shared/api/generated/products/products.msw'
 import { REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { UpdateProductForm } from './update-product-form'
@@ -52,6 +53,12 @@ test('입력한 값을 요청 본문으로 보내고 성공을 알린다', async
   expect(bodies).toEqual([{ name: 'a', price: 0 }])
 })
 
+test('처음 화면에 접근성 위반이 없다', async () => {
+  renderForm()
+
+  expect(await axeViolations(document.body)).toEqual([])
+})
+
 test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
@@ -69,4 +76,5 @@ test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류�
     expect(control).toHaveAccessibleDescription(requiredError)
   }
   expect(bodies).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 })

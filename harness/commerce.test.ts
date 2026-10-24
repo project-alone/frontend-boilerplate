@@ -107,7 +107,7 @@ describe('Rendering Mode server에 커머스 Archetype을 넣은 Starter', () =>
     }
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트(목 백엔드, 장바구니의 낙관적 업데이트와 되돌리기, 주문서, 가짜 결제), 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(목 백엔드, 장바구니의 낙관적 업데이트와 되돌리기, 주문서와 그 접근성, 가짜 결제)를 통과한다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
@@ -127,9 +127,6 @@ describe('Rendering Mode server에 커머스 Archetype을 넣은 Starter', () =>
     ]) {
       expectFileToPass(report, file, 1)
     }
-
-    const stories = runVitestScript(starter, ['run', 'test:storybook'])
-    expectFileToPass(stories, 'src/features/shop-checkout/checkout-form.stories.tsx', 1)
   })
 
   test('배포용 빌드는 백엔드 주소 없이 실패하고, 목 빌드는 상품 목록과 상세를 ISR로 미리 렌더링한다', () => {

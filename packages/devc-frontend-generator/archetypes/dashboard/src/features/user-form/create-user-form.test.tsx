@@ -4,6 +4,7 @@ import { userEvent } from '@testing-library/user-event'
 import { http } from 'msw'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { listUsersQueryOptions } from '@/queries/users/users.queries'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { signInAsMockUser } from '@/shared/auth/mock-session'
 import { REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
@@ -78,10 +79,11 @@ test('관리자가 입력한 값으로 사용자를 추가하고, 알린 뒤 사
   expect(page.items[0]).toMatchObject({ name: '신입사', status: 'invited' })
 })
 
-test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
+test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다. 처음 화면과 오류 화면에 접근성 위반이 없다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
   renderForm()
+  expect(await axeViolations(document.body)).toEqual([])
 
   await user.click(screen.getByRole('button', { name: '사용자 추가' }))
 
@@ -96,6 +98,7 @@ test('비워 둔 필수 입력은 보내지 않고, 입력 요소마다 오류�
   }
   expect(bodies).toEqual([])
   expect(router.push).not.toHaveBeenCalled()
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('같은 이메일의 사용자가 이미 있으면 이메일 입력에 알리고 옮겨 가지 않는다', async () => {

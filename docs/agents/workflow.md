@@ -7,7 +7,7 @@
 테스트의 seam은 하네스(`harness/*.test.ts`, 레포 최상위의 `npm test`) 하나다. 하네스는 Generator를 `npm pack`으로 묶어 설치한 진짜 `dcgen` CLI로 운영체제의 임시 디렉터리에 Starter를 만들고, 그 Starter의 npm 스크립트와 E2E를 실행한다(`harness/global-setup.ts`, `harness/starter.ts`).
 
 - Generator 코드(`packages/devc-frontend-generator/src`)는 `dcgen`과 만들어진 Starter에서 보이는 동작으로 시험한다. 내부 함수의 단위 테스트는 두지 않는다.
-- Recipe·Archetype의 동작은 Starter에 함께 넣는 자기 테스트(단위·컴포넌트 테스트, 스토리, `e2e/*.spec.ts`)가 시험하고, 하네스에는 Recipe·Archetype마다 조합 매트릭스 파일을 둔다([Recipe의 테스트](../recipes.md#테스트), [Archetype의 테스트](../archetypes.md#테스트)).
+- Recipe·Archetype의 동작은 Starter에 함께 넣는 자기 테스트(단위·컴포넌트 테스트, `e2e/*.spec.ts`)가 시험하고, 하네스에는 Recipe·Archetype마다 조합 매트릭스 파일을 둔다([Recipe의 테스트](../recipes.md#테스트), [Archetype의 테스트](../archetypes.md#테스트)).
 - 기능을 더하든 버그를 고치든 하네스 테스트를 먼저 쓰고, 고치기 전에 그 테스트가 실패(red)하는 것을 확인한다.
 
 ### 실행

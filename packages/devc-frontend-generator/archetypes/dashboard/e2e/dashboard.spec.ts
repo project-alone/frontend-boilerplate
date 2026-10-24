@@ -4,6 +4,7 @@ import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
 import { BFF_PROXY_PATH } from '@/shared/api/base-url'
 import { MOCK_PASSWORD } from '@/shared/auth/auth-mock-handlers'
 import { SESSION_API_PATH } from '@/shared/auth/auth-client'
+import { contrastRatio, NON_TEXT_CONTRAST_MIN } from '@/shared/chart/chart-contrast'
 
 // 대시보드 Archetype의 흐름. E2E 대상 서버의 백엔드는 목 백엔드(auth의 src/shared/auth/auth-mock-handlers.ts, 대시보드의
 // src/shared/mocks/users.ts)이고, 추가하고 고친 사용자는 서버를 다시 띄울 때까지 남는다. 그래서 테스트마다 새 이메일로
@@ -282,3 +283,24 @@ test('관리자가 사용자의 역할을 바꾸면 그 계정은 다시 로그�
     await memberContext.close()
   }
 })
+
+// dark-mode Recipe를 함께 넣은 Starter에서는 운영체제가 다크 모드이면 다크 테마로 열리므로, 다크 테마의 토큰으로도 확인한다.
+// axe는 SVG의 막대를 보지 않으므로 명도 대비를 직접 잰다.
+for (const colorScheme of ['light', 'dark'] as const) {
+  test.describe(`운영체제가 ${colorScheme === 'light' ? '라이트' : '다크'} 모드이면`, () => {
+    test.use({ colorScheme })
+
+    test('상태별 사용자 수 차트의 막대가 배경 위에서 읽힌다', async ({ page }) => {
+      await login(page, USER.email)
+
+      const bars = page.locator('.recharts-bar .recharts-rectangle')
+      await expect(bars).toHaveCount(3)
+      const background = await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)
+      const fills = await bars.evaluateAll((rectangles) =>
+        rectangles.map((rectangle) => getComputedStyle(rectangle).fill),
+      )
+      for (const fill of fills)
+        expect(contrastRatio(fill, background), fill).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
+    })
+  })
+}

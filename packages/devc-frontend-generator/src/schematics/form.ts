@@ -63,7 +63,7 @@ const FORMAT_SAMPLES = new Map([
 // 재생성 계층(orval)이 Zod로 검증하는 문자열 format. 'a'는 이 format에 맞지 않는다(검증 실패 테스트가 입력한다).
 const CHECKED_FORMATS = new Set(['email', 'uri', 'uuid', 'date', 'time', 'date-time', 'date-time-local'])
 
-// 검증에 실패하게 할 입력이 없을 때(비워 둘 필수 입력도, 어길 길이·범위·형식 규칙도 없을 때) 검증 실패 테스트와 스토리 대신 남기는 안내
+// 검증에 실패하게 할 입력이 없을 때(비워 둘 필수 입력도, 어길 길이·범위·형식 규칙도 없을 때) 검증 실패 테스트 대신 남기는 안내
 const noValidationCheck = (what: string) =>
   `// 비워 두거나 규칙에 맞지 않게 입력해 검증에 실패하게 할 필드가 없어 ${what}는 만들지 않았다. 검증 규칙을 더하면 함께 더한다.`
 
@@ -154,7 +154,7 @@ interface Unsupported {
 }
 
 /**
- * 생성한 테스트와 스토리가 검증 실패를 보이는 방법. 비워 두면 실패하는 필수 입력(requiredInput)이 있으면 모두 비워 두고
+ * 생성한 테스트가 검증 실패를 보이는 방법. 비워 두면 실패하는 필수 입력(requiredInput)이 있으면 모두 비워 두고
  * 제출하고(blank), 없으면 규칙에 맞지 않는 값을 필드 하나에 입력해 제출한다(invalid). 둘 다 할 수 없으면 undefined다.
  */
 type ValidationCheck =
@@ -172,7 +172,7 @@ interface FormProp {
   optional: boolean
   /** 경로 파라미터가 아니라 뮤테이션 훅에만 넘기는 props */
   hookOnly: boolean
-  /** 테스트와 스토리가 넘길 값(TypeScript 식). 생략할 수 있는 props는 넘기지 않으므로 undefined다. */
+  /** 테스트가 넘길 값(TypeScript 식). 생략할 수 있는 props는 넘기지 않으므로 undefined다. */
   sample: string | undefined
 }
 
@@ -192,7 +192,7 @@ interface MutationHook extends TypeImport {
   parameters: HookParameter[]
 }
 
-/** 생성할 폼. 세 파일(컴포넌트, 스토리, 테스트)의 소스를 이것으로 만든다. */
+/** 생성할 폼. 두 파일(컴포넌트, 테스트)의 소스를 이것으로 만든다. */
 interface FormModel {
   operationId: string
   componentName: string
@@ -224,7 +224,7 @@ interface FormModel {
 /**
  * `form` Schematic. OpenAPI operation의 JSON 요청 본문을 입력받는 React Hook Form 폼을 Feature에 만든다. 폼은 재생성 계층의
  * 요청 본문 Zod 스키마로 검증하고(ADR-0003), 제출하면 mutation Schematic이 만든 뮤테이션 훅(ADR-0008)으로 보낸다.
- * 폼 컴포넌트, Storybook 스토리, 컴포넌트 테스트(제출 성공, 검증 실패)를 함께 만든다.
+ * 폼 컴포넌트와 컴포넌트 테스트(제출 성공, 접근성, 검증 실패)를 함께 만든다. 스토리는 story Schematic이 만든다.
  * 요청 본문이나 뮤테이션 훅이 없거나, 입력 요소로 만들 수 없는 필수 필드가 있거나, 같은 이름의 파일이 있으면
  * SchematicError를 던지고 아무 파일도 만들지 않는다.
  */
@@ -287,7 +287,6 @@ export async function generateForm(
   const stem = `${feature.directory}/${form.fileName}`
   starter.newModules([
     { stem, source: componentSource(form) },
-    { stem: `${stem}.stories`, source: storySource(form) },
     { stem: `${stem}.test`, source: testSource(form) },
   ])
   return {
@@ -563,7 +562,7 @@ function invalidInputOf(schema: JsonSchema, control: Control): string | undefine
   return control.integer ? '1.5' : undefined
 }
 
-/** 생성한 테스트와 스토리가 검증 실패를 보이는 방법(ValidationCheck) */
+/** 생성한 테스트가 검증 실패를 보이는 방법(ValidationCheck) */
 function validationCheckOf(fields: readonly FormField[]): ValidationCheck {
   const [first, ...rest] = fields.filter((field) => field.requiredInput)
   if (first !== undefined) return { kind: 'blank', fields: [first, ...rest] }
@@ -659,7 +658,7 @@ function formArguments(
     const sample = PROP_SAMPLES.get(type)
     if (!optional && sample === undefined) {
       throw new SchematicError(
-        `form Schematic은 뮤테이션 훅의 필수 인자 가운데 숫자, 문자열, 불리언만 폼의 props로 받습니다(생성한 테스트와 스토리가 넘길 값을 정한다). ${hookName}의 필수 인자 ${name}(${type})는 폼이 넘길 수 없습니다. 훅의 인자에 기본값을 두면 생략할 수 있는 props로 받습니다.`,
+        `form Schematic은 뮤테이션 훅의 필수 인자 가운데 숫자, 문자열, 불리언만 폼의 props로 받습니다(생성한 테스트가 넘길 값을 정한다). ${hookName}의 필수 인자 ${name}(${type})는 폼이 넘길 수 없습니다. 훅의 인자에 기본값을 두면 생략할 수 있는 props로 받습니다.`,
       )
     }
     const description = `${hookName}에 넘기는 ${name}. 응답 전에 고칠 쿼리의 인자이므로 화면이 보고 있는 쿼리와 같은 값을 넘긴다${optional ? '. 생략하면 훅의 기본값을 쓴다' : ''}`
@@ -838,79 +837,9 @@ function fieldSource(field: FormField): string {
   }
 }
 
-/** Storybook 스토리. 폼의 모양과, 검증에 실패했을 때의 오류를 보여 주고 둘 다 접근성(axe)을 검사받는다. */
-function storySource(form: FormModel): string {
-  const check = form.validationCheck
-  const passed = passedProps(form)
-  const args =
-    passed.length === 0 ? '' : `\n  args: { ${passed.map(({ name, sample }) => `${name}: ${sample}`).join(', ')} },`
-  const submit = `await userEvent.click(canvas.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} }))`
-  const blankMessage = check?.kind === 'blank' ? blankMessageOf(check.fields[0]) : undefined
-  const validationStory = (() => {
-    if (check === undefined) return `\n${noValidationCheck('검증 오류 스토리')}\n`
-    if (check.kind === 'blank') {
-      return `
-// 비워 둔 채 제출해 검증 오류를 보여 준다. npm run test:storybook이 오류가 보이는 화면도 접근성(axe)을 검사한다.
-export const ValidationErrors: Story = {
-  play: async ({ canvas, userEvent }) => {
-    ${submit}
-
-    const control = ${controlQuery(check.fields[0], 'canvas')}
-    await waitFor(() => expect(control).toHaveAttribute('aria-invalid', 'true'))
-    await expect(control).toHaveAccessibleDescription(expect.stringContaining(${blankMessage}))
-  },
-}
-`
-    }
-    const description =
-      check.field.description === undefined ? '\n    await expect(control).toHaveAccessibleDescription()' : ''
-    return `
-// 검증 규칙에 맞지 않는 값을 넣고 제출해 검증 오류를 보여 준다. npm run test:storybook이 오류가 보이는 화면도 접근성(axe)을 검사한다.
-export const ValidationErrors: Story = {
-  play: async ({ canvas, userEvent }) => {
-    const control = ${controlQuery(check.field, 'canvas')}
-    await userEvent.type(control, ${typedText(check.input)})
-    ${submit}
-
-    await waitFor(() => expect(control).toHaveAttribute('aria-invalid', 'true'))${description}
-  },
-}
-`
-  })()
-  return `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect${check === undefined ? '' : ', waitFor'} } from 'storybook/test'
-${blankMessage === undefined ? '' : `import { ${blankMessage} } from '${FORM_RESOLVER_IMPORT}'\n`}import { ${form.componentName} } from './${form.fileName}'
-
-const queryClient = new QueryClient()
-
-const meta = {
-  title: '${form.feature.storyTitle}/${form.componentName}',
-  component: ${form.componentName},${args}
-  // 폼이 뮤테이션 훅을 쓰므로 QueryClient로 감싼다. 스토리는 모양과 검증 오류만 보여 주고, 제출 성공은 테스트(${form.fileName}.test.tsx)가 MSW로 확인한다.
-  decorators: [
-    (Story) => (
-      <QueryClientProvider client={queryClient}>
-        <Story />
-      </QueryClientProvider>
-    ),
-  ],
-} satisfies Meta<typeof ${form.componentName}>
-
-export default meta
-
-type Story = StoryObj<typeof meta>
-
-export const Default: Story = {
-  play: async ({ canvas }) => {
-    await expect(canvas.getByRole('button', { name: ${JSON.stringify(form.submitLabel)} })).toBeVisible()
-  },
-}
-${validationStory}`
-}
-
 /**
- * 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 오류를 알리고 보내지 않는지 본다.
+ * 컴포넌트 테스트. 입력한 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 오류를 알리고 보내지 않는지 본다. 처음 화면과
+ * 검증 오류가 보이는 화면은 axe로 접근성도 검사한다.
  * 비워 두면 null을 보낼 수 있는 입력(clearableFields)이 있으면 필수 입력만 채워 보냈을 때 비워 둔 입력이 어떻게 가는지
  * (null이나 생략)도 본다.
  */
@@ -973,6 +902,7 @@ test('${name} 필수 입력은 보내지 않고, 입력 요소마다 오류를 �
 
   // 오류 메시지는 입력 요소의 설명(aria-describedby)으로 읽힌다. 명세의 description이 있는 필드는 그 설명과 함께 읽힌다.${errorChecks.join('')}
   expect(bodies).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 })
 `
     }
@@ -992,6 +922,7 @@ test('검증 규칙에 맞지 않는 값은 보내지 않고 오류를 알린다
 
   expect(control).toHaveAttribute('aria-invalid', 'true')${description}
   expect(bodies).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 })
 `
   })()
@@ -1000,7 +931,8 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ${mockImports.join(', ')} } from '${form.mockHandler.moduleSpecifier}'
-${blankMessages.length === 0 ? '' : `import { ${blankMessages.toSorted().join(', ')} } from '${FORM_RESOLVER_IMPORT}'\n`}import { server } from '@/shared/mocks/node'
+${blankMessages.length === 0 ? '' : `import { ${blankMessages.toSorted().join(', ')} } from '${FORM_RESOLVER_IMPORT}'\n`}import { axeViolations } from '@/shared/a11y/axe-violations'
+import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { ${form.componentName} } from './${form.fileName}'
 
@@ -1034,10 +966,16 @@ function receivedBodies(): unknown[] {
   return bodies
 }
 
-${submitTest('입력한 값을 요청 본문으로 보내고 성공을 알린다', filled)}${blankTest}${validationTest}`
+${submitTest('입력한 값을 요청 본문으로 보내고 성공을 알린다', filled)}
+test('처음 화면에 접근성 위반이 없다', async () => {
+  renderForm()
+
+  expect(await axeViolations(document.body)).toEqual([])
+})
+${blankTest}${validationTest}`
 }
 
-/** 테스트와 스토리가 폼에 넘기는 props와 그 값. 생략할 수 있는 props는 넘기지 않는다. */
+/** 테스트가 폼에 넘기는 props와 그 값. 생략할 수 있는 props는 넘기지 않는다. */
 function passedProps(form: FormModel): { name: string; sample: string }[] {
   return form.props.flatMap(({ name, sample }) => (sample === undefined ? [] : [{ name, sample }]))
 }

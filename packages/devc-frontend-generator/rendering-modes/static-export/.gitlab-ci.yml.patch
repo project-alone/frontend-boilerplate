@@ -2,12 +2,12 @@
 +++ b/.gitlab-ci.yml
 @@ -1,5 +1,6 @@
  # GitLab CI. 사내 GitLab에 저장소를 올리면 바로 돈다.
- # 검사(lint, 포맷, 타입, 단위 테스트, 스토리 접근성) → 빌드 → E2E 순서로 실행한다.
+ # 검사(lint, 포맷, 타입, 단위 테스트) → 빌드 → E2E 순서로 실행한다.
 +# Rendering Mode static-export용이다. server Starter와는 빌드 결과를 남기지 않는 build 잡과, 직접 빌드하는 E2E 잡이 다르다.
  # 잡은 모두 package.json의 npm 스크립트를 부르므로, 로컬에서 같은 스크립트로 똑같이 확인할 수 있다.
  
  stages:
-@@ -96,20 +97,12 @@
+@@ -85,20 +86,12 @@
      # 빌드할 때 받은 목 응답은 Next.js의 데이터 캐시(.next/cache/fetch-cache)에도 남는다. 다음 빌드가 빌드 캐시에서 목 응답을
      # 이어받지 않도록 캐시에 넣기 전에 지운다.
      - rm -rf .next/cache/fetch-cache
@@ -27,6 +27,6 @@
 -    - build
 +  # E2E는 브라우저의 MSW를 켜고 직접 다시 빌드한 out/으로 돈다(config/playwright.config.ts). build 잡의 결과는 받지 않는다.
 +  dependencies: []
-   script:
-     - npm run test:e2e
-   # 실패한 테스트의 trace(config/playwright.config.ts의 retain-on-failure)를 내려받아 볼 수 있게 남긴다.
+   # 브라우저 캐시는 이 잡이 갱신하고, Chromium을 쓰는 다른 잡은 받기만 한다.
+   cache:
+     - *npm-cache

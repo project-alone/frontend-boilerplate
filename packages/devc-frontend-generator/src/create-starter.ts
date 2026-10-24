@@ -9,13 +9,23 @@ import { formatForStarter } from './format.js'
 import { generatorPackage } from './generator-package.js'
 import { mergeOpenApiFragments, type SpecFragment } from './openapi-fragments.js'
 import { OPENAPI_SPEC } from './openapi-spec.js'
-import { applyOverlay, isNotFound, type Overlay, OverlayError, readOptionalFile } from './overlay.js'
+import {
+  applyOverlay,
+  isNotFound,
+  type Overlay,
+  OverlayError,
+  readOptionalFile,
+  STORYBOOK_OVERLAY_DIR,
+} from './overlay.js'
 import { mergePackageJson, updatePackageJson } from './package-json.js'
 import { type Recipe, recipeOverlay } from './recipes.js'
 import { type RenderingMode, renderingModeOverlay } from './rendering-mode.js'
 
 const BASE_DIR = fileURLToPath(new URL('../base', import.meta.url))
-const BASE: Overlay = { label: 'Base', dir: BASE_DIR }
+export const BASE: Overlay = { label: 'Base', dir: BASE_DIR }
+
+// Base를 복사할 때 빼는 파일과 디렉터리. Storybook overlay는 Storybook을 더할 때만 덧입힌다(storybook.ts).
+const NOT_COPIED = [join(BASE_DIR, EXTENSIONS_MANIFEST), join(BASE_DIR, STORYBOOK_OVERLAY_DIR)]
 
 // overlay를 덧입힐 때 복사하지 않고, 모든 overlay를 덧입힌 뒤 한꺼번에 조립하는 파일
 const ASSEMBLED = [EXTENSIONS_MANIFEST, OPENAPI_SPEC]
@@ -75,7 +85,7 @@ export async function createStarter(
     () => false,
   )
   try {
-    await cp(BASE_DIR, target, { recursive: true, filter: (source) => source !== join(BASE_DIR, EXTENSIONS_MANIFEST) })
+    await cp(BASE_DIR, target, { recursive: true, filter: (source) => !NOT_COPIED.includes(source) })
     await rename(join(target, PACKED_GITIGNORE), join(target, '.gitignore'))
     for (const overlay of overlays) await applyOverlay(target, overlay, ASSEMBLED)
     if (fragments.length > 0) await writeMergedSpec(target, fragments)

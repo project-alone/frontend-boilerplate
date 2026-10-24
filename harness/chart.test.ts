@@ -50,7 +50,7 @@ test('chart Recipe는 Base의 디자인 토큰과 공통 UI를 고치지 않고,
 })
 
 // 하네스 매트릭스: Base에 chart Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들고, dark-mode Recipe를 함께 넣은
-// 조합도 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트(데이터 표의 컴포넌트 테스트, 차트 스토리,
+// 조합도 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트(데이터 표의 컴포넌트 테스트와 그 접근성,
 // e2e/chart.spec.ts)가 통과하는지 본다. server에서 dark-mode와 함께 켠 조합은 모든 Recipe를 켠 Showcase
 // (showcase-starter.test.ts)가 보므로, dark-mode 조합은 static-export로 만들어 내보낸 HTML에서도 다크 테마의 토큰을 따르는지 본다.
 const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly string[] }[] = [
@@ -95,17 +95,10 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
       expectFileToPass(report, 'src/features/stats-charts/stats-charts.test.tsx', 1)
     })
 
-    test(`차트 스토리가 ${withDarkMode ? '라이트 모드와 다크 모드 브라우저에서 각각 ' : ''}접근성(axe)과 명도 대비 검사를 통과한다`, () => {
-      const report = runVitestScript(starter, ['run', 'test:storybook'])
-
-      for (const story of ['daily-visits-chart.stories.tsx', 'channel-sales-chart.stories.tsx']) {
-        expectFileToPass(report, `src/features/stats-charts/${story}`, withDarkMode ? 2 : 1)
-      }
-    })
-
+    // static-export의 E2E는 MSW를 켜고 직접 다시 빌드하므로(config/playwright.config.ts) 바꾼 토큰으로 빌드한 앱을 검사한다.
     test.runIf(withDarkMode)(
-      '다크 테마의 토큰이 차트의 선을 배경과 구별하지 못하게 만들면 다크 모드 브라우저의 차트 스토리 검사가 실패한다',
-      () => {
+      '다크 테마의 토큰이 차트의 선을 배경과 구별하지 못하게 만들면 운영체제가 다크 모드일 때의 차트 E2E가 실패한다',
+      async () => {
         const tokensPath = join(starter.dir, 'src/shared/ui/tokens-dark.css')
         const original = readFileSync(tokensPath, 'utf8')
         // 주요 계열의 색(primary)을 보조 배경색(배경과 거의 같은 어두운 색)으로 바꾼다.
@@ -114,17 +107,16 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
         writeFileSync(tokensPath, original.replace(/(--color-primary:)[^;]+;/, `$1 ${muted};`))
 
         try {
-          const result = starter.npm(['run', 'test:storybook', '--', 'src/features/stats-charts'])
+          const result = starter.npm(['run', 'test:e2e', '--', 'e2e/chart.spec.ts'], { E2E_PORT: String(await freePort()) })
 
           expect(result.status, result.failureMessage).not.toBe(0)
-          // Vitest는 색을 쓸 수 있는 환경(CI 등)에서 프로젝트 이름을 `|이름|` 대신 색 배지로 찍으므로, 색 코드를 지우고 `|`는 있어도 없어도 맞게 본다.
           const output = stripVTControlCharacters(result.output)
-          // axe는 SVG의 선을 보지 않으므로, 스토리가 잰 명도 대비가 실패를 잡는다.
+          // axe는 SVG의 선을 보지 않으므로, E2E가 잰 명도 대비가 실패를 잡는다. 라이트 테마는 Base의 토큰을 쓰므로 실패하지 않는다.
           expect(output).toContain('contrastRatio')
-          expect(output).toMatch(
-            /FAIL\s+\|?storybook \(chromium, dark\)\|?\s+src\/features\/stats-charts\/daily-visits-chart\.stories\.tsx/,
-          )
-          expect(output).not.toMatch(/FAIL\s+\|?storybook \(chromium\)\|?\s+src\/features\/stats-charts\//)
+          // Playwright는 끝에 실패한 테스트를 모아 적는다(`N failed` 다음 줄부터 `M passed` 앞까지).
+          const failed = output.slice(output.lastIndexOf(' failed')).split(' passed')[0] ?? ''
+          expect(failed).toContain('운영체제가 다크 모드이면 › 차트의 선·막대·축 글자가 배경 위에서 읽히고')
+          expect(failed).not.toContain('운영체제가 라이트 모드이면')
         } finally {
           writeFileSync(tokensPath, original)
         }

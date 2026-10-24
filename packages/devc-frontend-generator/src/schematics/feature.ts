@@ -1,4 +1,4 @@
-import { kebabCase, pascalCase, splitWords } from './names.js'
+import { kebabCase, splitWords } from './names.js'
 import { SchematicError } from './starter-project.js'
 
 /** Feature를 두는 폴더. Starter 최상위 기준이다. */
@@ -14,15 +14,13 @@ export interface Feature {
   name: string
   /** Starter 최상위 기준 폴더 */
   directory: string
-  /** Storybook 스토리 제목의 Feature 단계(PascalCase) */
-  storyTitle: string
 }
 
 /** --feature로 받은 이름의 Feature. 폴더 이름으로 쓸 수 없는 이름이면 SchematicError를 던진다. */
 export function featureNamed(name: string): Feature {
   const words = nameWords('Feature', name)
   const folder = kebabCase(words)
-  return { name: folder, directory: `${FEATURES_DIR}/${folder}`, storyTitle: `Features/${pascalCase(words)}` }
+  return { name: folder, directory: `${FEATURES_DIR}/${folder}` }
 }
 
 /**

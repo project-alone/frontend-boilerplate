@@ -5,7 +5,7 @@ import { freePort } from './run.ts'
 import { expectFileToPass, runVitestScript, type RenderingMode, type Starter, useStarter } from './starter.ts'
 
 // 하네스 매트릭스: Base의 앱 수준 화면(src/app/error.tsx, global-error.tsx, not-found.tsx)을 Rendering Mode마다 본다.
-// Base의 스토리와 E2E(e2e/not-found.spec.ts)에 더해, 라우트에 경계가 없는 페이지와 루트 레이아웃에서 오류를 내는 탐침
+// Base의 컴포넌트 테스트와 E2E(e2e/not-found.spec.ts)에 더해, 라우트에 경계가 없는 페이지와 루트 레이아웃에서 오류를 내는 탐침
 // (harness/fixtures/app-boundaries)을 Starter에 두고 빌드한 앱에서 E2E로 확인한다. server Starter에서는 서버 컴포넌트의 오류와
 // notFound()가 상태 코드 500·404로 나가는지도 본다. 앱 수준의 loading.tsx를 두면 응답을 먼저 보내 200이 되므로 이 검사가 실패한다. 라우트 수준의 경계(npm run g -- page,
 // 대시보드·커머스 Archetype)가 먼저 받는 것은 그 경계를 만든 쪽의 E2E가 본다(fixtures/g-page/server.spec.ts, Archetype의 e2e).
@@ -45,14 +45,14 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s Starter�
     playwright: true,
   })
 
-  test('타입 검사, 린트, 포맷 검사를 통과하고, 화면마다 둔 스토리가 접근성(axe)·상호작용 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사를 통과하고, 화면마다 둔 컴포넌트 테스트(상호작용, 접근성)가 통과한다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
 
-    const stories = runVitestScript(starter, ['run', 'test:storybook'])
-    for (const file of ['src/app/error.stories.tsx', 'src/app/not-found.stories.tsx']) {
-      expectFileToPass(stories, file, 1)
+    const report = runVitestScript(starter, ['test'])
+    for (const file of ['src/app/error.test.tsx', 'src/app/not-found.test.tsx']) {
+      expectFileToPass(report, file, 1)
     }
   })
 

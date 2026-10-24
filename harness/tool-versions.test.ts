@@ -64,3 +64,17 @@ test('Generator와 Base가 함께 의존하는 다른 패키지도 같은 버전
     ).toBe(base[name])
   }
 })
+
+// Storybook을 더할 때(dcgen g story) Starter에 더하는 의존성은 base/storybook/package.json에 따로 고정한다(ADR-0014).
+// Vitest의 브라우저 provider는 Vitest와 같은 버전이어야 하므로, Base의 vitest를 올리면 함께 올린다.
+test('Storybook을 더할 때 넣는 Vitest 브라우저 provider는 Base의 vitest와 같은 버전이다', () => {
+  const storybook = readPackageJson(join(GENERATOR_DIR, 'base', 'storybook', 'package.json')).devDependencies ?? {}
+
+  expect(base['vitest']).toBeDefined()
+  expect(
+    storybook['@vitest/browser-playwright'],
+    `base/storybook/package.json의 @vitest/browser-playwright(${String(storybook['@vitest/browser-playwright'])})와 Base의 vitest(${String(base['vitest'])}) 버전이 다릅니다.`,
+  ).toBe(base['vitest'])
+  for (const version of Object.values(storybook)) expect(version).toMatch(EXACT_VERSION)
+})
+

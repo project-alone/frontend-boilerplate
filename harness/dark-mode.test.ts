@@ -33,7 +33,7 @@ test('dark-mode Recipe는 공통 컴포넌트와 Base의 토큰 값을 고치지
 })
 
 // 하네스 매트릭스: Base에 dark-mode Recipe를 넣은 Starter를 Rendering Mode마다 만들어, Starter 자신의 스크립트와
-// Recipe가 함께 넣은 테스트(src/shared/theme/theme.test.ts, 테마 전환 UI 스토리, e2e/dark-mode.spec.ts)가 통과하는지 본다.
+// Recipe가 함께 넣은 테스트(src/shared/theme/theme.test.ts, e2e/dark-mode.spec.ts)가 통과하는지 본다.
 // Recipe 없이 Base만 넣은 조합은 new.test.ts가 검증한다.
 describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 dark-mode Recipe를 넣은 Starter', (renderingMode) => {
   const starter = useStarter({
@@ -62,30 +62,8 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 dark-m
     }
   })
 
-  test('모든 스토리가 라이트 모드와 다크 모드 브라우저에서 각각 접근성(axe)·상호작용 검사를 통과한다', () => {
-    const report = join(starter.workdir, 'storybook-report.json')
-    starter.expectNpmSuccess([
-      'run',
-      'test:storybook',
-      '--',
-      '--reporter=default',
-      '--reporter=json',
-      `--outputFile.json=${report}`,
-    ])
-
-    // JSON 보고서의 테스트 이름 앞에는 Vitest 프로젝트 이름이 붙지 않으므로, 실행한 스토리 수가 두 배인지 본다.
-    const { numPassedTests, numTotalTests, testResults } = JSON.parse(readFileSync(report, 'utf8')) as {
-      numPassedTests: number
-      numTotalTests: number
-      testResults: { name: string }[]
-    }
-    expect(numPassedTests).toBe(numTotalTests)
-    const switcherRuns = testResults.filter(({ name }) => name.endsWith('/theme-switcher.stories.tsx'))
-    expect(switcherRuns).toHaveLength(2)
-  })
-
-  // Storybook 설정은 Rendering Mode와 상관없으므로 server에서만 본다.
-  test.runIf(renderingMode === 'server')('다크 테마의 토큰이 명도 대비 기준을 어기면 다크 모드 브라우저의 스토리 검사가 실패한다', () => {
+  // 토큰은 Rendering Mode와 상관없으므로 server에서만 본다. 바꾼 토큰으로 빌드한 앱을 검사하고, 다음 테스트가 원래 토큰으로 다시 빌드한다.
+  test.runIf(renderingMode === 'server')('다크 테마의 토큰이 명도 대비 기준을 어기면 E2E의 다크 테마 접근성 검사가 실패한다', async () => {
     const tokensPath = join(starter.dir, 'src/shared/ui/tokens-dark.css')
     const original = readFileSync(tokensPath, 'utf8')
     // 글자색을 보조 배경색(배경과 거의 같은 어두운 색)으로 바꿔 명도 대비를 떨어뜨린다.
@@ -95,15 +73,17 @@ describe.each(['server', 'static-export'] as const)('Rendering Mode %s에 dark-m
     writeFileSync(tokensPath, original.replace(/(--color-foreground:)[^;]+;/, `$1 ${muted};`))
 
     try {
-      const result = starter.npm(['run', 'test:storybook'])
+      starter.expectNpmSuccess(['run', 'build'])
+      const result = starter.npm(['run', 'test:e2e', '--', 'e2e/dark-mode.spec.ts'], { E2E_PORT: String(await freePort()) })
 
       expect(result.status, result.failureMessage).not.toBe(0)
-      // Vitest는 색을 쓸 수 있는 환경(CI 등)에서 프로젝트 이름을 `|이름|` 대신 색 배지로 찍으므로, 색 코드를 지우고 `|`는 있어도 없어도 맞게 본다.
       const output = stripVTControlCharacters(result.output)
       expect(output).toContain('color-contrast')
-      // 공통 컴포넌트의 스토리는 다크 모드 브라우저에서만 실패한다. 라이트 모드 브라우저는 Base의 토큰을 쓴다.
-      expect(output).toMatch(/FAIL\s+\|?storybook \(chromium, dark\)\|?\s+src\/shared\/ui\/button\.stories\.tsx/)
-      expect(output).not.toMatch(/FAIL\s+\|?storybook \(chromium\)\|?\s+src\/shared\/ui\//)
+      // 다크 테마로 연 화면의 axe 검사가 실패한다. Playwright는 끝에 실패한 테스트를 모아 적는다(`N failed` 다음 줄부터).
+      const failed = output.slice(output.lastIndexOf(' failed')).split(' passed')[0] ?? ''
+      expect(failed).toContain('고른 테마가 없을 때 다크 테마로 열리고 WCAG 2.2 AA 위반이 없다')
+      // 라이트 테마는 Base의 토큰을 쓰므로 라이트 테마로 연 화면의 검사는 실패하지 않는다.
+      expect(failed).not.toContain('고른 테마가 없을 때 라이트 테마로 열린다')
     } finally {
       writeFileSync(tokensPath, original)
     }

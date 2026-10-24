@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { server } from '@/shared/mocks/node'
 import { StatsCharts } from './stats-charts'
 
@@ -30,9 +31,12 @@ function readTable(table: HTMLElement): string[][] {
 }
 
 test('일별 방문 수 시계열 차트는 MSW가 돌려준 샘플 명세의 값을 스크린 리더용 표로도 제공한다', async () => {
-  renderWithQueryClient(<StatsCharts />)
+  const { container } = renderWithQueryClient(<StatsCharts />)
 
   const table = await screen.findByRole('table', { name: '일별 방문 수' })
+  await screen.findByRole('table', { name: '판매 채널별 매출' })
+  // 그림은 보조 기술에서 숨기고 같은 값을 표로 알린다. 렌더링된 선·막대의 명도 대비는 E2E가 실제 브라우저에서 잰다.
+  expect(await axeViolations(container)).toEqual([])
   const rows = readTable(table)
   expect(rows[0]).toEqual(['날짜', '방문 수'])
   expect(rows).toHaveLength(15)

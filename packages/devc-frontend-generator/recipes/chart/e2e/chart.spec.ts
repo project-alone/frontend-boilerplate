@@ -76,6 +76,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
         .locator('.recharts-cartesian-axis-tick-value')
         .evaluateAll((texts) => texts.map((text) => getComputedStyle(text).fill))
 
+      // 두 계열은 색만으로 나누지 않는다. 지난달은 테두리만 그리고(안쪽은 배경색) 이번 달은 채운다.
+      expect(previous?.fill).toBe(background)
       for (const mark of [line, previous?.stroke ?? '', current?.fill ?? '']) {
         expect(contrastRatio(mark, background), mark).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST_MIN)
       }

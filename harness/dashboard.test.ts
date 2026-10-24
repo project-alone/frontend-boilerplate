@@ -71,7 +71,7 @@ describe('Rendering Mode server에 대시보드 Archetype을 넣은 Starter', ()
     expect(readTree(users)).toEqual(archetype)
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트(목 백엔드의 401·403과 역할을 바꾼 계정의 다시 로그인, 통계, 목록의 정렬·필터, 추가·수정 폼, 역할 규칙), 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트(목 백엔드의 401·403과 역할을 바꾼 계정의 다시 로그인, 통계, 목록의 정렬·필터, 추가·수정 폼과 그 접근성, 역할 규칙)를 통과한다', () => {
     for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check']]) {
       starter.expectNpmSuccess(script)
     }
@@ -94,15 +94,6 @@ describe('Rendering Mode server에 대시보드 Archetype을 넣은 Starter', ()
       'src/features/stats-charts/stats-charts.test.tsx',
     ]) {
       expectFileToPass(report, file, 1)
-    }
-
-    const stories = runVitestScript(starter, ['run', 'test:storybook'])
-    for (const file of [
-      'src/features/user-form/create-user-form.stories.tsx',
-      'src/features/user-form/update-user-form.stories.tsx',
-      'src/features/user-stats/user-status-chart.stories.tsx',
-    ]) {
-      expectFileToPass(stories, file, 1)
     }
   })
 

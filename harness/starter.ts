@@ -132,7 +132,7 @@ export interface StarterOptions {
    * 경로는 new.test.ts가 하네스의 레지스트리(registry.ts)로 검증한다.
    */
   install?: boolean
-  /** Storybook 테스트와 E2E가 쓰는 Chromium을 받는다(이미 받아 두었으면 건너뛴다). install이 필요하다. */
+  /** E2E와 Storybook 테스트가 쓰는 Chromium을 받는다(이미 받아 두었으면 건너뛴다). install이 필요하다. */
   playwright?: boolean
 }
 
@@ -299,7 +299,7 @@ export async function expectFilesToMatchSnapshots(
   }
 }
 
-/** Starter의 Vitest 스크립트(npm test, npm run test:storybook)가 남긴 JSON 보고서 */
+/** Starter의 Vitest 스크립트(npm test, Storybook을 더했으면 npm run test:storybook)가 남긴 JSON 보고서 */
 export interface VitestReport {
   testResults: { name: string; status: string; assertionResults: unknown[] }[]
 }
@@ -332,9 +332,9 @@ export function readTree(directory: string): Record<string, string> {
   )
 }
 
-/** Starter의 검사 스크립트(타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사)가 모두 통과하는지 본다. */
+/** Starter의 검사 스크립트(타입 검사, 린트, 포맷 검사, 단위 테스트)가 모두 통과하는지 본다. */
 export function expectStarterChecksToPass(starter: Pick<Starter, 'expectNpmSuccess'>): void {
-  for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check'], ['test'], ['run', 'test:storybook']]) {
+  for (const script of [['run', 'typecheck'], ['run', 'lint'], ['run', 'format:check'], ['test']]) {
     starter.expectNpmSuccess(script)
   }
 }

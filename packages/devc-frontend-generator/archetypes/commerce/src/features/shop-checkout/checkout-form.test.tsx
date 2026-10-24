@@ -4,6 +4,7 @@ import { userEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createCart, getOrder } from '@/shared/api/generated'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { MUST_CHECK_MESSAGE, REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
 import { createShopHandlers, resetMockShop } from '@/shared/mocks/shop'
@@ -83,11 +84,13 @@ test('장바구니가 없으면 주문서 대신 장바구니로 안내한다', 
   expect(screen.getByRole('link', { name: '장바구니로' })).toHaveAttribute('href', '/shop/cart')
 })
 
-test('비워 둔 채 다음을 누르면 이 단계의 필수 입력만 오류로 알리고 첫 오류 필드로 포커스를 옮긴다', async () => {
+test('비워 둔 채 다음을 누르면 이 단계의 필수 입력만 오류로 알리고 첫 오류 필드로 포커스를 옮긴다. 처음 화면과 오류 화면에 접근성 위반이 없다', async () => {
   await cartWithTwoTShirts()
   renderForm()
 
-  await user().click(await screen.findByRole('button', { name: '다음' }))
+  const next = await screen.findByRole('button', { name: '다음' })
+  expect(await axeViolations(document.body)).toEqual([])
+  await user().click(next)
 
   const recipient = screen.getByRole('textbox', { name: '받는 사람' })
   await waitFor(() => {
@@ -100,6 +103,8 @@ test('비워 둔 채 다음을 누르면 이 단계의 필수 입력만 오류�
   // 선택 입력(상세 주소, 배송 메모)은 비워도 된다.
   expect(screen.getByRole('textbox', { name: '상세 주소' })).not.toHaveAttribute('aria-invalid', 'true')
   expect(screen.getByRole('heading', { level: 2, name: '배송 정보 (4단계 중 1단계)' })).toBeInTheDocument()
+  // 오류가 보이는 화면에도 접근성 위반이 없다.
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('배송 정보 → 결제 수단 → 주문 확인을 거쳐 장바구니 id와 함께 주문하고, 그 주문의 결제창으로 간다', async () => {
@@ -117,6 +122,7 @@ test('배송 정보 → 결제 수단 → 주문 확인을 거쳐 장바구니 i
   expect(table).toHaveTextContent('결제 금액₩38,000')
   expect(screen.getByRole('region', { name: '배송 정보' })).toHaveTextContent('주소04524 서울특별시 중구 세종대로 110')
   expect(screen.getByRole('region', { name: '결제 수단' })).toHaveTextContent('계좌이체')
+  expect(await axeViolations(document.body)).toEqual([])
 
   // 구매 동의는 명세의 const: true라 체크해야 주문한다.
   await user().click(screen.getByRole('button', { name: '결제하기' }))

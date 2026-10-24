@@ -6,7 +6,7 @@ import { buildRouteLine, expectFileToPass, readTree, type RenderingMode, runVite
 
 // 하네스 매트릭스: Base에 multi-step-form Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들고, dark-mode Recipe를 함께
 // 넣은 조합도 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트(단계마다 검증·값 유지·한 번에 제출을 보는 컴포넌트
-// 테스트, 저장소 테스트, 폼 스토리, e2e/multi-step-form.spec.ts)가 통과하는지 본다. server에서 dark-mode와 함께 켠 조합은 모든
+// 테스트와 그 접근성, 저장소 테스트, e2e/multi-step-form.spec.ts)가 통과하는지 본다. server에서 dark-mode와 함께 켠 조합은 모든
 // Recipe를 켠 Showcase(showcase-starter.test.ts)가 보므로, dark-mode 조합은 static-export로 만든다.
 const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly string[] }[] = [
   { renderingMode: 'server', recipes: ['multi-step-form'] },
@@ -16,7 +16,6 @@ const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly s
 
 for (const { renderingMode, recipes } of COMBINATIONS) {
   describe(`Rendering Mode ${renderingMode}에 Recipe ${recipes.join(', ')}를 넣은 Starter`, () => {
-    const withDarkMode = recipes.includes('dark-mode')
     const starter = useStarter({
       prefix: `dcgen-${recipes.join('-')}-${renderingMode}-`,
       renderingMode,
@@ -48,16 +47,6 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
       const report = runVitestScript(starter, ['test'])
       expectFileToPass(report, 'src/features/partner-application/partner-application-form.test.tsx', 1)
       expectFileToPass(report, 'src/shared/multi-step-form/draft-storage.test.ts', 1)
-    })
-
-    test(`폼 스토리(첫 단계, 검증 오류, 확인 단계)가 ${withDarkMode ? '라이트 모드와 다크 모드 브라우저에서 각각 ' : ''}접근성(axe) 검사를 통과한다`, () => {
-      const report = runVitestScript(starter, ['run', 'test:storybook'])
-
-      expectFileToPass(
-        report,
-        'src/features/partner-application/partner-application-form.stories.tsx',
-        withDarkMode ? 2 : 1,
-      )
     })
 
     test('빌드하면 /partners/apply는 첫 단계를 미리 렌더링한다', () => {

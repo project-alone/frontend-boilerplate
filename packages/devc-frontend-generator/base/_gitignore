@@ -8,5 +8,3 @@ coverage/
 .DS_Store
 test-results/
 playwright-report/
-storybook-static/
-*storybook.log
