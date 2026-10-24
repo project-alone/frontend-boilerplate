@@ -1,9 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
-// 원본(packages/devc-frontend-generator/): base/config/vitest.config.ts, recipes/dark-mode/config/vitest.config.ts.patch, recipes/i18n/config/vitest.config.ts.patch
+// 원본(packages/devc-frontend-generator/): base/config/vitest.config.ts, recipes/i18n/config/vitest.config.ts.patch
 
 import { join } from 'node:path'
-import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
-import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
 
 // 이 설정은 config/에 있으므로 npm 스크립트가 --config로 넘긴다. 경로는 Starter 최상위(root)를 기준으로 적는다.
@@ -15,6 +13,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   test: {
+    // 테스트를 종류마다 프로젝트로 나눈다. npm test는 unit 프로젝트만 실행한다.
     projects: [
       {
         extends: true,
@@ -37,33 +36,6 @@ export default defineConfig({
           // i18n Recipe: next-intl의 proxy(next-intl/middleware)는 next/server를 확장자 없이 import해 Node.js가 바로 불러오지
           // 못하므로 Vite가 변환해 불러오게 한다(src/shared/i18n/i18n-proxy.test.ts).
           server: { deps: { inline: ['next-intl'] } },
-        },
-      },
-      {
-        // 스토리 하나하나를 브라우저(Chromium)에서 테스트로 실행하고, 실행할 때마다 axe 접근성 검사를 한다.
-        extends: true,
-        plugins: [storybookTest({ configDir: join(root, '.storybook') })],
-        optimizeDeps: {
-          // Storybook 런타임이 쓰는 react를 미리 묶어 둔다. 실행 도중에 묶으면 Vite가 테스트를 다시 불러오면서
-          // 캐시가 없는 첫 실행(CI 등)이 실패한다.
-          include: ['react'],
-        },
-        test: {
-          name: 'storybook',
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright(),
-            instances: [
-              { browser: 'chromium' },
-              // dark-mode Recipe: 운영체제가 다크 모드인 브라우저에서도 모든 스토리를 검사한다(.storybook/preview.tsx의 테마).
-              {
-                browser: 'chromium',
-                name: 'storybook (chromium, dark)',
-                provider: playwright({ contextOptions: { colorScheme: 'dark' } }),
-              },
-            ],
-          },
         },
       },
     ],

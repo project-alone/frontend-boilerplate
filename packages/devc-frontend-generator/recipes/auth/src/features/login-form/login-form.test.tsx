@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { expect, test, vi } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { SESSION_API_PATH } from '@/shared/auth/auth-client'
 import { REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
@@ -12,12 +13,12 @@ const USER = { id: 1, email: 'user@example.com', name: '김사용', roles: ['use
 
 function renderForm() {
   const onLoggedIn = vi.fn<(path: string) => void>()
-  render(
+  const { container } = render(
     <QueryClientProvider client={new QueryClient()}>
       <LoginForm returnPath="/account" onLoggedIn={onLoggedIn} />
     </QueryClientProvider>,
   )
-  return { onLoggedIn }
+  return { onLoggedIn, container }
 }
 
 /** 로그인 Route Handler가 받은 요청 본문을 모으고 status로 답한다. */
@@ -63,9 +64,16 @@ test('이메일이나 비밀번호가 맞지 않으면 알리고 돌아가지 �
   expect(onLoggedIn).not.toHaveBeenCalled()
 })
 
-test('비워 둔 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
+test('처음 화면에 접근성 위반이 없다', async () => {
+  const { container } = renderForm()
+
+  expect(screen.getByRole('button', { name: '로그인' })).toBeVisible()
+  expect(await axeViolations(container)).toEqual([])
+})
+
+test('비워 둔 입력은 보내지 않고, 입력 요소마다 오류를 알린다. 오류가 보이는 화면에도 접근성 위반이 없다', async () => {
   const bodies = sessionRoute(200)
-  renderForm()
+  const { container } = renderForm()
 
   await userEvent.setup().click(screen.getByRole('button', { name: '로그인' }))
 
@@ -75,4 +83,5 @@ test('비워 둔 입력은 보내지 않고, 입력 요소마다 오류를 알�
     expect(control).toHaveAccessibleDescription(requiredError)
   }
   expect(bodies).toEqual([])
+  expect(await axeViolations(container)).toEqual([])
 })

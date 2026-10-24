@@ -25,7 +25,7 @@ afterEach(() => {
 
 /**
  * jsdom은 화면을 그리지 않아 IntersectionObserver가 없다. 목록 끝의 표시 요소를 지켜보다가, 테스트가 scrollToEnd()를 부르면
- * 그 요소가 화면에 들어온 것처럼 알리는 가짜다. 실제 브라우저의 동작은 스토리와 E2E가 본다.
+ * 그 요소가 화면에 들어온 것처럼 알리는 가짜다. 실제 브라우저의 동작은 E2E가 본다.
  */
 class FakeIntersectionObserver {
   static readonly observing = new Set<FakeIntersectionObserver>()

@@ -68,50 +68,31 @@ test('server.use로 이 테스트에서만 응답을 바꾼다', async () => {
   })
 })
 
-describe('Storybook', () => {
-  test('Storybook 개발 서버가 뜬다', async () => {
-    // Starter의 스크립트는 -p 6006으로 띄운다. 다른 워크트리의 하네스나 개발자의 Storybook이 6006을 쓰고 있어도 흔들리지 않도록
-    // 빈 포트를 뒤에 넘겨 덮어쓰고(뒤의 --port가 이긴다), 그 포트가 아니면 다른 포트로 옮기지 않고 실패하게 한다.
-    const port = String(await freePort())
-    starter.expectNpmSuccess(['run', 'storybook', '--', '--ci', '--smoke-test', '--port', port, '--exact-port'])
-  })
-
-  test('스토리마다 axe 접근성 검사가 돌고, Starter의 스토리는 모두 통과한다', () => {
-    starter.expectNpmSuccess(['run', 'test:storybook'])
-  })
-
-  test('WCAG 2.2 AA를 어기는 스토리가 있으면 접근성 검사가 실패한다', () => {
-    const story = 'src/app/harness-a11y.stories.tsx'
-    // 24px보다 작은 버튼 두 개를 붙여 둔다(WCAG 2.2 성공 기준 2.5.8 위반).
+describe('컴포넌트 테스트의 접근성 검사(axe)', () => {
+  test('WCAG 2.2 AA를 어기는 화면을 axeViolations로 검사하면 컴포넌트 테스트가 실패한다', () => {
+    const file = 'src/app/harness-a11y.test.tsx'
     starter.writeFile(
-      story,
-      `import type { Meta, StoryObj } from '@storybook/nextjs-vite'
+      file,
+      `import { render } from '@testing-library/react'
+import { expect, test } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 
-function TinyButtons() {
-  const style = { width: 12, height: 12, padding: 0, margin: 0, fontSize: 8 }
-  return (
-    <div>
-      <button type="button" style={style}>A</button>
-      <button type="button" style={style}>B</button>
-    </div>
-  )
-}
+test('이름 없는 버튼', async () => {
+  // 글자도 aria-label도 없는 버튼은 보조 기술이 읽을 이름이 없다(WCAG 2.2 성공 기준 4.1.2 위반).
+  const { container } = render(<button type="button" />)
 
-const meta = { component: TinyButtons } satisfies Meta<typeof TinyButtons>
-
-export default meta
-
-export const Default: StoryObj<typeof meta> = {}
+  expect(await axeViolations(container)).toEqual([])
+})
 `,
     )
 
     try {
-      const result = starter.npm(['run', 'test:storybook', '--', story])
+      const result = starter.npm(['test', '--', file])
 
       expect(result.status, result.failureMessage).not.toBe(0)
-      expect(result.output).toContain('target-size')
+      expect(result.output).toContain('button-name')
     } finally {
-      rmSync(join(starter.dir, story))
+      rmSync(join(starter.dir, file))
     }
   })
 })

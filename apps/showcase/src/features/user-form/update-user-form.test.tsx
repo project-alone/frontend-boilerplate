@@ -7,6 +7,7 @@ import { userEvent } from '@testing-library/user-event'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { getUserQueryOptions } from '@/queries/users/users.queries'
 import { getUser } from '@/shared/api/generated'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { signInAsMockUser } from '@/shared/auth/mock-session'
 import { resetMockUsers } from '@/shared/mocks/users'
 import { ToastProvider } from '@/shared/ui/toast'
@@ -39,7 +40,7 @@ async function renderForm(userId: number, email = 'admin@example.com') {
   )
 }
 
-test('누구를 고치는지 알리고, 사용자의 지금 값으로 입력을 채운다', async () => {
+test('누구를 고치는지 알리고, 사용자의 지금 값으로 입력을 채운다. 접근성 위반이 없다', async () => {
   await renderForm(1)
 
   expect(screen.getByText('김사용(user@example.com)님의 정보를 고칩니다.')).toBeInTheDocument()
@@ -48,6 +49,21 @@ test('누구를 고치는지 알리고, 사용자의 지금 값으로 입력을 
   expect(screen.getByRole('combobox', { name: '역할' })).toHaveTextContent('사용자')
   expect(screen.getByRole('combobox', { name: '상태' })).toHaveTextContent('활성')
   expect(screen.getByRole('textbox', { name: '부서' })).toHaveValue('영업팀')
+  expect(await axeViolations(document.body)).toEqual([])
+})
+
+test('이름을 비우고 보내면 보내지 않고 이름 입력에 오류를 알린다. 오류 화면에도 접근성 위반이 없다', async () => {
+  const user = userEvent.setup()
+  await renderForm(1)
+  const name = screen.getByRole('textbox', { name: '이름' })
+
+  await user.clear(name)
+  await user.click(screen.getByRole('button', { name: '사용자 수정' }))
+
+  expect(name).toHaveAttribute('aria-invalid', 'true')
+  expect(name).toHaveAccessibleDescription()
+  expect(router.push).not.toHaveBeenCalled()
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('고친 값을 보내고 알린 뒤 사용자 목록으로 옮겨 가며, 비운 부서는 지운다', async () => {

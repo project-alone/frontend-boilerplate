@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getUpdateMemberContactMockHandler } from '@/shared/api/generated/members/members.msw'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { UpdateMemberContactForm } from './update-member-contact-form'
@@ -72,6 +73,12 @@ test('입력한 값을 요청 본문으로 보내고 성공을 알린다', async
   ])
 })
 
+test('처음 화면에 접근성 위반이 없다', async () => {
+  renderForm()
+
+  expect(await axeViolations(document.body)).toEqual([])
+})
+
 test('비워 둔 입력은 보내지 않고, null을 받는 필수 필드는 null로 보낸다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
@@ -96,4 +103,5 @@ test('검증 규칙에 맞지 않는 값은 보내지 않고 오류를 알린다
   // 오류 메시지(Zod의 한국어 메시지)는 입력 요소의 설명(aria-describedby)으로 읽힌다.
   expect(control).toHaveAccessibleDescription()
   expect(bodies).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 })

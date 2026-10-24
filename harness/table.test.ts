@@ -31,7 +31,7 @@ describe.each(['server', 'static-export'] as const)(
       expect(readTree(members)).toEqual(recipe)
     })
 
-    test('타입 검사, 린트, 포맷 검사, 단위 테스트(테이블의 정렬·필터·페이지 포함), 스토리 검사를 통과한다', () => {
+    test('타입 검사, 린트, 포맷 검사, 단위 테스트(테이블의 정렬·필터·페이지 포함)를 통과한다', () => {
       for (const script of [
         ['run', 'typecheck'],
         ['run', 'lint'],
@@ -40,7 +40,6 @@ describe.each(['server', 'static-export'] as const)(
         starter.expectNpmSuccess(script)
       }
       expectFileToPass(runVitestScript(starter, ['test']), 'member-table.test.tsx', 1)
-      starter.expectNpmSuccess(['run', 'test:storybook'])
     })
 
     test('빌드하면 /members는 페이지 뼈대를 미리 만든다', () => {

@@ -241,7 +241,7 @@ describe('터미널에서 실행한 new', () => {
 })
 
 // 하네스 매트릭스: Recipe 없이 Base만 넣은 Starter를 Rendering Mode마다 만들어 본다.
-// Rendering Mode별 동작(E2E, Storybook 등)은 test-tools.test.ts(server)와 static-export.test.ts가 더 검증한다.
+// Rendering Mode별 동작(E2E 등)은 test-tools.test.ts(server)와 static-export.test.ts가 더 검증한다.
 describe('--skip-install 없이 실행한 new', () => {
   // `dcgen new`는 Starter가 고정한 버전의 Generator를 npm 레지스트리에서 설치하지만 Generator는 아직 npm에 없다.
   // 그래서 하네스의 tarball을 배포된 것처럼 내주는 레지스트리를 띄우고, Generator 코드는 그대로 실행한다.

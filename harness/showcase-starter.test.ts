@@ -21,13 +21,12 @@ const starter = useStarter({
   playwright: true,
 })
 
-test('Showcase는 타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사를 통과한다', () => {
+test('Showcase는 타입 검사, 린트, 포맷 검사, 단위 테스트를 통과한다', () => {
   for (const script of [
     ['run', 'typecheck'],
     ['run', 'lint'],
     ['run', 'format:check'],
     ['test'],
-    ['run', 'test:storybook'],
   ]) {
     starter.expectNpmSuccess(script)
   }

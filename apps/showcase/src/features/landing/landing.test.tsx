@@ -4,6 +4,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { getLandingPage } from '@/shared/api/generated'
 import { Landing } from './landing'
 
@@ -31,6 +32,21 @@ test('콘텐츠 API의 문구로 히어로, 주요 기능, 고객 후기, 자주
   expect(screen.getByRole('region', { name: '자주 묻는 질문' })).toBeVisible()
 })
 
+test('영어 콘텐츠도 같은 섹션으로 그리고, 두 콘텐츠 모두 접근성 위반이 없다', async () => {
+  const { container, rerender } = render(<Landing content={await getLandingPage('ko')} />)
+  expect(await axeViolations(container)).toEqual([])
+
+  rerender(<Landing content={await getLandingPage('en')} />)
+
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'A clean frontend project from the first commit' }),
+  ).toBeVisible()
+  for (const name of ['Key features', 'What early teams say', 'Frequently asked questions']) {
+    expect(screen.getByRole('region', { name })).toBeVisible()
+  }
+  expect(await axeViolations(container)).toEqual([])
+})
+
 test('자주 묻는 질문의 답은 질문을 누르면 펼쳐지고 다시 누르면 접힌다', async () => {
   const user = userEvent.setup()
   render(<Landing content={await getLandingPage('en')} />)
@@ -40,6 +56,8 @@ test('자주 묻는 질문의 답은 질문을 누르면 펼쳐지고 다시 누
   expect(answer).not.toBeVisible()
   await user.click(question)
   expect(answer).toBeVisible()
+  // 펼친 답에도 접근성 위반이 없다.
+  expect(await axeViolations(document.body)).toEqual([])
   await user.click(question)
   expect(answer).not.toBeVisible()
 })

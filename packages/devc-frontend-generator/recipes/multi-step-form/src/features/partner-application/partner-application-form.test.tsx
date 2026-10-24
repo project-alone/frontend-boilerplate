@@ -4,6 +4,7 @@ import { userEvent, type UserEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getSubmitPartnerApplicationMockHandler } from '@/shared/api/generated/partners/partners.msw'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { MUST_CHECK_MESSAGE, REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
 import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
@@ -59,7 +60,7 @@ async function fillBusinessStep(user: UserEvent) {
   await user.click(await screen.findByRole('option', { name: '리빙' }))
 }
 
-test('첫 단계(사업자 정보)에서 시작하고, 단계 표시가 지금 단계를 알린다', () => {
+test('첫 단계(사업자 정보)에서 시작하고, 단계 표시가 지금 단계를 알린다. 접근성 위반이 없다', async () => {
   renderForm()
 
   expect(stepHeading('사업자 정보', 1)).toBeInTheDocument()
@@ -73,6 +74,7 @@ test('첫 단계(사업자 정보)에서 시작하고, 단계 표시가 지금 �
   expect(steps[0]).toHaveAttribute('aria-current', 'step')
   expect(steps.slice(1).filter((step) => step.hasAttribute('aria-current'))).toEqual([])
   expect(screen.queryByRole('button', { name: '이전' })).not.toBeInTheDocument()
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('비워 두고 다음을 누르면 이 단계의 필드만 검증해 오류를 알리고, 첫 오류 필드로 포커스를 옮긴다', async () => {
@@ -92,6 +94,8 @@ test('비워 두고 다음을 누르면 이 단계의 필드만 검증해 오류
   }
   expect(companyName).toHaveFocus()
   expect(stepHeading('사업자 정보', 1)).toBeInTheDocument()
+  // 오류가 보이는 화면에도 접근성 위반이 없다.
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('이 단계를 바르게 채우고 다음을 누르면 다음 단계로 가고, 포커스가 그 단계의 제목으로 옮겨 지금 단계를 알린다', async () => {
@@ -185,6 +189,7 @@ test('확인 단계는 모든 단계에서 입력한 값을 보여 주고, 신�
     ['입점 약관', '동의함'],
   ])
   expect(bodies).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 
   await user.click(screen.getByRole('button', { name: '신청하기' }))
 

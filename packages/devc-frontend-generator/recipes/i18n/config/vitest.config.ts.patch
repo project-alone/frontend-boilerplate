@@ -1,6 +1,6 @@
 --- a/config/vitest.config.ts
 +++ b/config/vitest.config.ts
-@@ -20,6 +20,9 @@
+@@ -30,6 +30,9 @@
            include: ['src/**/*.test.{ts,tsx}'],
            environment: 'jsdom',
            setupFiles: ['config/vitest.setup.ts'],
@@ -9,4 +9,4 @@
 +          server: { deps: { inline: ['next-intl'] } },
          },
        },
-       {
+     ],

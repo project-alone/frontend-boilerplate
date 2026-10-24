@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "test:storybook": "vitest run --config config/vitest.config.ts --project storybook"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "10.6.3",
+    "@storybook/addon-vitest": "10.6.3",
+    "@storybook/nextjs-vite": "10.6.3",
+    "@vitest/browser-playwright": "5.0.5",
+    "storybook": "10.6.3"
+  }
+}

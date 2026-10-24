@@ -5,18 +5,16 @@
 ```sh
 nvm use                     # .nvmrc의 Node 버전으로 전환
 npm install
-npm run playwright:install  # Storybook 테스트와 E2E가 쓰는 Chromium 설치(처음 한 번)
+npm run playwright:install  # E2E가 쓰는 Chromium 설치(처음 한 번)
 npm run dev                 # 개발 서버
 npm run typecheck           # 타입 검사
 npm run lint                # 린트(ESLint)
 npm run format              # 포맷 적용(Prettier)
 npm run format:check        # 포맷 검사
 npm test                    # 단위·컴포넌트 테스트
-npm run test:storybook      # 스토리마다 접근성 검사
 npm run build               # 프로덕션 빌드(배포용 빌드와 목 빌드는 아래 "실행과 배포")
 npm start                   # 빌드 결과로 서버 실행(build 다음에 실행)
 npm run test:e2e            # 빌드 결과로 E2E 테스트(목 빌드 다음에 실행)
-npm run storybook           # Storybook
 npm run api:gen             # OpenAPI 명세(openapi.yaml)에서 API 계층 재생성(orval)
 npm run g                   # Schematic으로 코드 생성(아래 "코드 생성(Schematic)")
 ```
@@ -66,7 +64,7 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 | `config/` | `vitest.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `orval.config.ts`, `next.config.plugins.ts`(위 "앱 조립 파일")                     |
 | `types/`  | `process-env.d.ts`(환경 변수의 타입 선언, 아래 "품질 기준"). Rendering Mode와 Recipe가 읽는 변수는 그 이름의 `process-env.<이름>.d.ts`에 있습니다 |
 
-- `config/`의 설정은 npm 스크립트(`test`, `test:storybook`, `test:e2e`, `api:gen`)가 `--config`로 넘깁니다. `npx vitest`, `npx playwright test`처럼 도구를 직접 부르면 설정을 찾지 못하므로, 파일 하나만 돌릴 때도 npm 스크립트에 인자를 붙입니다(예: `npm test -- src/app/page.test.tsx`, `npm run test:e2e -- e2e/not-found.spec.ts`).
+- `config/`의 설정은 npm 스크립트(`test`, `test:e2e`, `api:gen`)가 `--config`로 넘깁니다. `npx vitest`, `npx playwright test`처럼 도구를 직접 부르면 설정을 찾지 못하므로, 파일 하나만 돌릴 때도 npm 스크립트에 인자를 붙입니다(예: `npm test -- src/app/page.test.tsx`, `npm run test:e2e -- e2e/not-found.spec.ts`).
 - 설정 안의 경로: `vitest.config.ts`는 `root`를 프로젝트 최상위로 정해 최상위 기준으로 적습니다. `playwright.config.ts`와 `orval.config.ts`는 경로를 설정 파일 기준으로 읽으므로 `../e2e`, `../openapi.yaml`처럼 최상위를 가리킵니다.
 - VS Code의 Vitest 확장과 Playwright 확장은 작업 공간 전체에서 설정 파일(`*vitest*.config.*`, `*playwright*.config.*`)을 찾으므로 `config/`의 설정을 그대로 씁니다.
 
@@ -74,7 +72,7 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 
 `.gitlab-ci.yml`이 들어 있어 사내 GitLab에 저장소를 올리면 바로 파이프라인이 돕니다. 잡은 모두 위의 npm 스크립트를 부르므로 실패한 잡은 로컬에서 같은 명령으로 재현할 수 있습니다.
 
-- 단계: `check`(`lint`, `format:check`, `typecheck`, `test`, `test:storybook`) → `build` → `e2e`(`build` 잡의 빌드 결과로 `test:e2e`)
+- 단계: `check`(`lint`, `format:check`, `typecheck`, `test`) → `build` → `e2e`(`build` 잡의 빌드 결과로 `test:e2e`). Storybook을 더하면(`npm run g -- story`) `check`에 `test:storybook`이 생깁니다.
 - `build` 잡은 `API_MOCKING=enabled`로 목 빌드를 만들어 실제 백엔드 없이 돕니다(위 "배포용 빌드와 목 빌드"). 이 결과는 배포하지 않고, 빌드 캐시에 목 응답이 남지 않도록 `.next/cache/fetch-cache`를 지웁니다. 배포 파이프라인을 더할 때는 `API_MOCKING`을 켜지 않고 `API_BASE_URL`을 CI/CD 변수로 넣은 잡에서 배포용 빌드를 따로 만듭니다.
 - 설치는 `npm ci`로 하므로 `package-lock.json`을 함께 커밋합니다. `dcgen new`가 Starter를 만들며 설치할 때 생기고, `--skip-install`로 만들었다면 처음 `npm install`할 때 생깁니다.
 - Node는 `.nvmrc`와 같은 버전의 `node` 이미지를 씁니다. `.nvmrc`를 바꾸면 `.gitlab-ci.yml`의 `image`도 함께 바꿉니다. 이미지를 쓰므로 Docker(또는 Kubernetes) executor 러너가 필요합니다.
@@ -117,9 +115,9 @@ Next.js에서는 서버에서 실행되는 코드와 브라우저에서 실행�
 | `Checkbox`                                              | `<Field><FieldLabel><Checkbox />약관에 동의합니다</FieldLabel></Field>`                                                                              |
 | `Select`                                                | `<Select label="지역" options={[{ value: 'seoul', label: '서울' }]} />`. 고른 값을 다시 비울 수 있게 하려면 `clearLabel="선택 안 함"`(비우면 `null`) |
 | `Dialog` 등                                             | `Dialog`, `DialogTrigger`, `DialogPopup`, `DialogTitle`, `DialogDescription`, `DialogClose`                                                          |
-| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃과 Storybook이 이미 감싸 두었습니다.                                          |
+| `useToast`                                              | `useToast().add({ title: '저장했습니다' })`. `ToastProvider`는 레이아웃이 이미 감싸 두었습니다.                                                      |
 
-컴포넌트마다 스토리(`<이름>.stories.tsx`)가 있어 Storybook에서 모양과 조작을 확인할 수 있습니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 클라이언트에서만 쓰는 훅(상태, 컨텍스트)을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `field-label-id.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
+컴포넌트마다 컴포넌트 테스트(`<이름>.test.tsx`)가 있어 상호작용(키보드 조작 등)과 접근성을 확인합니다. 공통 컴포넌트는 서버 컴포넌트에서도 가져다 쓸 수 있습니다. 클라이언트에서만 쓰는 훅(상태, 컨텍스트)을 쓰거나 Base UI에 함수를 넘기는 파일(`checkbox.tsx`, `field-label-id.tsx`, `toast.tsx`)에만 `'use client'`를 붙였습니다.
 
 ### 디자인 반영하기
 
@@ -127,7 +125,7 @@ Next.js에서는 서버에서 실행되는 코드와 브라우저에서 실행�
 
 Tailwind 기본 팔레트, 글자 크기, 반경, 그림자는 꺼 두었습니다. 그래서 `bg-red-500`처럼 토큰에 없는 값의 클래스는 아무 스타일도 만들지 않습니다. 토큰 밖의 값이 섞이면 다크 모드 같은 테마를 토큰 값만 바꿔 적용할 수 없기 때문입니다. 새 값이 필요하면 `tokens.css`에 토큰을 더합니다. 토큰은 `:root`의 CSS 변수로도 나가므로, 테마는 같은 이름의 변수 값만 덮어씁니다.
 
-Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Storybook이 같은 설정을 씁니다. 스타일 진입점은 `src/shared/ui/styles.css`입니다.
+Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`와 `next build`(Storybook을 더하면 Storybook도)가 같은 설정을 씁니다. 스타일 진입점은 `src/shared/ui/styles.css`입니다.
 
 ### 변형 더하기
 
@@ -146,7 +144,7 @@ Tailwind는 `postcss.config.mjs`로 켜져 있어 `next dev`, `next build`, Stor
 - `global-error.tsx`가 `error.tsx`의 화면을 그리므로 `error.tsx`는 루트 레이아웃의 Provider(TanStack Query, 알림 등)에 기대지 않습니다. 루트 레이아웃의 `<html lang>`을 바꾸면 `global-error.tsx`의 `lang`도 함께 바꿉니다.
 - 로딩 상태는 라우트의 `loading.tsx`(`npm run g -- page`가 만듭니다)와 컴포넌트의 `<Suspense>`가 맡고, 앱 수준의 `src/app/loading.tsx`는 두지 않습니다. 응답의 상태 코드는 응답을 보내기 시작할 때 정해지는데, 앱 수준 로딩 상태가 있으면 요청마다 렌더링하는 모든 페이지가 그것을 먼저 보내므로 그 뒤에 난 렌더링 오류와 `notFound()`가 상태 코드 200으로 나가기 때문입니다. 요청마다 렌더링하는 라우트에서 그 라우트의 `loading.tsx`나 `<Suspense>` 안에서 난 오류와 `notFound()`도 같은 까닭으로 200으로 나갑니다(404 화면에는 검색 엔진용 `noindex`가 붙습니다).
 - 오류 화면이 받은 오류는 Next.js가 브라우저 콘솔에만 남깁니다. 오류를 모으는 서비스로 보내려면 `error.tsx`에서 보냅니다(예: `sentry` Recipe).
-- 테스트: 화면마다 스토리(`error.stories.tsx`, `not-found.stories.tsx`)와 `e2e/not-found.spec.ts`(없는 주소의 404 화면과 상태 코드, 접근성)가 있습니다.
+- 테스트: 화면마다 컴포넌트 테스트(`error.test.tsx`, `not-found.test.tsx`)와 `e2e/not-found.spec.ts`(없는 주소의 404 화면과 상태 코드, 접근성)가 있습니다.
 
 ## 커밋 훅
 
@@ -158,10 +156,11 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 ## 테스트
 
 - 단위·컴포넌트 테스트: `src/` 안의 `*.test.ts(x)`. Vitest(jsdom)와 Testing Library로 작성합니다.
-- 스토리: `src/` 안의 `*.stories.tsx`. `npm run test:storybook`이 스토리마다 axe로 WCAG 2.2 AA를 검사하고, 위반이 하나라도 있으면 실패합니다. 스토리의 `play` 함수에 적은 상호작용 검사(키보드 조작 등)도 함께 돕니다.
+- 접근성: 컴포넌트 테스트에서 `axeViolations(container)`(`src/shared/a11y/axe-violations.ts`)로 화면의 WCAG 2.2 AA 위반을 찾습니다(`expect(await axeViolations(container)).toEqual([])`). 포털로 그리는 팝업(선택 목록, 대화상자, 알림)까지 보려면 `document.body`를 넘깁니다. jsdom은 색을 계산하지 못하므로 명도 대비는 E2E(`@axe-core/playwright`)가 실제 브라우저에서 검사합니다.
+- Storybook: 처음부터 들어 있지 않습니다. 컴포넌트의 스토리가 필요해지면 `npm run g -- story <컴포넌트 파일>`로 만들고, 그때 Storybook이 더해집니다(아래 "코드 생성(Schematic)"의 story).
 - E2E: `e2e/` 안의 `*.spec.ts`. Playwright가 빌드된 앱을 `npm run start`로 띄워 검사합니다. 목 빌드(`API_MOCKING=enabled npm run build`)의 결과로 돌립니다(위 "배포용 빌드와 목 빌드").
 - Linux CI에서 Chromium에 필요한 시스템 라이브러리가 없으면 `npx playwright install --with-deps chromium`으로 설치합니다.
-- Linux에서 `test:storybook`이나 `test:e2e`가 가끔 `Failed to fetch dynamically imported module`, `net::ERR_NETWORK_CHANGED`, `The iframe ... did not become ready`로 실패하면 그 사이에 같은 호스트에서 컨테이너가 뜨거나 내려가지 않았는지 봅니다(`docker compose up`, `docker build`, Testcontainers 등). Docker는 컨테이너마다 호스트에 네트워크 인터페이스를 만들고 지우는데, Linux의 Chromium은 인터페이스나 주소가 바뀌면 `localhost`로 보내던 요청까지 끊습니다. Chromium에는 이를 끄는 설정이 없으므로 컨테이너를 다 띄운 뒤에 브라우저 테스트를 돌리고, CI에서는 컨테이너를 만드는 잡과 브라우저 테스트를 한 호스트에서 동시에 돌리지 않습니다. 잡마다 컨테이너나 Pod가 따로 뜨는 GitLab CI의 Docker·Kubernetes executor에서는 다른 잡의 컨테이너가 영향을 주지 않습니다.
+- Linux에서 `test:e2e`(Storybook을 더했으면 `test:storybook`도)가 가끔 `Failed to fetch dynamically imported module`, `net::ERR_NETWORK_CHANGED`, `The iframe ... did not become ready`로 실패하면 그 사이에 같은 호스트에서 컨테이너가 뜨거나 내려가지 않았는지 봅니다(`docker compose up`, `docker build`, Testcontainers 등). Docker는 컨테이너마다 호스트에 네트워크 인터페이스를 만들고 지우는데, Linux의 Chromium은 인터페이스나 주소가 바뀌면 `localhost`로 보내던 요청까지 끊습니다. Chromium에는 이를 끄는 설정이 없으므로 컨테이너를 다 띄운 뒤에 브라우저 테스트를 돌리고, CI에서는 컨테이너를 만드는 잡과 브라우저 테스트를 한 호스트에서 동시에 돌리지 않습니다. 잡마다 컨테이너나 Pod가 따로 뜨는 GitLab CI의 Docker·Kubernetes executor에서는 다른 잡의 컨테이너가 영향을 주지 않습니다.
 
 ## API 계층
 
@@ -279,9 +278,10 @@ const {
 | ----------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | `query`     | 쿼리 키와 queryOptions(`--infinite`는 infiniteQueryOptions)                                                  | Query Domain(`src/queries/<domain>/`)                             |
 | `mutation`  | 뮤테이션 훅(`--optimistic`은 낙관적 업데이트 뼈대까지)                                                       | Query Domain(`src/queries/<domain>/`)                             |
-| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼, Storybook 스토리, 테스트                                     | Feature(`src/features/<feature>/`)                                |
+| `form`      | 요청 본문을 입력받아 뮤테이션 훅으로 보내는 폼과 테스트                                                      | Feature(`src/features/<feature>/`)                                |
 | `page`      | 라우트의 페이지(메타데이터, Rendering Mode), 로딩·오류 상태. `--query`의 결과를 보여 줄 컴포넌트와 그 테스트 | 라우트(`src/app/<route>/`), Feature(`src/features/<feature>/`)    |
-| `component` | 컴포넌트, Storybook 스토리, 테스트                                                                           | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+| `component` | 컴포넌트와 테스트                                                                                            | Feature(`src/features/<feature>/`) 또는 공통 UI(`src/shared/ui/`) |
+| `story`     | 컴포넌트의 Storybook 스토리. Starter에 Storybook이 없으면 Storybook도 더한다                                 | 컴포넌트 옆                                                       |
 
 Schematic을 차례로 실행하면 화면 하나가 됩니다. 예를 들어 상품 목록과 등록 폼이 있는 화면은 이렇게 만듭니다.
 
@@ -329,10 +329,10 @@ npm run g -- mutation <operationId> --optimistic <queryOperationId>  # 낙관적
 
 ```sh
 npm run g -- mutation <operationId>                    # 폼이 요청을 보낼 뮤테이션 훅(먼저 만든다)
-npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<feature>/)에 폼, 스토리, 테스트
+npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<feature>/)에 폼과 테스트
 ```
 
-- JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`), 스토리(`.stories.tsx`), 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
+- JSON 요청 본문(`application/json`)이 있는 operation만 만들 수 있습니다. 폼(예: `registerMember`는 `register-member-form.tsx`의 `RegisterMemberForm`)과 테스트(`.test.tsx`)를 함께 만들고, Feature 폴더가 없으면 만듭니다.
 - 폼은 재생성 계층의 요청 본문 Zod 스키마(`<OperationId>Body`)를 `useSchemaForm`으로 연결해 검증하고(위 "폼"), 제출하면 Query Domain의 `use<OperationId>Mutation` 훅으로 보냅니다. 훅이 없으면 아무 파일도 만들지 않고 `npm run g -- mutation <operationId>`를 먼저 실행하라고 알립니다.
 - 요청 본문의 속성마다 공통 UI 입력 요소를 하나씩 만듭니다. 레이블은 명세의 `title`(없으면 속성 이름)이고, `description`은 입력 요소의 설명이 됩니다.
 
@@ -351,13 +351,13 @@ npm run g -- form <operationId> --feature <feature>    # Feature(src/features/<f
 - 경로 파라미터(`/products/{productId}`)는 폼의 props(`<UpdateProductForm productId={1} />`)로 받아 요청 본문과 함께 뮤테이션에 넘깁니다. 쿼리 파라미터 같은 선택 인자는 넘기지 않습니다.
 - 뮤테이션 훅이 인자를 받으면(`mutation --optimistic`으로 만든 훅은 응답 전에 고칠 쿼리의 인자를 받습니다) 폼도 같은 이름과 타입의 props로 받아 훅에 넘깁니다. 화면이 보고 있는 쿼리와 같은 값을 넘깁니다.
   - 경로 파라미터와 이름이 같은 인자는 같은 값으로 보고 그 props를 함께 넘깁니다. 예를 들어 `useAddCartItemMutation(cartId)`로 장바구니를 고치는 `<AddCartItemForm cartId={cartId} />`는 `cartId`를 요청 경로와 훅에 모두 씁니다. 이름이 같은데 타입이 다르면 아무 파일도 만들지 않고 알립니다.
-  - 기본값이 있는 인자(쿼리 파라미터 객체 `params` 등)는 생략할 수 있는 props이고, 생략하면 훅의 기본값으로 고칩니다. 테스트와 스토리는 넘기지 않습니다.
-  - 기본값이 없는 인자는 테스트와 스토리가 넘길 값을 정해야 하므로 숫자, 문자열, 불리언만 받습니다. 그 밖의 타입이면 아무 파일도 만들지 않고 알립니다. 폼은 지금 쿼리 모듈에 있는 훅을 읽으므로, 훅의 인자를 고쳤다면 고친 인자를 받습니다.
+  - 기본값이 있는 인자(쿼리 파라미터 객체 `params` 등)는 생략할 수 있는 props이고, 생략하면 훅의 기본값으로 고칩니다. 테스트는 넘기지 않습니다.
+  - 기본값이 없는 인자는 테스트가 넘길 값을 정해야 하므로 숫자, 문자열, 불리언만 받습니다. 그 밖의 타입이면 아무 파일도 만들지 않고 알립니다. 폼은 지금 쿼리 모듈에 있는 훅을 읽으므로, 훅의 인자를 고쳤다면 고친 인자를 받습니다.
 - 성공하면 알림(토스트)으로 알리고 폼을 비우며, 실패하면 오류 알림을 띄웁니다. 문구와 성공한 뒤의 동작(목록으로 이동 등)은 화면에 맞게 고칩니다. 제출 버튼의 문구는 명세의 `summary`입니다.
 - 테스트는 모든 입력 요소에 값을 넣어 제출하면 그 값이 요청 본문으로 가는지(MSW), 검증에 실패하면 보내지 않고 입력 요소에 오류를 알리는지 봅니다. 넣는 값은 명세의 `example`이고, 없으면 길이·범위·`format`을 지키는 값을 만듭니다. `pattern`이나 `multipleOf`가 있는 필수 필드(null을 받는 필드는 빼고)는 값을 만들 수 없으므로 명세에 `example`을 적어야 폼을 만듭니다.
 - null을 받는 입력(체크박스와 기본값이 있는 필드는 빼고)이 있으면 필수 입력만 채워 제출했을 때 비워 둔 입력이 `null`로 가거나 빠지는지도 봅니다. 폼은 처음 값 없이 시작하므로, 처음 값이 있던 선택 필드를 비우는 경우(`useSchemaForm`의 `defaultValues`)는 `form-resolver.test.ts`와 `use-schema-form.test.ts`가 확인합니다. 수정 폼으로 쓰려면 현재 값을 `useSchemaForm`의 `defaultValues`에 더합니다.
-- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트와 스토리 대신 그 사실을 주석으로 남깁니다.
-- 스토리는 폼과, 위의 검증 실패를 제출했을 때의 검증 오류를 보여 줍니다. `npm run test:storybook`이 두 화면의 접근성(axe)을 검사합니다. Storybook에는 MSW가 없으므로 제출 성공은 테스트에서 확인합니다.
+- 검증 실패는 비워 둔 필수 입력(반드시 true여야 하는 체크박스는 체크하지 않은 것)으로 확인합니다. 비워 두면 실패하는 필수 입력이 없으면 규칙(`maxLength`, 2 이상의 `minLength`, 검증하는 `format`, 범위, 정수)에 맞지 않는 값을 입력해 확인하고, 어길 규칙도 없으면 검증 실패 테스트 대신 그 사실을 주석으로 남깁니다.
+- 테스트는 처음 화면과, 위의 검증 실패를 제출했을 때의 검증 오류 화면을 axe로 검사합니다(`axeViolations`). 폼의 스토리가 필요하면 `npm run g -- story`로 만듭니다.
 - 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다.
 
 ### page
@@ -398,10 +398,26 @@ npm run g -- component <이름> --feature <feature>  # Feature(src/features/<fea
 npm run g -- component <이름> --shared             # 공통 UI(src/shared/ui/)에
 ```
 
-- 컴포넌트(`<이름>.tsx`), 스토리(`<이름>.stories.tsx`), 테스트(`<이름>.test.tsx`)를 함께 만듭니다. 파일 이름은 kebab-case, 컴포넌트는 PascalCase입니다(예: `order-summary`와 `OrderSummary`는 모두 `order-summary.tsx`의 `OrderSummary`). 명세는 읽지 않습니다.
+- 컴포넌트(`<이름>.tsx`)와 테스트(`<이름>.test.tsx`)를 함께 만듭니다. 파일 이름은 kebab-case, 컴포넌트는 PascalCase입니다(예: `order-summary`와 `OrderSummary`는 모두 `order-summary.tsx`의 `OrderSummary`). 명세는 읽지 않습니다.
 - 둘 곳은 `--feature`와 `--shared` 가운데 꼭 하나를 고릅니다. Feature 폴더가 없으면 만듭니다.
 - 이름은 영문자로 시작하고 영문자, 숫자, 하이픈만 씁니다. 폴더 깊이 제한 때문에 하위 폴더(`orders/summary` 등)는 만들지 않습니다.
 - Feature의 컴포넌트는 공통 UI와 Query Domain의 queryOptions를 조합하는 평범한 컴포넌트로, 제목 하나를 보여 주는 자리표시 내용으로 시작합니다.
 - 공통 UI의 컴포넌트는 다른 공통 컴포넌트처럼 디자인 토큰 유틸리티와 `cva` 변형(`<이름>Variants`)으로 모양을 정하고, `className`은 배치에만 받습니다. 키보드 조작이나 스크린 리더 지원이 필요한 부품이면 `<div>` 대신 Base UI 부품을 감쌉니다(예: `button.tsx`).
-- 만든 직후 스토리는 `npm run test:storybook`의 접근성(axe) 검사를, 테스트는 `npm test`를 통과합니다. 내용을 바꾸면 스토리의 `play`와 테스트도 함께 고칩니다.
-- 세 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다. 확장자만 다른 파일(`<이름>.ts` 등)도 같은 import 경로로 풀리므로 이미 있는 것으로 봅니다.
+- 테스트는 내용과 접근성(axe)을 검사하고, 만든 직후 `npm test`를 통과합니다. 공통 UI의 테스트는 변형마다 검사하므로 변형을 더하면 테스트에도 더합니다. 내용을 바꾸면 테스트도 함께 고칩니다.
+- 스토리가 필요하면 `npm run g -- story <파일>`로 만듭니다.
+- 두 파일 가운데 하나라도 이미 있으면 아무 파일도 만들지 않고, 있는 파일을 알린 뒤 실패합니다. 확장자만 다른 파일(`<이름>.ts` 등)도 같은 import 경로로 풀리므로 이미 있는 것으로 봅니다.
+
+### story
+
+```sh
+npm run g -- story <컴포넌트 파일>                     # 예: src/features/orders/order-summary.tsx
+npm run g -- story <컴포넌트 파일> --component <이름>  # 파일이 컴포넌트를 여럿 내보낼 때
+```
+
+- 컴포넌트를 다 만들고 Storybook에서 보고 싶어진 때에 실행합니다. 파일 경로는 현재 디렉터리 기준입니다.
+- Starter에 Storybook이 아직 없으면(`.storybook/main.ts`가 없으면) 먼저 Storybook을 더하고 의존성을 설치합니다(`--skip-install`이면 설치하지 않습니다). `.storybook/`의 설정, `storybook`·`test:storybook` 스크립트와 의존성, `config/vitest.config.ts`의 `storybook` 프로젝트, `tsconfig.json`의 `include`, GitLab CI의 `test:storybook` 잡, `.gitignore`와 ESLint가 뺄 결과물, README의 "Storybook" 절을 더합니다. 넣은 Recipe가 Storybook 설정에 더하는 것(예: dark-mode의 테마 툴바와 다크 모드 브라우저)도 그 Recipe의 코드가 남아 있으면 함께 더합니다. Storybook이 이미 있으면 스토리 파일만 만듭니다.
+- 컴포넌트는 `--component`로 고르거나, 없으면 default로 내보낸 컴포넌트, 하나뿐인 컴포넌트, 파일과 이름이 같은 컴포넌트 순으로 고릅니다. 스토리 파일은 컴포넌트 옆에 만들고, 이름은 default로 내보낸 컴포넌트면 컴포넌트 파일과 같은 이름(`not-found.stories.tsx`), 이름으로 내보낸 컴포넌트면 컴포넌트 이름의 kebab-case(`field-label.stories.tsx`)입니다. 제목은 `src` 아래 폴더를 이은 것입니다(예: `Features/Orders/OrderSummary`).
+- 필수 props에는 타입에 맞는 값(문자열, 숫자, 불리언, 리터럴, 함수는 `fn()`, 배열, `Date`, `Error`와 그 값들로 이뤄진 객체)을 넘기고, `children`을 받으면 글자를 넘깁니다. 값을 정할 수 없는 필수 props가 있으면 아무 파일도 만들지 않고 알립니다. 서버 컴포넌트(async 함수)는 Storybook이 그리지 못하므로 만들지 않습니다.
+- 만든 스토리는 `Default` 하나에서 시작합니다. 레이블이 있어야 하는 입력 요소나 부모 컴포넌트 안에서만 쓰는 부품은 `render`로 감싸야 접근성 검사를 통과합니다. 상태(변형, 비활성, 오류 등)마다 스토리를 더하면 `npm run test:storybook`이 상태마다 검사합니다.
+- 데이터를 직접 가져오는 컴포넌트는 Storybook에 백엔드가 없어 요청이 실패한 화면을 보입니다. 데이터를 정하는 방법은 Storybook을 더할 때 생기는 README의 "Storybook" 절에 있습니다.
+- 스토리 파일이 이미 있으면 아무 파일도 바꾸지 않고 알린 뒤 실패합니다.

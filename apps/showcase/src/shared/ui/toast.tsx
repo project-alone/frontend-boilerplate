@@ -32,7 +32,7 @@ export interface ToastOptions {
 }
 
 /**
- * 알림(토스트)을 띄울 수 있게 한다. 앱 레이아웃(src/app/layout.tsx)과 Storybook이 이미 감싸 두었다.
+ * 알림(토스트)을 띄울 수 있게 한다. 앱 레이아웃(src/app/layout.tsx)이 이미 감싸 두었다.
  * 알림은 "알림" 영역(landmark)에 쌓이고 스크린 리더가 읽어 준다. F6으로 알림 영역으로 이동할 수 있다.
  */
 export function ToastProvider({ children }: { children: ReactNode }) {

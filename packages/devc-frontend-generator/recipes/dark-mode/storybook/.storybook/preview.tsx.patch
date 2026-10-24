@@ -1,0 +1,36 @@
+--- a/.storybook/preview.tsx
++++ b/.storybook/preview.tsx
+@@ -2,4 +2,5 @@
+ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+ import { WCAG_22_AA_TAGS } from '@/shared/a11y/wcag-tags'
++import { applyTheme, isThemeChoice, THEME_CHOICES, THEME_LABELS } from '@/shared/theme/theme'
+ import { ToastProvider } from '@/shared/ui/toast'
+ import '@/shared/ui/styles.css'
+@@ -12,5 +13,7 @@
+   // 앱 레이아웃(src/app/layout.tsx)처럼 Tailwind와 디자인 토큰을 불러오고, TanStack Query와 알림을 쓸 수 있게 감싼다.
+   decorators: [
+-    (Story, { id }) => {
++    (Story, { id, globals }) => {
++      // dark-mode Recipe: 툴바에서 고른 테마를 적용한다. 시스템 설정이면 운영체제(브라우저) 설정을 따른다.
++      applyTheme(isThemeChoice(globals['theme']) ? globals['theme'] : 'system')
+       const queryClient = queryClients.get(id) ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
+       queryClients.set(id, queryClient)
+@@ -24,4 +27,18 @@
+     },
+   ],
++  globalTypes: {
++    theme: {
++      description: '테마',
++      toolbar: {
++        title: '테마',
++        icon: 'mirror',
++        items: THEME_CHOICES.map((choice) => ({ value: choice, title: THEME_LABELS[choice] })),
++        dynamicTitle: true,
++      },
++    },
++  },
++  initialGlobals: {
++    theme: 'system',
++  },
+   parameters: {
+     // 앱은 App Router만 쓰므로 next/navigation(useRouter, usePathname 등)을 App Router로 흉내 낸다.

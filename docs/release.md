@@ -34,6 +34,7 @@ Base(`packages/devc-frontend-generator/base/package.json`)는 의존성을 정�
 - Generator의 의존성을 바꿨으면 레포 최상위에서 `npm install`을 실행해 `package-lock.json`을 맞춘다. Base는 워크스페이스가 아니어서 레포의 lockfile에 들지 않는다.
 - Base를 바꿨으면 `npm run showcase`로 Showcase를 다시 만든다(Showcase의 `package.json`도 생성 결과다).
 - changeset을 더한다(위 "changeset 더하기"). 만들어지는 Starter가 달라진다.
+- Storybook의 의존성은 Starter를 만들 때가 아니라 `dcgen g story`가 Storybook을 더할 때 넣으므로 `base/storybook/package.json`에 따로 고정한다(ADR-0014). Base의 `vitest`를 올리면 거기의 `@vitest/browser-playwright`도 같은 버전으로 올린다(`harness/tool-versions.test.ts`가 확인한다).
 
 Generator는 Starter를 만들 때 Base가 고정한 도구 몇 개를 Starter의 파일에 직접 실행한다. 이 도구는 Base와 Generator의 `package.json`에 따로 고정되어 있으므로, **한쪽을 올리면 다른 쪽도 같은 버전으로 올린다**. 버전이 다르면 생성 직후의 Starter에서 `npm run api:gen`이 재생성 계층을 바꾸거나 `format:check`가 실패할 수 있다. 하네스 `harness/tool-versions.test.ts`가 두 `package.json`의 버전을 비교해, 다르면 CI(`Typecheck and harness`)가 실패한다.
 

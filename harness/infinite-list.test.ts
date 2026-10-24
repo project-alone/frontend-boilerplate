@@ -6,7 +6,7 @@ import { expectFileToPass, readTree, type RenderingMode, runVitestScript, useSta
 
 // 하네스 매트릭스: Base에 infinite-list Recipe를 넣은 Starter를 지원하는 Rendering Mode마다 만들고, dark-mode Recipe를 함께
 // 넣은 조합도 만들어, Starter 자신의 스크립트와 Recipe가 함께 넣은 테스트(무한 스크롤·번호형 페이지네이션의 컴포넌트 테스트,
-// 스토리, e2e/infinite-list.spec.ts)가 통과하는지 본다. server에서 다른 Recipe와 함께 켠 조합은 모든 Recipe를 켠 Showcase
+// 목록 상태의 접근성, e2e/infinite-list.spec.ts)가 통과하는지 본다. server에서 다른 Recipe와 함께 켠 조합은 모든 Recipe를 켠 Showcase
 // (showcase-starter.test.ts)가 보므로, dark-mode 조합은 static-export로 만든다.
 const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly string[] }[] = [
   { renderingMode: 'server', recipes: ['infinite-list'] },
@@ -18,9 +18,9 @@ const COMBINATIONS: readonly { renderingMode: RenderingMode; recipes: readonly s
 const UNIT_TESTS = [
   'src/features/article-list/article-infinite-list.test.tsx',
   'src/features/article-list/article-paged-list.test.tsx',
+  'src/shared/paging/infinite-list.test.tsx',
   'src/shared/paging/pagination.test.tsx',
 ]
-const STORIES = ['src/shared/paging/infinite-list.stories.tsx', 'src/shared/paging/pagination.stories.tsx']
 
 // 두 라우트와, 미리 렌더링한 HTML에 담기는 불러오는 중 상태
 const ROUTES = [
@@ -30,7 +30,6 @@ const ROUTES = [
 
 for (const { renderingMode, recipes } of COMBINATIONS) {
   describe(`Rendering Mode ${renderingMode}에 Recipe ${recipes.join(', ')}를 넣은 Starter`, () => {
-    const withDarkMode = recipes.includes('dark-mode')
     const starter = useStarter({
       prefix: `dcgen-${recipes.join('-')}-${renderingMode}-`,
       renderingMode,
@@ -63,12 +62,6 @@ for (const { renderingMode, recipes } of COMBINATIONS) {
 
       const report = runVitestScript(starter, ['test'])
       for (const file of UNIT_TESTS) expectFileToPass(report, file, 1)
-    })
-
-    test(`목록 스토리가 ${withDarkMode ? '라이트 모드와 다크 모드 브라우저에서 각각 ' : ''}접근성(axe)과 상호작용 검사를 통과한다`, () => {
-      const report = runVitestScript(starter, ['run', 'test:storybook'])
-
-      for (const story of STORIES) expectFileToPass(report, story, withDarkMode ? 2 : 1)
     })
 
     test('빌드하면 두 목록 페이지는 데이터 없이 미리 렌더링된다', () => {

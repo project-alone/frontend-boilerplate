@@ -54,5 +54,5 @@ WebSocket이 꼭 필요하면 `event-stream.ts`를 WebSocket으로 바꾸되 `co
 
 ### 테스트와 샘플 지우기
 
-- 테스트: `src/shared/realtime/event-stream.test.ts`(이벤트 형식 읽기, 다시 연결과 `Last-Event-ID`, 실패할 때마다 늘어나는 대기 시간, 연결 끊기), `src/features/delivery-board/delivery-board.test.tsx`(이벤트가 목록을 다시 요청하지 않고 캐시를 고침, 오래된 이벤트와 명세와 다른 이벤트, 다시 연결한 뒤 놓친 변경 맞추기, 가져오는 중에 온 이벤트), `connection-status.stories.tsx`(axe 검사), `e2e/realtime.spec.ts`(빌드한 앱에서 실시간 반영, 끊긴 뒤 다시 연결해 맞추기, 운영체제가 라이트·다크 모드일 때의 axe 검사).
+- 테스트: `src/shared/realtime/event-stream.test.ts`(이벤트 형식 읽기, 다시 연결과 `Last-Event-ID`, 실패할 때마다 늘어나는 대기 시간, 연결 끊기), `src/features/delivery-board/delivery-board.test.tsx`(이벤트가 목록을 다시 요청하지 않고 캐시를 고침, 오래된 이벤트와 명세와 다른 이벤트, 다시 연결한 뒤 놓친 변경 맞추기, 가져오는 중에 온 이벤트), `connection-status.test.tsx`(상태마다 글자와 axe 검사), `e2e/realtime.spec.ts`(빌드한 앱에서 실시간 반영, 끊긴 뒤 다시 연결해 맞추기, 운영체제가 라이트·다크 모드일 때의 axe 검사).
 - 샘플을 지우려면 `src/app/realtime/`, `src/features/delivery-board/`, `src/queries/deliveries/`, `src/shared/mocks/deliveries.ts`(와 `handlers.ts`의 `deliveriesHandlers`), `e2e/realtime.spec.ts`를 지우고 `openapi.yaml`에서 `deliveries` tag·경로·스키마(`Delivery`, `DeliveryStatus`)를 뺀 뒤 `npm run api:gen`을 실행합니다. 다른 이벤트 스트림에 쓸 `src/shared/realtime/`과 `src/shared/mocks/event-stream.ts`는 남겨 둡니다.

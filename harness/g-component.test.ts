@@ -19,7 +19,7 @@ const FEATURES_DIR = 'src/features'
 const SHARED_UI_DIR = 'src/shared/ui'
 
 // Starter의 검사를 통과하는지 볼 때 만드는 컴포넌트: 새 Feature, 이미 있는 Feature(Base의 product-list), 공통 UI.
-// stem은 만들어지는 세 파일의 확장자를 뺀 경로다.
+// stem은 만들어지는 두 파일의 확장자를 뺀 경로다.
 const CHECKED_COMPONENTS = [
   { args: ['order-summary', '--feature', 'orders'], stem: 'src/features/orders/order-summary' },
   { args: ['ProductCard', '--feature', 'product-list'], stem: 'src/features/product-list/product-card' },
@@ -27,10 +27,10 @@ const CHECKED_COMPONENTS = [
 ]
 
 /**
- * CHECKED_COMPONENTS를 만든 Starter가 타입 검사, lint, 포맷 검사를 통과하고, 생성된 테스트와 스토리(접근성 검사)가
- * 실제로 실행되어 통과하는지 본다. storybookRuns는 스토리 하나가 실행되는 횟수다(dark-mode Recipe는 두 테마에서 한 번씩).
+ * CHECKED_COMPONENTS를 만든 Starter가 타입 검사, lint, 포맷 검사를 통과하고, 생성된 테스트(내용과 접근성 검사)가 실제로
+ * 실행되어 통과하는지 본다.
  */
-function expectGeneratedComponentsToPassStarterChecks(starter: Starter, { storybookRuns }: { storybookRuns: number }): void {
+function expectGeneratedComponentsToPassStarterChecks(starter: Starter): void {
   for (const { args } of CHECKED_COMPONENTS) {
     const result = dcgen(starter, ['g', 'component', ...args])
     expect(result.status, result.output).toBe(0)
@@ -39,53 +39,45 @@ function expectGeneratedComponentsToPassStarterChecks(starter: Starter, { storyb
   for (const script of ['typecheck', 'lint', 'format:check']) starter.expectNpmSuccess(['run', script])
   const unit = runVitestScript(starter, ['test'])
   for (const { stem } of CHECKED_COMPONENTS) expectFileToPass(unit, `${stem}.test.tsx`, 1)
-  const storybook = runVitestScript(starter, ['run', 'test:storybook'])
-  for (const { stem } of CHECKED_COMPONENTS) expectFileToPass(storybook, `${stem}.stories.tsx`, storybookRuns)
 }
 
 describe('server Starter', () => {
-  const starter = useStarter({ prefix: 'dcgen-g-component-', install: true, playwright: true })
+  const starter = useStarter({ prefix: 'dcgen-g-component-', install: true })
   // 테스트마다 Feature와 공통 UI를 생성 직후 상태로 되돌린다.
   restoreBeforeEach(starter, [FEATURES_DIR, SHARED_UI_DIR])
 
-  test('dcgen g component --feature는 Feature 폴더에 kebab-case 파일 이름으로 컴포넌트, 스토리, 테스트를 만든다', async () => {
+  test('dcgen g component --feature는 Feature 폴더에 kebab-case 파일 이름으로 컴포넌트와 테스트를 만들고, 스토리는 만들지 않는다', async () => {
     const result = dcgen(starter, ['g', 'component', 'order-summary', '--feature', 'orders'])
 
     expect(result.status, result.output).toBe(0)
     expect(result.output).toContain('src/features/orders/order-summary.tsx')
     expect(Object.keys(readTree(join(starter.dir, 'src/features/orders'))).sort()).toEqual([
-      'order-summary.stories.tsx',
       'order-summary.test.tsx',
       'order-summary.tsx',
     ])
-    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, 'src/features/orders', [
-      'order-summary.tsx',
-      'order-summary.stories.tsx',
-      'order-summary.test.tsx',
-    ])
+    await expectFilesToMatchSnapshots(starter, SNAPSHOTS, 'src/features/orders', ['order-summary.tsx', 'order-summary.test.tsx'])
   })
 
-  test('npm run g -- component --shared는 공통 UI에 PascalCase 이름을 kebab-case 파일 이름으로 바꿔 컴포넌트, 스토리, 테스트를 만든다', async () => {
+  test('npm run g -- component --shared는 공통 UI에 PascalCase 이름을 kebab-case 파일 이름으로 바꿔 컴포넌트와 테스트를 만든다', async () => {
     const before = Object.keys(readTree(join(starter.dir, SHARED_UI_DIR)))
 
     const result = starter.npm(['run', 'g', '--', 'component', 'StatusBadge', '--shared'])
 
     expect(result.status, result.failureMessage).toBe(0)
     const created = Object.keys(readTree(join(starter.dir, SHARED_UI_DIR))).filter((file) => !before.includes(file))
-    expect(created.sort()).toEqual(['status-badge.stories.tsx', 'status-badge.test.tsx', 'status-badge.tsx'])
+    expect(created.sort()).toEqual(['status-badge.test.tsx', 'status-badge.tsx'])
     await expectFilesToMatchSnapshots(starter, SNAPSHOTS, SHARED_UI_DIR, created)
   })
 
   test('같은 이름의 파일이 하나라도 있으면 덮어쓰지 않고 겹치는 파일을 알린 뒤 아무 파일도 만들지 않고 실패한다', () => {
-    // Base의 공통 UI에는 button.tsx와 button.stories.tsx가 있고 button.test.tsx는 없다.
+    // Base의 공통 UI에는 icons.tsx가 있고 icons.test.tsx는 없다.
     const before = readTree(join(starter.dir, SHARED_UI_DIR))
 
-    const result = dcgen(starter, ['g', 'component', 'Button', '--shared'])
+    const result = dcgen(starter, ['g', 'component', 'Icons', '--shared'])
 
     expect(result.status).not.toBe(0)
-    expect(result.output).toContain('src/shared/ui/button.tsx')
-    expect(result.output).toContain('src/shared/ui/button.stories.tsx')
-    expect(result.output).not.toContain('src/shared/ui/button.test.tsx')
+    expect(result.output).toContain('src/shared/ui/icons.tsx')
+    expect(result.output).not.toContain('src/shared/ui/icons.test.tsx')
     expect(readTree(join(starter.dir, SHARED_UI_DIR))).toEqual(before)
   })
 
@@ -100,7 +92,7 @@ describe('server Starter', () => {
     expect(readTree(join(starter.dir, SHARED_UI_DIR))).toEqual(before)
   })
 
-  test('개발자가 손으로 쓴 테스트만 있어도 Feature 폴더에 컴포넌트와 스토리를 만들지 않는다', () => {
+  test('개발자가 손으로 쓴 테스트만 있어도 Feature 폴더에 컴포넌트를 만들지 않는다', () => {
     starter.writeFile(`${FEATURES_DIR}/orders/order-summary.test.tsx`, '// 개발자가 먼저 쓴 테스트\n')
     const before = readTree(join(starter.dir, FEATURES_DIR))
 
@@ -131,9 +123,9 @@ describe('server Starter', () => {
       reason: "쓸 수 없는 Feature 이름입니다: 'orders/admin'",
     },
     {
-      problem: '생성하는 스토리가 쓰는 이름과 겹치는 이름',
-      args: ['meta', '--feature', 'orders'],
-      reason: '생성하는 코드가 쓰는 이름(Meta)과 겹칩니다',
+      problem: '공통 UI 컴포넌트 파일이 가져오는 이름과 겹치는 이름',
+      args: ['VariantProps', '--shared'],
+      reason: '생성하는 코드가 쓰는 이름(VariantProps)과 겹칩니다',
     },
   ])('$problem: 이유를 알리고 아무 파일도 만들지 않은 채 실패한다', ({ args, reason }) => {
     const before = { features: readTree(join(starter.dir, FEATURES_DIR)), ui: readTree(join(starter.dir, SHARED_UI_DIR)) }
@@ -147,23 +139,20 @@ describe('server Starter', () => {
     )
   })
 
-  test('component Schematic이 만든 코드로 Starter의 타입 검사, lint, 포맷 검사, 테스트, 스토리 접근성 검사가 모두 통과한다', () => {
-    expectGeneratedComponentsToPassStarterChecks(starter, { storybookRuns: 1 })
+  test('component Schematic이 만든 코드로 Starter의 타입 검사, lint, 포맷 검사, 테스트(접근성 검사 포함)가 모두 통과한다', () => {
+    expectGeneratedComponentsToPassStarterChecks(starter)
   })
 })
 
-// 컴포넌트 코드는 Rendering Mode와 상관없지만 static-export Starter의 설정(next.config.ts 등)에서도 검사를 통과하는지 보고,
-// dark-mode Recipe가 스토리를 라이트 모드와 다크 모드 브라우저에서 한 번씩 실행하므로 두 테마의 접근성 검사를 함께 본다.
-describe('static-export Starter에 dark-mode Recipe를 넣은 Starter', () => {
+// 컴포넌트 코드는 Rendering Mode와 상관없지만 static-export Starter의 설정(next.config.ts, Vitest 설정 등)에서도 검사를 통과하는지 본다.
+describe('static-export Starter', () => {
   const starter = useStarter({
-    prefix: 'dcgen-g-component-static-dark-',
+    prefix: 'dcgen-g-component-static-',
     renderingMode: 'static-export',
-    recipes: ['dark-mode'],
     install: true,
-    playwright: true,
   })
 
-  test('component Schematic이 만든 코드로 Starter의 검사가 모두 통과하고, 스토리가 두 테마에서 접근성 검사를 통과한다', () => {
-    expectGeneratedComponentsToPassStarterChecks(starter, { storybookRuns: 2 })
+  test('component Schematic이 만든 코드로 Starter의 검사가 모두 통과한다', () => {
+    expectGeneratedComponentsToPassStarterChecks(starter)
   })
 })

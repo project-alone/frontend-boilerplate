@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { server } from '@/shared/mocks/node'
 import { UPLOAD_MAX_BYTES } from '@/shared/upload/upload-policy'
 import { FileUploader } from './file-uploader'
@@ -130,6 +131,7 @@ test('명세가 받지 않는 크기·형식의 파일은 보내지 않고, 처�
   // 보낸 요청이 있다면 응답을 기다리는 동안 목록에 남는다.
   await new Promise((resolve) => setTimeout(resolve, 50))
   expect(requests).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 })
 
 test('올리는 중에 취소하면 요청을 멈추고 알리며, 같은 자리의 다시 시도 버튼으로 처음부터 다시 올린다', async () => {
@@ -226,7 +228,7 @@ test('여러 파일을 한꺼번에 고르면 파일마다 따로 올리고, 지
   expect(screen.getByRole('button', { name: '파일 선택' })).toHaveFocus()
 })
 
-test('키보드로 파일 선택 버튼을 누르면 파일 고르기 창을 연다', async () => {
+test('키보드로 파일 선택 버튼에 가면 받는 형식과 크기를 읽어 주고, 누르면 파일 고르기 창을 연다', async () => {
   const user = userEvent.setup()
   renderFileUploader()
   const input = screen.getByLabelText('올릴 파일')
@@ -237,7 +239,10 @@ test('키보드로 파일 선택 버튼을 누르면 파일 고르기 창을 연
   input.addEventListener('click', openChooser)
 
   await user.tab()
-  expect(screen.getByRole('button', { name: '파일 선택' })).toHaveFocus()
+  const pick = screen.getByRole('button', { name: '파일 선택' })
+  expect(pick).toHaveFocus()
+  expect(pick).toHaveAccessibleDescription(/PNG, JPEG, PDF, 텍스트 파일을 5MB까지 올릴 수 있습니다\./)
+  expect(await axeViolations(document.body)).toEqual([])
   await user.keyboard('{Enter}')
 
   expect(openChooser).toHaveBeenCalledTimes(1)

@@ -174,7 +174,7 @@ function isInteractive(): boolean {
  * 실패하면 다시 설치하라고 알리고 종료 코드를 1로 정한다. 설치로 생기는 package-lock.json은 Starter의
  * GitLab CI가 `npm ci`로 설치할 때 쓴다.
  */
-function installDependencies(target: string): boolean {
+export function installDependencies(target: string): boolean {
   console.log('\n의존성을 설치합니다(npm install).\n')
   const result = spawnSync('npm', ['install', '--no-audit', '--no-fund'], {
     cwd: target,

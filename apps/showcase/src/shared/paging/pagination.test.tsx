@@ -4,6 +4,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { Pagination } from './pagination'
 
 /** 페이지 이동 영역에 보이는 쪽 번호와 줄임표를 차례로 읽는다(이전·다음 버튼은 뺀다). 줄임표는 보조 기술에서 숨긴다. */
@@ -60,4 +61,14 @@ test('쪽 번호와 이전·다음으로 쪽을 바꾸고, 첫 쪽에서는 이�
   expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: '이전' }))
   expect(onPageChange).toHaveBeenLastCalledWith(4)
+})
+
+test.each([
+  { page: 5, pageCount: 10 },
+  { page: 1, pageCount: 5 },
+])('$pageCount쪽 가운데 $page쪽의 페이지 이동 영역에 접근성 위반이 없다', async ({ page, pageCount }) => {
+  const { container } = renderPagination(page, pageCount)
+
+  expect(screen.getByRole('button', { name: `${String(page)} 쪽` })).toHaveAttribute('aria-current', 'page')
+  expect(await axeViolations(container)).toEqual([])
 })

@@ -33,8 +33,6 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".storybook/**/*.ts",
-    ".storybook/**/*.tsx",
     "postcss.config.mjs",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"

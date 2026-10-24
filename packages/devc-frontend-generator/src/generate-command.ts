@@ -5,6 +5,7 @@ import { generateMutation } from './schematics/mutation.js'
 import { generatePage, PAGE_MODES } from './schematics/page.js'
 import { generateQuery } from './schematics/query.js'
 import { type ChangedFile, SchematicError } from './schematics/starter-project.js'
+import { generateStory } from './schematics/story.js'
 
 /**
  * `dcgen g <schematic>`: Starter 안에서 Schematic으로 코드를 만든다. Schematic마다 하위 명령을 하나씩 둔다.
@@ -50,7 +51,7 @@ export function registerGenerateCommand(program: Command): void {
   generate
     .command('form')
     .description(
-      'OpenAPI operation의 JSON 요청 본문을 입력받는 폼과 Storybook 스토리, 테스트를 Feature(src/features/<feature>)에 만든다. 폼은 요청 본문의 Zod 스키마로 검증하고 뮤테이션 훅으로 보낸다',
+      'OpenAPI operation의 JSON 요청 본문을 입력받는 폼과 테스트를 Feature(src/features/<feature>)에 만든다. 폼은 요청 본문의 Zod 스키마로 검증하고 뮤테이션 훅으로 보낸다',
     )
     .argument('<operationId>', 'Starter 최상위 openapi.yaml의 operationId. 뮤테이션 훅(npm run g -- mutation)이 먼저 있어야 한다')
     .option('--feature <feature>', '폼을 둘 Feature. src/features/<feature>/에 만든다')
@@ -67,7 +68,7 @@ export function registerGenerateCommand(program: Command): void {
           ? ''
           : `\n폼은 뮤테이션 훅(${form.hookName})의 인자(${form.hookArguments.join(', ')})도 props로 받아 훅에 넘깁니다. 훅이 응답 전에 고칠 쿼리의 인자이므로 화면이 보고 있는 쿼리와 같은 값을 넘기세요.`
       report(
-        `${operationId}의 폼(${form.componentName})과 스토리, 테스트를 만들었습니다.${skipped}${hookArguments}`,
+        `${operationId}의 폼(${form.componentName})과 테스트를 만들었습니다.${skipped}${hookArguments}`,
         form.changed,
       )
     })
@@ -125,7 +126,7 @@ export function registerGenerateCommand(program: Command): void {
 
   generate
     .command('component')
-    .description('컴포넌트와 Storybook 스토리, 테스트를 Feature(src/features/<feature>) 또는 공통 UI(src/shared/ui)에 만든다')
+    .description('컴포넌트와 테스트를 Feature(src/features/<feature>) 또는 공통 UI(src/shared/ui)에 만든다')
     .argument('<name>', '컴포넌트 이름(kebab-case 또는 PascalCase). 파일 이름은 kebab-case, 컴포넌트는 PascalCase가 된다')
     .option('--feature <feature>', '컴포넌트를 둘 Feature. src/features/<feature>/에 만든다')
     .option('--shared', '공통 UI(src/shared/ui/)에 만든다. --feature와 --shared 가운데 하나를 꼭 고른다')
@@ -133,7 +134,38 @@ export function registerGenerateCommand(program: Command): void {
       const changed = await runSchematic(command, () =>
         generateComponent(process.cwd(), name, { feature: options.feature, shared: options.shared === true }),
       )
-      report(`${name} 컴포넌트와 스토리, 테스트를 만들었습니다.`, changed)
+      report(`${name} 컴포넌트와 테스트를 만들었습니다.`, changed)
+    })
+
+  generate
+    .command('story')
+    .description(
+      '컴포넌트의 Storybook 스토리를 컴포넌트 옆에 만든다. Starter에 Storybook이 없으면 먼저 Storybook을 더하고 의존성을 설치한다',
+    )
+    .argument('<file>', '스토리를 만들 컴포넌트 파일(현재 디렉터리 기준, 예: src/features/orders/order-summary.tsx)')
+    .option('--component <name>', '파일이 내보내는 컴포넌트가 여럿일 때 스토리를 만들 컴포넌트(예: FieldLabel)')
+    .option('--skip-install', 'Storybook을 더할 때 npm install을 하지 않는다')
+    .action(async (file: string, options: { component?: string; skipInstall?: boolean }, command: Command) => {
+      const story = await runSchematic(command, () =>
+        generateStory(process.cwd(), file, { component: options.component, skipInstall: options.skipInstall === true }),
+      )
+      const notes = [
+        ...(story.storybookAdded ? ['Starter에 Storybook을 더했습니다(README의 "Storybook").'] : []),
+        `${story.componentName}의 스토리를 만들었습니다.`,
+        ...story.skipped,
+        ...(story.fetchesData
+          ? [
+              `${story.componentName}의 파일은 TanStack Query로 데이터를 가져옵니다. Storybook에는 백엔드가 없으므로 요청이 실패한 화면이 보입니다. 보여 줄 데이터는 스토리에서 QueryClient에 넣어 정하세요(README의 "Storybook").`,
+            ]
+          : []),
+      ]
+      report(notes.join('\n'), story.changed)
+      const steps = [
+        ...(story.storybookAdded && !story.installed ? ['npm install'] : []),
+        'npm run storybook',
+        'npm run test:storybook',
+      ]
+      console.log(`\n다음 단계:\n\n${steps.map((step) => `  ${step}`).join('\n')}\n`)
     })
 }
 

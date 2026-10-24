@@ -4,6 +4,7 @@ import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getRegisterMemberMockHandler } from '@/shared/api/generated/members/members.msw'
 import { MUST_CHECK_MESSAGE, REQUIRED_MESSAGE } from '@/shared/form/form-resolver'
+import { axeViolations } from '@/shared/a11y/axe-violations'
 import { server } from '@/shared/mocks/node'
 import { ToastProvider } from '@/shared/ui/toast'
 import { RegisterMemberForm } from './register-member-form'
@@ -71,6 +72,12 @@ test('입력한 값을 요청 본문으로 보내고 성공을 알린다', async
   ])
 })
 
+test('처음 화면에 접근성 위반이 없다', async () => {
+  renderForm()
+
+  expect(await axeViolations(document.body)).toEqual([])
+})
+
 test('비워 두거나 체크하지 않은 필수 입력은 보내지 않고, 입력 요소마다 오류를 알린다', async () => {
   const user = userEvent.setup()
   const bodies = receivedBodies()
@@ -98,4 +105,5 @@ test('비워 두거나 체크하지 않은 필수 입력은 보내지 않고, �
     expect(control).toHaveAccessibleDescription(mustCheckError)
   }
   expect(bodies).toEqual([])
+  expect(await axeViolations(document.body)).toEqual([])
 })

@@ -17,7 +17,7 @@ describe('Rendering Mode static-export에 i18n과 dark-mode Recipe를 함께 넣
     playwright: true,
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트, 두 테마의 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트를 통과한다', () => {
     expectStarterChecksToPass(starter)
   })
 
@@ -37,7 +37,7 @@ describe('Rendering Mode server에 i18n과 route-rendering Recipe를 함께 넣�
     playwright: true,
   })
 
-  test('타입 검사, 린트, 포맷 검사, 단위 테스트, 스토리 검사를 통과한다', () => {
+  test('타입 검사, 린트, 포맷 검사, 단위 테스트를 통과한다', () => {
     expectStarterChecksToPass(starter)
   })
 
