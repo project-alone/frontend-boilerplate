@@ -1,3 +1,4 @@
+import 'client-only'
 import { setMockReadiness } from './mock-readiness'
 
 /**

@@ -1,3 +1,4 @@
+import 'client-only'
 import * as Sentry from '@sentry/nextjs'
 import { enabledSentryDsn, SENTRY_OPTIONS } from './sentry-options'
 

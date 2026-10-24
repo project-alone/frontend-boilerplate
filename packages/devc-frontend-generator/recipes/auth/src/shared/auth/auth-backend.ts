@@ -1,3 +1,4 @@
+import 'server-only'
 import { ApiError } from '@/shared/api/api-fetch'
 import { getMe, login, logout, refreshTokens } from '@/shared/api/generated'
 import type { LoginRequest, TokenPair } from '@/shared/api/generated/model'

@@ -212,7 +212,7 @@ type BackendFetchHandler = (
 - `next(url, init)`로 다음 처리기에 넘긴다. 마지막 `next`는 `fetch`다. 요청을 고칠 때는 `init`을 고치지 않고 새 객체를 넘긴다(`{ ...init, headers }`).
 - 받은 응답을 고치거나 같은 요청을 다시 보낼 수 있다. 응답은 `order`의 거꾸로 거쳐 돌아간다. `fetch`가 돌려준 응답의 헤더는 고칠 수 없으므로 헤더를 복사한 새 `Response`를 만든다. BFF 프록시는 처리기가 더한 응답 헤더(예: `set-cookie`)도 브라우저에 넘긴다. 다시 보낼 때 쓰지 않을 응답 본문은 끝까지 읽어 버린다. Next.js의 `fetch`는 본문을 둘로 나눠(tee) 쓰므로 `body.cancel()`은 끝나지 않을 수 있다.
 - 요청 본문은 BFF 프록시에서는 `ArrayBuffer`, `apiFetch`에서는 문자열이라 다시 보낼 수 있다.
-- 처리기는 서버에서만 실행된다. `apiFetch`는 `typeof window === 'undefined'`인 블록 안에서만 조립 파일을 불러오므로 처리기 모듈은 브라우저 번들에 들어가지 않는다.
+- 처리기는 서버에서만 실행되므로 처리기 모듈은 `import 'server-only'`로 시작한다([코드 규칙](#코드-규칙)). 조립 파일(`backend-fetch.ts`)을 불러오는 것은 서버 전용 모듈(`api-fetch.server.ts`, `bff-proxy.ts`)뿐이다.
 - 모든 요청에서 `cookies()`나 `headers()`를 읽으면 그 요청을 보낸 페이지가 모두 요청마다 렌더링되어(SSR) SSG·ISR 페이지를 미리 만들 수 없다. BFF 프록시가 전달하는 요청은 브라우저의 헤더(쿠키 포함)를 그대로 싣고 있으므로 요청 헤더에서 읽는다. 서버 컴포넌트의 요청에 사용자별 값을 붙이려면 auth Recipe처럼 페이지가 먼저 읽은 값을 그 렌더링 동안만 기억해 두고 쓴다(`src/shared/auth/session-scope.ts`).
 - Base에는 처리기가 없다. 처리기가 없으면 `fetch`로 그대로 보낸다.
 
@@ -294,6 +294,7 @@ overlay의 dotenv 파일(`.env`, `.env.<이름>`)은 Starter의 같은 파일을
 Recipe가 더한 파일은 Starter의 일부로 검사된다. 생성 직후의 Starter가 `typecheck`, `lint`, `format:check`, `test`, `test:storybook`, `build`, `test:e2e`를 모두 통과해야 한다. `build`는 Starter의 GitLab CI처럼 목 빌드(`API_MOCKING=enabled`, ADR-0011)를 말한다. 배포할 때만 정해지는 값(seo의 사이트 주소 등)이 없으면 배포용 빌드는 실패해도 되지만, 목 빌드는 그 값 없이도 통과해야 한다.
 
 - import 방향(`app → features → queries → shared`)과 폴더 깊이(`src/<계층>/<이름>/<파일>`)를 지킨다(ADR-0005). 예: 테마 적용은 `src/shared/theme/`, 전환 UI는 `src/features/theme-switcher/`.
+- 서버에서만 실행되는 모듈은 `import 'server-only'`로, 컴포넌트가 아니면서 브라우저에서만 실행되는 모듈(instrumentation-client 조각 등)은 `import 'client-only'`로 시작한다. 쿠키·`next/headers`, 세션 암호화, 서버 전용 환경 변수의 비밀 값, `msw/node`, Node.js 내장 모듈을 쓰거나 백엔드를 직접 부르는 모듈이 서버 전용이다. `src/app`의 파일, proxy·instrumentation 조립 파일은 Next.js가 위치로 구분하므로 표시하지 않는다. `'use server'`는 Server Function을 여는 지시어이므로 서버 전용 표시로 쓰지 않는다. 표시한 모듈은 Next.js 밖(E2E, `next.config` 래퍼)에서 import할 수 없으므로, 그런 곳이 쓰는 값은 표시하지 않은 모듈에 둔다(예: auth의 `SESSION_COOKIE`는 `auth-client.ts`). `client-only`를 쓰는 Recipe는 `package.json`에 의존성으로 더한다(`server-only`는 Base에 있다). 하네스 `harness/server-only.test.ts`가 표시를 검사한다.
 - 모양은 디자인 토큰으로 만든 유틸리티만 쓴다. 테마가 토큰 값만 바꿔 적용되도록 Tailwind 기본 팔레트나 임의의 색을 쓰지 않는다.
 - 포맷은 Starter의 Prettier 설정(`base/.prettierrc.json`)을 따른다.
 - 주석과 문서는 한국어로, 식별자는 영어로 쓰고 GLOSSARY의 용어를 쓴다.

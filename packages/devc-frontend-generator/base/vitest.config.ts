@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
@@ -10,6 +11,17 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        resolve: {
+          alias: {
+            // 서버 전용 모듈(import 'server-only')은 Next.js 밖에서 불러오면 오류를 던진다. 단위 테스트는 서버 모듈도 직접 불러
+            // 시험하므로 빈 모듈로 바꾼다.
+            'server-only': fileURLToPath(new URL('node_modules/server-only/empty.js', import.meta.url)),
+            // apiFetch가 서버에서 불러오는 모듈(package.json의 imports). Next.js는 서버 컴포넌트 쪽(react-server 조건)에서
+            // api-fetch.server.ts를 고르지만 Vitest에는 그 조건이 없으므로 직접 정한다. window가 없는 테스트
+            // (`// @vitest-environment node`)가 서버의 요청을 시험한다.
+            '#api-fetch.server': fileURLToPath(new URL('src/shared/api/api-fetch.server.ts', import.meta.url)),
+          },
+        },
         test: {
           name: 'unit',
           include: ['src/**/*.test.{ts,tsx}'],

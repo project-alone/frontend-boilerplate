@@ -1,3 +1,4 @@
+import 'server-only'
 import createMiddleware from 'next-intl/middleware'
 import type { NextRequest, NextResponse } from 'next/server'
 import { routing } from './routing'

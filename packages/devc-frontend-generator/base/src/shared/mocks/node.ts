@@ -1,3 +1,4 @@
+import 'server-only'
 import tls from 'node:tls'
 import { setupServer } from 'msw/node'
 import { MOCK_API_BASE_URL } from '@/shared/api/base-url'

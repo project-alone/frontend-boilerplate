@@ -36,13 +36,13 @@ API_MOCKING=enabled npm run build  # 목 빌드: 빌드할 때의 요청에 MSW�
 
 백엔드의 OpenAPI 명세(`openapi.yaml`)가 원본입니다. 명세에서 다시 만드는 계층과 프로젝트가 직접 소유하는 계층이 나뉩니다.
 
-| 위치                         | 내용                                                                         | 누가 고치나                                    |
-| ---------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| `src/shared/api/generated/`  | 타입, fetch 함수, Zod 스키마, MSW 핸들러                                     | `npm run api:gen`(orval)만. 손으로 고치지 않음 |
-| `src/shared/api/`의 나머지   | fetch 클라이언트(`api-fetch.ts`), 요청 주소(`base-url.ts`)                   | 프로젝트                                       |
-| `src/queries/<Query Domain>` | 쿼리 키(`<domain>.keys.ts`), queryOptions·뮤테이션 훅(`<domain>.queries.ts`) | 프로젝트                                       |
-| `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                 | 프로젝트                                       |
-| `src/app`                    | 라우트                                                                       | 프로젝트                                       |
+| 위치                         | 내용                                                                                                               | 누가 고치나                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| `src/shared/api/generated/`  | 타입, fetch 함수, Zod 스키마, MSW 핸들러                                                                           | `npm run api:gen`(orval)만. 손으로 고치지 않음 |
+| `src/shared/api/`의 나머지   | fetch 클라이언트(`api-fetch.ts`, 빌드할 때 서버 컴포넌트의 요청은 `api-fetch.server.ts`), 요청 주소(`base-url.ts`) | 프로젝트                                       |
+| `src/queries/<Query Domain>` | 쿼리 키(`<domain>.keys.ts`), queryOptions·뮤테이션 훅(`<domain>.queries.ts`)                                       | 프로젝트                                       |
+| `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                                                       | 프로젝트                                       |
+| `src/app`                    | 라우트                                                                                                             | 프로젝트                                       |
 
 - `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.

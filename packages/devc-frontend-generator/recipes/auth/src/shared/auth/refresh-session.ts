@@ -1,3 +1,4 @@
+import 'server-only'
 import { requestNewTokens } from './auth-backend'
 import type { Session } from './session'
 

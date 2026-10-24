@@ -7,6 +7,12 @@ import { type LoginBody, User } from '@/shared/api/generated/model'
 /** 로그인 세션을 다루는 Route Handler의 경로. POST는 로그인, GET은 지금 사용자, DELETE는 로그아웃이다. */
 export const SESSION_API_PATH = '/api/session'
 
+/**
+ * 로그인 세션(암호화한 토큰과 사용자 정보)을 담는 httpOnly 쿠키의 이름. 브라우저의 JavaScript는 이 쿠키를 읽지 못하고 서버(session.ts)만
+ * 읽고 쓴다. 서버 전용 모듈인 session.ts 밖에 두어, E2E처럼 Next.js 밖에서 쿠키를 찾는 코드도 이 이름을 쓴다.
+ */
+export const SESSION_COOKIE = 'auth_session'
+
 /** 세션 Route Handler의 응답. 로그인하지 않았으면 user가 null이다. */
 export const SessionResponse = z.object({ user: User.nullable() })
 export type SessionResponse = z.input<typeof SessionResponse>

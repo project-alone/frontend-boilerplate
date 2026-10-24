@@ -489,7 +489,7 @@ describe('api:gen', () => {
   })
 })
 
-// MSW를 끈 서버에 API_BASE_URL이 없을 때 Starter가 내는 오류(src/shared/api/base-url.ts)
+// MSW를 끈 서버에 API_BASE_URL이 없을 때 Starter가 내는 오류(src/shared/api/api-fetch.server.ts)
 const MISSING_API_BASE_URL_MESSAGE = 'API_BASE_URL 환경 변수가 없습니다'
 
 // 샘플 명세의 listProducts example. 개발 서버와 E2E 대상 서버는 MSW가 이 값을 돌려준다.

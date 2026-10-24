@@ -75,6 +75,22 @@ API_MOCKING=enabled npm run build && npm run test:e2e  # 목 빌드: MSW가 응�
 - `process.env`에서 새 환경 변수를 읽으면 `process-env.d.ts`에 선언합니다. 선언하지 않은 이름은 `noPropertyAccessFromIndexSignature` 때문에 `process.env.<이름>`으로 읽을 수 없습니다. 배포 환경에 넣어야 하는 변수라면 `.env.example`에도 적습니다. 배포할 때 넣는 변수는 모두 `.env.example`에 모여 있습니다.
 - 지원 브라우저는 Next.js 기본 범위(Chrome·Edge·Firefox 111+, Safari 16.4+)이며 `package.json`의 `browserslist`에 적혀 있습니다.
 
+## 서버와 브라우저의 경계
+
+Next.js에서는 서버에서 실행되는 코드와 브라우저에서 실행되는 코드를 한 프로젝트 안에서 오가며 씁니다. 파일 맨 위만 보고도 어디서 실행되는지 알 수 있도록, 그리고 반대쪽에서 잘못 가져다 쓰면 `next build`가 실패하도록 다음처럼 표시합니다.
+
+| 표시                   | 붙이는 곳                                                                                                                                                                                                             | 반대쪽에서 import하면                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `import 'server-only'` | 서버에서만 실행되는 모듈. 쿠키·`next/headers`, 세션 암호화, 서버 전용 환경 변수의 비밀 값, `msw/node`, Node.js 내장 모듈을 쓰거나 백엔드를 직접 부르는 모듈(예: `src/shared/api/api-fetch.server.ts`, `bff-proxy.ts`) | 클라이언트 컴포넌트가 import하면 빌드가 실패합니다         |
+| `import 'client-only'` | 컴포넌트가 아니면서 브라우저에서만 실행되는 모듈(예: `src/instrumentation-client.ts`가 부르는 조각)                                                                                                                   | 서버 컴포넌트가 import하면 빌드가 실패합니다               |
+| `'use client'`         | 상태, 이펙트, 이벤트 핸들러, 브라우저 API를 쓰는 컴포넌트                                                                                                                                                             | 서버 컴포넌트는 가져다 쓸 수 있습니다(클라이언트의 시작점) |
+
+- `src/app`의 파일(page, layout, route 등), `src/proxy.ts`, `src/instrumentation.ts`는 Next.js가 위치를 보고 서버에서 실행하므로 표시하지 않습니다.
+- `'use server'`는 서버 전용 표시로 쓰지 않습니다. `'use server'`는 Server Function(Server Action)을 선언하는 지시어라, 붙인 파일이 내보내는 async 함수를 브라우저가 부를 수 있는 엔드포인트로 엽니다. 이 Starter는 브라우저의 요청을 Route Handler(BFF 프록시 등)로 받습니다.
+- 서버와 브라우저가 함께 쓰는 모듈에는 서버에서만 쓰는 값을 두지 않습니다. 예를 들어 요청 주소는 브라우저도 쓰는 `base-url.ts`(`browserBaseUrl`, 목 백엔드 주소)와 서버 전용 `api-fetch.server.ts`(`backendBaseUrl`)로 나뉩니다.
+- 생성된 fetch 함수가 모두 거치는 `apiFetch`(`api-fetch.ts`)는 서버와 브라우저가 함께 쓰므로, 서버의 요청을 보내는 모듈을 `package.json`의 `imports`(`#api-fetch.server`)로 불러옵니다. 서버 컴포넌트, Route Handler, proxy, instrumentation에서는 Next.js가 `react-server` 조건으로 `api-fetch.server.ts`를 고르고, 서버에서 렌더링하는 클라이언트 컴포넌트에서는 `api-fetch.ssr.ts`를 고릅니다. 클라이언트 컴포넌트가 import하는 모듈은 서버 전용 모듈을 불러올 수 없고, 그 렌더링에는 요청의 쿠키도 없기 때문입니다. 그래서 클라이언트 컴포넌트가 서버 렌더링 중에 API를 부르면 고치는 방법을 알리며 실패합니다. 클라이언트 컴포넌트의 데이터는 서버 컴포넌트가 가져와 `HydrationBoundary`로 넘기거나(`useSuspenseQuery`) 브라우저에서 가져옵니다(`useQuery`).
+- 단위 테스트(Vitest)는 Next.js 밖에서 서버 모듈도 직접 불러 시험하므로, `vitest.config.ts`가 `server-only`를 빈 모듈로, `#api-fetch.server`를 `api-fetch.server.ts`로 바꿉니다. E2E(Playwright)와 `next.config.ts`가 불러오는 코드는 Node.js에서 그대로 실행되므로 `server-only`로 시작하는 모듈을 import할 수 없습니다. 그런 곳이 쓰는 값은 표시하지 않은 모듈에 둡니다.
+
 ## 공통 UI와 디자인 토큰
 
 공통 컴포넌트는 `src/shared/ui/`에 있습니다. 키보드 조작과 스크린 리더 지원은 [Base UI](https://base-ui.com)가 맡고, 모양은 디자인 토큰으로 만든 Tailwind CSS 유틸리티가 정합니다. 특정 디자인 시스템의 모양은 담겨 있지 않습니다.
@@ -137,13 +153,13 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 백엔드의 OpenAPI 명세(`openapi.yaml`)가 원본입니다. 명세에서 다시 만드는 계층과 프로젝트가 직접 소유하는 계층이 나뉩니다.
 
-| 위치                         | 내용                                                                                               | 누가 고치나                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `src/shared/api/generated/`  | 타입, fetch 함수, Zod 스키마, MSW 핸들러                                                           | `npm run api:gen`(orval)만. 손으로 고치지 않음 |
-| `src/shared/api/`의 나머지   | fetch 클라이언트(`api-fetch.ts`), 요청 주소(`base-url.ts`), BFF 프록시, MSW 켜기(`api-mocking.ts`) | 프로젝트                                       |
-| `src/queries/<Query Domain>` | 쿼리 키(`<domain>.keys.ts`), queryOptions·뮤테이션 훅(`<domain>.queries.ts`)                       | 프로젝트                                       |
-| `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                                       | 프로젝트                                       |
-| `src/app`                    | 라우트. 서버 컴포넌트에서 prefetch                                                                 | 프로젝트                                       |
+| 위치                         | 내용                                                                                                                                    | 누가 고치나                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `src/shared/api/generated/`  | 타입, fetch 함수, Zod 스키마, MSW 핸들러                                                                                                | `npm run api:gen`(orval)만. 손으로 고치지 않음 |
+| `src/shared/api/`의 나머지   | fetch 클라이언트(`api-fetch.ts`, 서버의 요청은 `api-fetch.server.ts`), 요청 주소(`base-url.ts`), BFF 프록시, MSW 켜기(`api-mocking.ts`) | 프로젝트                                       |
+| `src/queries/<Query Domain>` | 쿼리 키(`<domain>.keys.ts`), queryOptions·뮤테이션 훅(`<domain>.queries.ts`)                                                            | 프로젝트                                       |
+| `src/features/<Feature>`     | 쿼리를 써서 화면을 그리는 UI                                                                                                            | 프로젝트                                       |
+| `src/app`                    | 라우트. 서버 컴포넌트에서 prefetch                                                                                                      | 프로젝트                                       |
 
 - `npm run api:gen`은 `orval.config.ts`대로 `src/shared/api/generated`를 지우고 다시 만듭니다. 같은 명세로 다시 실행하면 결과가 바뀌지 않으므로, 생성 결과는 git에 함께 올립니다. TanStack Query 훅은 만들지 않습니다.
 - 생성 결과는 `lint`와 `format:check` 대상에서 빠집니다(`eslint.config.ts`, `.prettierignore`). 타입 검사는 받습니다.
@@ -156,7 +172,7 @@ git 저장소 안에서 `npm install`을 하면 lefthook이 훅을 설치합니�
 
 생성된 fetch 함수는 모두 `src/shared/api/api-fetch.ts`의 `apiFetch`를 거칩니다. `apiFetch`는 실행 환경에 따라 주소를 고르고, 응답을 명세의 Zod 스키마로 검증합니다. 2xx가 아닌 응답은 `ApiError`로 던집니다.
 
-- 서버(서버 컴포넌트, Route Handler): `API_BASE_URL`의 백엔드를 직접 부릅니다. MSW를 끈 서버(`API_MOCKING`이 `enabled`가 아님)에 `API_BASE_URL`이 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다. 엉뚱한 주소로 조용히 요청하지 않도록 기본값은 두지 않습니다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 컴포넌트도 같아서, MSW를 끈 빌드에 `API_BASE_URL`이 없으면 빌드가 실패합니다(위 "배포용 빌드와 목 빌드").
+- 서버(서버 컴포넌트, Route Handler): `API_BASE_URL`의 백엔드를 직접 부릅니다(`src/shared/api/api-fetch.server.ts`). 서버에서 렌더링하는 클라이언트 컴포넌트는 API를 부르지 않습니다(위 "서버와 브라우저의 경계"). MSW를 끈 서버(`API_MOCKING`이 `enabled`가 아님)에 `API_BASE_URL`이 없으면 서버가 뜰 때 오류를 내고 요청을 처리하지 않습니다. 엉뚱한 주소로 조용히 요청하지 않도록 기본값은 두지 않습니다. 빌드할 때 SSG·ISR 페이지를 렌더링하는 서버 컴포넌트도 같아서, MSW를 끈 빌드에 `API_BASE_URL`이 없으면 빌드가 실패합니다(위 "배포용 빌드와 목 빌드").
 - 브라우저: 늘 BFF 프록시 `/api/proxy/*`(`src/app/api/proxy/[...path]/route.ts`)를 부르고, 프록시가 `API_BASE_URL`로 요청을 그대로 전달합니다. 브라우저가 백엔드를 직접 부르면 프록시가 붙이는 것(`auth` Recipe의 토큰 등)이 빠지므로 주소를 바꾸는 설정은 없습니다.
 - 서버의 요청과 프록시가 전달하는 요청은 `src/shared/api/backend-fetch.ts`의 처리기를 차례로 거쳐 나갑니다. 예를 들어 `auth` Recipe를 넣으면 이 처리기가 로그인 세션의 토큰을 붙입니다.
 

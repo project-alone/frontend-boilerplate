@@ -125,7 +125,7 @@ function expectScreensToPassStarterChecks(starter: Starter, viewTests: readonly 
 const MOCK_BUILD_ENV = { API_MOCKING: 'enabled', API_BASE_URL: '' }
 const DEPLOY_BUILD_ENV = { API_MOCKING: undefined, API_BASE_URL: '' }
 
-// 목 빌드가 빌드 출력에 남기는 경고(src/shared/api/api-mocking.ts)와, 배포용 빌드에 백엔드 주소가 없을 때의 오류(base-url.ts)
+// 목 빌드가 빌드 출력에 남기는 경고(src/shared/api/api-mocking.ts)와, 배포용 빌드에 백엔드 주소가 없을 때의 오류(api-fetch.server.ts)
 const MOCK_BUILD_WARNING = 'API_MOCKING=enabled로 빌드합니다'
 const MISSING_BUILD_API_BASE_URL = 'API_BASE_URL 환경 변수가 없습니다. 빌드할 때 데이터를 가져오는 페이지'
 
