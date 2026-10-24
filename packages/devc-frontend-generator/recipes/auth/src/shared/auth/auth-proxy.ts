@@ -1,10 +1,11 @@
+import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { canEnter, FORBIDDEN_PATH, LOGIN_PATH, protectedRouteOf } from './access-rules'
+import { SESSION_COOKIE } from './auth-client'
 import { refreshSession } from './refresh-session'
 import {
   clearedSessionCookieOptions,
   isAccessTokenExpiring,
-  SESSION_COOKIE,
   sealSession,
   sessionCookieOptions,
   unsealSession,

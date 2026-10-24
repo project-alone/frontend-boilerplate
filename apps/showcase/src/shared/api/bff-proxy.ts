@@ -1,8 +1,10 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): base/src/shared/api/bff-proxy.ts
 
+import 'server-only'
+import { backendBaseUrl } from './api-fetch.server'
 import { backendFetch } from './backend-fetch'
-import { BFF_PROXY_PATH, backendBaseUrl } from './base-url'
+import { BFF_PROXY_PATH } from './base-url'
 
 // 백엔드로 넘기지 않는 요청 헤더. 연결 단위(hop-by-hop) 헤더와, 백엔드 주소로 다시 정해지는 host다.
 // accept-encoding도 빼서 서버의 fetch가 직접 풀 수 있는 압축만 받게 한다.

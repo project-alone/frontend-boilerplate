@@ -14,7 +14,7 @@ declare namespace NodeJS {
      * API 요청을 MSW가 받는다. 이 값으로 만든 빌드 결과는 배포하지 않는다.
      */
     readonly API_MOCKING?: 'enabled' | 'disabled'
-    /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/base-url.ts). API_MOCKING이 enabled가 아니면 꼭 넣는다. */
+    /** 서버(서버 컴포넌트, BFF 프록시)가 부르는 백엔드 주소(src/shared/api/api-fetch.server.ts). API_MOCKING이 enabled가 아니면 꼭 넣는다. */
     readonly API_BASE_URL?: string
     /** enabled로 빌드하면 브라우저의 API 요청을 MSW 서비스 워커가 받는다. static-export에서 쓴다(src/shared/mocks/browser-instrumentation.ts). */
     readonly NEXT_PUBLIC_API_MOCKING?: 'enabled' | 'disabled'

@@ -1,19 +1,13 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): recipes/auth/src/shared/auth/session-routes.ts
 
+import 'server-only'
 import { type NextRequest, NextResponse } from 'next/server'
 import { LoginBody } from '@/shared/api/generated/model'
 import { loginAtBackend, logoutAtBackend } from './auth-backend'
-import type { SessionResponse } from './auth-client'
+import { SESSION_COOKIE, type SessionResponse } from './auth-client'
 import { refreshSession } from './refresh-session'
-import {
-  clearedSessionCookieOptions,
-  type Session,
-  SESSION_COOKIE,
-  sealSession,
-  sessionCookieOptions,
-  sessionOf,
-} from './session'
+import { clearedSessionCookieOptions, type Session, sealSession, sessionCookieOptions, sessionOf } from './session'
 
 // 로그인 세션 Route Handler(src/app/api/session/route.ts). 브라우저가 부르고(auth-client.ts), 서버가 백엔드에 중계한다(ADR-0006).
 // 토큰은 암호화한 httpOnly 쿠키에만 담고 브라우저에는 사용자 정보만 돌려준다.

@@ -1,3 +1,4 @@
+import 'server-only'
 import { readdirSync } from 'node:fs'
 import { relative, sep } from 'node:path'
 

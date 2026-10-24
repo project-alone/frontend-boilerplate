@@ -1,6 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): recipes/auth/extensions.json
 
+import 'server-only'
 import { authBackendFetch } from '@/shared/auth/auth-backend-fetch'
 
 // Starter를 만들 때 Generator가 Base와 Recipe가 더한 조각을 모아 만든 파일이다. 이제는 이 프로젝트의 코드이므로 직접 고친다.
@@ -15,7 +16,7 @@ type BackendFetchHandler = (
 
 const handlers: readonly BackendFetchHandler[] = [authBackendFetch]
 
-/** 서버에서 백엔드로 요청을 보낸다. fetch와 같은 인자를 받는다(src/shared/api/api-fetch.ts, bff-proxy.ts가 쓴다). */
+/** 서버에서 백엔드로 요청을 보낸다. fetch와 같은 인자를 받는다(src/shared/api/api-fetch.server.ts, bff-proxy.ts가 쓴다). */
 export function backendFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const run = (index: number, currentUrl: string, currentInit: RequestInit): Promise<Response> => {
     const handler = handlers[index]

@@ -1,3 +1,4 @@
+import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import type { Instrumentation } from 'next'
 import { enabledSentryDsn, SENTRY_OPTIONS } from './sentry-options'

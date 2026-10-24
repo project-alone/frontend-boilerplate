@@ -1,6 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): recipes/seo/src/shared/seo/page-routes.ts
 
+import 'server-only'
 import { readdirSync } from 'node:fs'
 import { relative, sep } from 'node:path'
 

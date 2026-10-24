@@ -258,6 +258,8 @@ export const ASSEMBLED_FILES: readonly AssembledFile[] = [
   assembledFile({
     path: 'src/shared/api/backend-fetch.ts',
     points: ['backendFetch'],
+    // 서버에서만 실행한다. 처리기가 쿠키를 다루므로 클라이언트 컴포넌트가 import하면 next build가 실패하게 한다.
+    imports: ["import 'server-only'"],
     render: ({ backendFetch }) => [
       '// 서버가 백엔드로 보내는 요청(서버에서 부른 apiFetch, BFF 프록시가 전달하는 브라우저의 요청)을 처리기에 위에서부터 차례로',
       '// 통과시킨 뒤 fetch로 보낸다. 처리기는 요청을 고쳐 next로 넘기고(예: 토큰 첨부), 받은 응답을 고치거나 요청을 다시 보내',
@@ -270,7 +272,7 @@ export const ASSEMBLED_FILES: readonly AssembledFile[] = [
       '',
       `const handlers: readonly BackendFetchHandler[] = [${pieceNames(backendFetch)}]`,
       '',
-      '/** 서버에서 백엔드로 요청을 보낸다. fetch와 같은 인자를 받는다(src/shared/api/api-fetch.ts, bff-proxy.ts가 쓴다). */',
+      '/** 서버에서 백엔드로 요청을 보낸다. fetch와 같은 인자를 받는다(src/shared/api/api-fetch.server.ts, bff-proxy.ts가 쓴다). */',
       'export function backendFetch(url: string, init: RequestInit = {}): Promise<Response> {',
       '  const run = (index: number, currentUrl: string, currentInit: RequestInit): Promise<Response> => {',
       '    const handler = handlers[index]',

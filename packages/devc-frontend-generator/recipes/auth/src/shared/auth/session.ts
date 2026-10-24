@@ -1,13 +1,12 @@
+import 'server-only'
 import { sealData, unsealData } from 'iron-session'
 import * as z from 'zod'
 import { type TokenPair, User } from '@/shared/api/generated/model'
+import { SESSION_COOKIE } from './auth-client'
 
 // 로그인 세션(ADR-0006). 백엔드가 발급한 accessToken·refreshToken과 사용자 정보를 암호화해 httpOnly 쿠키 하나에 담는다.
 // 프론트엔드는 DB를 쓰지 않으므로 세션의 모든 정보가 이 쿠키에 있다. 쿠키는 서버(Route Handler, BFF 프록시, proxy,
 // 서버 컴포넌트)만 읽고 쓰며, 브라우저의 JavaScript는 읽을 수 없다.
-
-/** 세션 쿠키의 이름 */
-export const SESSION_COOKIE = 'auth_session'
 
 /** 세션이 유지되는 시간(초). 토큰을 refresh할 때마다 다시 늘어난다. 백엔드의 refreshToken 수명에 맞춘다. */
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14

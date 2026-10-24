@@ -1,13 +1,8 @@
+import 'server-only'
 import { parseCookie, stringifyCookie, stringifySetCookie } from 'cookie'
+import { SESSION_COOKIE } from './auth-client'
 import { refreshSession } from './refresh-session'
-import {
-  clearedSessionCookieOptions,
-  type Session,
-  SESSION_COOKIE,
-  sealSession,
-  sessionCookieOptions,
-  unsealSession,
-} from './session'
+import { clearedSessionCookieOptions, type Session, sealSession, sessionCookieOptions, unsealSession } from './session'
 import { sessionOfRender } from './session-scope'
 import { isRefusedTokenOperation, refusedTokenOperationResponse } from './token-operations'
 

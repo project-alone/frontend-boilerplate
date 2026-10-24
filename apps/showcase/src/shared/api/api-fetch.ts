@@ -1,7 +1,7 @@
 // 생성된 Showcase 파일이니 직접 고치지 마세요. 원본을 고친 뒤 레포 최상위에서 npm run showcase로 다시 만듭니다.
 // 원본(packages/devc-frontend-generator/): base/src/shared/api/api-fetch.ts
 
-import { backendBaseUrl, browserBaseUrl } from './base-url'
+import { browserBaseUrl } from './base-url'
 
 /**
  * apiFetch의 옵션. orval이 만든 fetch 함수가 응답의 Zod 스키마를 schema로 넘긴다.
@@ -27,20 +27,18 @@ export class ApiError extends Error {
 
 /**
  * 재생성 계층(src/shared/api/generated)의 fetch 함수가 모두 거치는 fetch 클라이언트(orval mutator).
- * 서버에서는 백엔드를 직접, 브라우저에서는 BFF 프록시를 부른다(base-url.ts). 호출하는 쪽은 실행 환경을 신경 쓰지 않는다.
- * 서버의 요청은 Recipe가 더한 처리기(예: auth의 토큰 첨부)를 거쳐 나간다(backend-fetch.ts).
- * 응답은 명세에서 만든 Zod 스키마로 검증해 돌려준다.
+ * 서버에서는 백엔드를 직접(api-fetch.server.ts), 브라우저에서는 BFF 프록시를 부른다(base-url.ts). 호출하는 쪽은 실행 환경을
+ * 신경 쓰지 않는다. 응답은 명세에서 만든 Zod 스키마로 검증해 돌려준다.
  */
 export async function apiFetch<T>(path: string, { schema, ...init }: ApiRequestInit<T> = {}): Promise<T> {
   let response: Response
   if (typeof window === 'undefined') {
-    // 목 빌드(API_MOCKING=enabled로 실행한 next build)이면 요청을 보내기 전에 MSW를 켠다(api-mocking.ts). 그다음 Recipe가
-    // 더한 처리기(backend-fetch.ts)를 거쳐 보낸다. MSW와 처리기는 서버에서만 쓰는 코드(쿠키 암호화 등)다. Next.js는 브라우저
-    // 번들의 `typeof window`를 값으로 바꾸므로, 이 블록 안에서 불러오는 모듈은 브라우저 번들에서 빠진다.
-    const { startBuildApiMocking } = await import('./api-mocking')
-    await startBuildApiMocking()
-    const { backendFetch } = await import('./backend-fetch')
-    response = await backendFetch(`${backendBaseUrl()}${path}`, init)
+    // 서버의 요청은 서버 전용 모듈이 보낸다. package.json의 imports가 서버 컴포넌트, Route Handler, proxy, instrumentation
+    // (react-server 조건)에서는 api-fetch.server.ts를, 서버에서 렌더링하는 클라이언트 컴포넌트에서는 api-fetch.ssr.ts를 고른다.
+    // 클라이언트 컴포넌트가 import하는 모듈은 서버 전용 모듈을 불러올 수 없기 때문이다. Next.js는 브라우저 번들의
+    // `typeof window`를 값으로 바꾸므로, 이 블록은 브라우저 번들에서 빠진다.
+    const { fetchFromServer } = await import('#api-fetch.server')
+    response = await fetchFromServer(path, init)
   } else {
     response = await fetch(`${browserBaseUrl()}${path}`, init)
   }

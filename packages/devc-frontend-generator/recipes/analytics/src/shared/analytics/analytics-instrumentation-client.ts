@@ -1,3 +1,4 @@
+import 'client-only'
 import { trackPageView } from './analytics'
 
 /**

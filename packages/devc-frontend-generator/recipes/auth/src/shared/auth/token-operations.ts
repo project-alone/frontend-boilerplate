@@ -1,3 +1,4 @@
+import 'server-only'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getLoginUrl, getRefreshTokensUrl } from '@/shared/api/generated'
 
